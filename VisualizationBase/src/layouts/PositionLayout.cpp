@@ -298,7 +298,7 @@ void PositionLayout::arrangeItems(int sizeWidth, int sizeHeight)
 
 	const qreal EXPANDING_STEP = 10; // this constant controls by how many units an item gets expanded per iteration step
 
-	int stillExpanding = true; // a flag used to determine when we can stop iterating (as no items will change anymore)
+	int stillExpanding = false; // a flag used to determine when we can stop iterating (as no items will change anymore)
 
 	while (stillExpanding)
 	{
@@ -463,7 +463,7 @@ inline void PositionLayout::automaticSemanticZoomLevelChange(ArrangementAlgorith
 
 		if (geometricZoomScale < 1)
 		{
-			if (item.scale * scale() * geometricZoomScale < ABSTRACTION_THRESHOLD && zoomedOut &&
+			if (item.item->scale() * scale() * geometricZoomScale < ABSTRACTION_THRESHOLD && zoomedOut &&
 					 item.item->semanticZoomLevel() != FULL_DECLARATION_ABSTRACTION_SEMANTIC_ZOOM_LEVEL)
 			{
 				if (allChildrenAbstracted(item))
