@@ -116,6 +116,9 @@ void MainView::wheelEvent(QWheelEvent *event)
 
 		if ( miniMap ) miniMap->visibleRectChanged();
 
+		miniChange = 0.1;
+		scene()->setMainViewScalingFactor(factor);
+		miniChange = 0;
 		scene()->setMainViewScalingFactor(factor);
 	}
 	// Scroll
@@ -134,7 +137,7 @@ qreal MainView::scaleFactor() const
 {
 	if (scaleLevel < SCALING_FACTOR)
 		return SCALING_FACTOR / (qreal) scaleLevel;
-	else return std::pow(1.1, SCALING_FACTOR - scaleLevel);
+	else return std::pow(1.1, SCALING_FACTOR - scaleLevel) + miniChange;
 }
 
 void MainView::scrollContentsBy(int dx, int dy)

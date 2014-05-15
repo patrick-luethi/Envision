@@ -56,6 +56,11 @@ class VISUALIZATIONBASE_API Scene : public QGraphicsScene
 
 	public:
 
+		bool useConstant{false};
+		bool useScaling{false};
+		bool useAutoSwitch{false};
+		bool useHeaderScaling{false};
+
 		using RefreshActionFunction = std::function<void (Scene* scene)>;
 
 		Scene();

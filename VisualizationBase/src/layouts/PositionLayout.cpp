@@ -79,6 +79,7 @@ void PositionLayout::insert(Item* item)
 		throw VisualizationException(
 						"Adding a Item whose node does not have a FullDetailSize extension to a PositionLayout");
 
+
 	item->setParentItem(this);
 	items.append(item);
 	positions.append(pos);
@@ -141,17 +142,57 @@ void PositionLayout::swap(int i, int j)
 
 void PositionLayout::determineChildren()
 {
-	if (needsUpdate() != FullUpdate) return;
-
+	auto oldItems = items;
 	QList<Model::Node*> nodes;
 	for (int i = 0; i<items.size(); i++)
 	{
-		nodes.append(items[i]->node());
-		SAFE_DELETE_ITEM(items[i]);
+			nodes.append(items[i]->node());
 	}
 	items.clear();
 
 	synchronizeWithNodes(nodes, renderer());
+
+	Q_ASSERT(items.size() == oldItems.size());
+	for(int i = 0; i<items.size(); ++i)
+	{
+		Item* toDelete = nullptr;
+		if (items[i]->typeId() == oldItems[i]->typeId())
+		{
+			toDelete = items[i];
+			items[i] = oldItems[i];
+
+
+		}
+		else
+		{
+			toDelete = oldItems[i];
+
+			int FULL_DECLARATION_ABSTRACTION_SEMANTIC_ZOOM_LEVEL = scene()->useConstant ? 6 : 5;
+
+			if (childNodeSemanticZoomLevel(items[i]->node()) != FULL_DECLARATION_ABSTRACTION_SEMANTIC_ZOOM_LEVEL)
+			{
+				Model::CompositeNode* extNode = dynamic_cast<Model::CompositeNode*> (items[i]->node());
+				if (extNode)
+				{
+
+					FullDetailSize* fds = extNode->extension<FullDetailSize>();
+
+					if (fds)
+					{
+						if (fds->zNode())
+						{
+							if (mainViewScalingFactor() > fds->z())
+							{
+								setChildNodeSemanticZoomLevel(items[i]->node(), FULL_DECLARATION_ABSTRACTION_SEMANTIC_ZOOM_LEVEL);
+							}
+						}
+					}
+				}
+			}
+		}
+
+		SAFE_DELETE_ITEM(toDelete);
+	}
 
 	Super::determineChildren();
 }
@@ -298,7 +339,7 @@ void PositionLayout::arrangeItems(int sizeWidth, int sizeHeight)
 
 	const qreal EXPANDING_STEP = 10; // this constant controls by how many units an item gets expanded per iteration step
 
-	int stillExpanding = false; // a flag used to determine when we can stop iterating (as no items will change anymore)
+	int stillExpanding = scene()->useScaling; // a flag used to determine when we can stop iterating (as no items will change anymore)
 
 	while (stillExpanding)
 	{
@@ -423,13 +464,15 @@ void PositionLayout::arrangeItems(int sizeWidth, int sizeHeight)
 															arrangmentItems[i].item->totalScale() / arrangmentItems[i].item->scale());
 
 		// maybe change the semantic zoom level of the item automatically
-		automaticSemanticZoomLevelChange(arrangmentItems[i], arrangmentItems, zoomedIn, zoomedOut, geometricZoomScale);
+		if (scene()->useAutoSwitch)
+			automaticSemanticZoomLevelChange(arrangmentItems[i], arrangmentItems, zoomedIn, zoomedOut, geometricZoomScale,
+					fullDetailSize[i]);
 	}
 }
 
 inline bool PositionLayout::allChildrenAbstracted(ArrangementAlgorithmItem& item)
 {
-	const int FULL_DECLARATION_ABSTRACTION_SEMANTIC_ZOOM_LEVEL = 5;
+	int FULL_DECLARATION_ABSTRACTION_SEMANTIC_ZOOM_LEVEL = scene()->useConstant ? 6 : 5;
 
 	for (auto child : item.item->childItems())
 	{
@@ -447,15 +490,12 @@ inline bool PositionLayout::allChildrenAbstracted(ArrangementAlgorithmItem& item
 }
 
 inline void PositionLayout::automaticSemanticZoomLevelChange(ArrangementAlgorithmItem& item,
-	QVector<ArrangementAlgorithmItem>& allItems, bool zoomedIn, bool zoomedOut, qreal geometricZoomScale)
+	QVector<ArrangementAlgorithmItem>& , bool zoomedIn, bool zoomedOut, qreal geometricZoomScale, FullDetailSize* fds)
 {
-	// defines the threshold when an item gets abstracted if its perceived scale falls below the value
-	const qreal ABSTRACTION_THRESHOLD = 0.8;
-
 	// defines the semantic zoom level to be used when abstracting an item
 	// for performance reasons this is a constant but in the interest of general consistency it's value should be
 	// scene()->defaultRenderer()->semanticZoomLevelId("project_module_class_method_abstraction");
-	const int FULL_DECLARATION_ABSTRACTION_SEMANTIC_ZOOM_LEVEL = 5;
+	int FULL_DECLARATION_ABSTRACTION_SEMANTIC_ZOOM_LEVEL = scene()->useConstant ? 6 : 5;
 
 	if (zoomedIn || zoomedOut)
 	{
@@ -463,55 +503,71 @@ inline void PositionLayout::automaticSemanticZoomLevelChange(ArrangementAlgorith
 
 		if (geometricZoomScale < 1)
 		{
-			if (item.item->scale() * scale() * geometricZoomScale < ABSTRACTION_THRESHOLD && zoomedOut &&
+			if (item.item->scale() * scale() * geometricZoomScale * item.item->widthInLocal() < 200 && zoomedOut &&
 					 item.item->semanticZoomLevel() != FULL_DECLARATION_ABSTRACTION_SEMANTIC_ZOOM_LEVEL)
 			{
 				if (allChildrenAbstracted(item))
 				{
+					qDebug() << "abstracting " << item.item->node()->symbolName();
+
 					// if the user zoomed out and the item's perceived scale fell below the threshold then abstract it
 					setChildNodeSemanticZoomLevel(item.item->node(), FULL_DECLARATION_ABSTRACTION_SEMANTIC_ZOOM_LEVEL);
 
-					automaticSemanticZoomLevelChangeGeometricZoomLevel_.insert(item.item, geometricZoomScale);
+					item.item->node()->beginModification("some purpose...");
+					fds->setZ(geometricZoomScale);
+					item.item->node()->endModification();
 				}
 			}
 			else if (zoomedIn && item.item->semanticZoomLevel() == FULL_DECLARATION_ABSTRACTION_SEMANTIC_ZOOM_LEVEL)
 			{
 				// if the user zoomed in
 
-				QMap<Item*, qreal>::const_iterator iter = automaticSemanticZoomLevelChangeGeometricZoomLevel_.find(
-																																				item.item);
-				if (iter != automaticSemanticZoomLevelChangeGeometricZoomLevel_.end() &&
-						geometricZoomScale >= iter.value())
+				//QSizeF estimatedSize = estimatedItemSizeInFullDetail(item.item);
+
+				// see if it was possible to show it in full detail under the assumption
+				if (fds->zNode() && geometricZoomScale > fds->z())
 				{
+					qDebug() << "show " << item.item->node()->symbolName();
+
 					clearChildNodeSemanticZoomLevel(item.item->node());
-					automaticSemanticZoomLevelChangeGeometricZoomLevel_.remove(item.item);
-				}
-				else
-				{
-					QSizeF oldSize = item.area.size(); // save the current item area size
 
-					// estimate the size the item would have if shown in full detail
-					item.area.setSize(estimatedItemSizeInFullDetail(item.item));
-
-					// see if it was possible to show it in full detail under the assumption
-					if (!item.collidesWithAny(allItems))
-						clearChildNodeSemanticZoomLevel(item.item->node());
-					else
-						// revert the changes to the item area
-						item.area.setSize(oldSize);
+					item.item->node()->beginModification("some purpose...");
+					fds->setZ(0);
+					item.item->node()->endModification();
 				}
 			}
 		}
-		else
+		else if (fds->zNode() && fds->z() != 0)
 			// if the geometric zoom scale is larger or equal to 1 everything should be shown in full detail
+		{
 			clearChildNodeSemanticZoomLevel(item.item->node());
+			item.item->node()->beginModification("some purpose...");
+			fds->setZ(0);
+			item.item->node()->endModification();
+		}
 	}
 }
 
-QSizeF PositionLayout::estimatedItemSizeInFullDetail(Item*)
+QSizeF PositionLayout::estimatedItemSizeInFullDetail(Item* item)
 {
-	// estimate an item to have always a size of 400x400 when shown in full detail
-	return QSize(400, 400);
+	const int ESTIMATION_STRATEGY = 1;
+
+	switch (ESTIMATION_STRATEGY)
+	{
+	case 1:
+		// estimate an item to have always a size of 400x400 when shown in full detail
+		return QSize(400, 400);
+	case 2:
+	{
+		Model::CompositeNode* extNode = dynamic_cast<Model::CompositeNode*> (item->node());
+		Q_ASSERT(extNode);
+		FullDetailSize* fds = extNode->extension<FullDetailSize>();
+		Q_ASSERT(fds);
+		return QSize(fds->x(), fds->y());
+	}
+	default:
+		Q_ASSERT(false);
+	}
 }
 
 bool PositionLayout::scaleItem(ArrangementAlgorithmItem* item, qreal geometricZoomScale)

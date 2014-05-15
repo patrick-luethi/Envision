@@ -107,7 +107,7 @@ void VProject::updateGeometry(int availableWidth, int availableHeight)
 {
 	Super::updateGeometry(availableWidth, availableHeight);
 
-	if (!DCast<RootItem>(parent())) return;
+	if (!DCast<RootItem>(parent()) || !scene()->useHeaderScaling) return;
 
 	qreal invGeometricZoomScale = 1 / mainViewScalingFactor();
 

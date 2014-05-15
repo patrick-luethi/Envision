@@ -58,6 +58,22 @@ void HRootItem::keyPressEvent(Visualization::Item *target, QKeyEvent *event)
 		target->scene()->addPostEventAction(
 			new SetCursorEvent(target, ri->node()));
 	}
+	else if (event->modifiers() == Qt::NoModifier && event->key() == Qt::Key_F4)
+	{
+		target->scene()->useScaling = !target->scene()->useScaling;
+	}
+	else if (event->modifiers() == Qt::ShiftModifier && event->key() == Qt::Key_F11)
+	{
+		target->scene()->useConstant = !target->scene()->useConstant;
+	}
+	else if (event->modifiers() == Qt::ShiftModifier && event->key() == Qt::Key_F2)
+	{
+		target->scene()->useAutoSwitch = !target->scene()->useAutoSwitch;
+	}
+	else if (event->modifiers() == (Qt::ControlModifier | Qt::ShiftModifier) && event->key() == Qt::Key_F4)
+	{
+		target->scene()->useHeaderScaling = !target->scene()->useHeaderScaling;
+	}
 	else GenericHandler::keyPressEvent(target, event);
 }
 

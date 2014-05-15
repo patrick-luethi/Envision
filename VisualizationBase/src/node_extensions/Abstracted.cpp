@@ -24,26 +24,18 @@
 **
 ***********************************************************************************************************************/
 
-#pragma once
-
-#include "../visualizationbase_api.h"
-
-#include "ModelBase/src/nodes/composite/CompositeNode.h"
-#include "ModelBase/src/nodes/Float.h"
-#include "ModelBase/src/nodes/nodeMacros.h"
+#include "node_extensions/FullDetailSize.h"
 
 namespace Visualization {
 
-class VISUALIZATIONBASE_API FullDetailSize
+DEFINE_EXTENSION(FullDetailSize)
+REGISTER_EXTENSION_ATTRIBUTE(FullDetailSize, x, Float, false, true, false)
+REGISTER_EXTENSION_ATTRIBUTE(FullDetailSize, y, Float, false, true, false)
+
+void FullDetailSize::set(qreal x, qreal y)
 {
-	DECLARE_EXTENSION(FullDetailSize)
-
-	EXTENSION_ATTRIBUTE_VALUE(Model::Float, x, setX, qreal)
-	EXTENSION_ATTRIBUTE_VALUE(Model::Float, y, setY, qreal)
-	EXTENSION_ATTRIBUTE_VALUE(Model::Float, z, setZ, qreal)
-
-	public:
-		void set(qreal x, qreal y, qreal z);
-};
+	setX(x);
+	setY(y);
+}
 
 }

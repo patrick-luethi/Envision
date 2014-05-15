@@ -75,6 +75,8 @@ class VISUALIZATIONBASE_API MainView: public View
 		bool isPanning_{};
 		QPoint panStartPos_{};
 
+		qreal miniChange{0};
+
 		void updateInfoLabels();
 		bool setCursorAndOwnerIgnoreScaleForScreenShot(bool ignore, bool modifyOwner);
 };

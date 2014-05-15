@@ -30,6 +30,10 @@
 
 #include "ModelBase/src/nodes/Node.h"
 
+#include <ModelBase/src/nodes/composite/CompositeNode.h>
+
+#include <node_extensions/FullDetailSize.h>
+
 namespace Visualization {
 
 ModelRenderer::ModelRenderer()

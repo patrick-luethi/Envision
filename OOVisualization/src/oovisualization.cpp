@@ -72,12 +72,12 @@ bool OOVisualization::initialize(Core::EnvisionManager&)
 			createVisualization<VStatementItemList, StatementItemList>);
 
 
-	/*Scene::defaultRenderer()->registerSemanticZoomLevel("public_interface", 1);
+	Scene::defaultRenderer()->registerSemanticZoomLevel("public_interface", 1);
 
 	Scene::defaultRenderer()->registerVisualization(Class::typeIdStatic(), "default_purpose", "public_interface",
 			createVisualization<VClassSzPublic, Class>);
 	Scene::defaultRenderer()->registerVisualization(Method::typeIdStatic(), "default_purpose", "public_interface",
-			createVisualization<VMethodSzPublic, Method>);*/
+			createVisualization<VMethodSzPublic, Method>);
 
 
 	Scene::defaultRenderer()->registerSemanticZoomLevel("method_abstraction", 2);
@@ -116,16 +116,16 @@ bool OOVisualization::initialize(Core::EnvisionManager&)
 			"project_module_class_method_abstraction", createVisualization<VDeclarationSz, Project>);
 
 
-	Scene::defaultRenderer()->registerSemanticZoomLevel("test", 1);
+	Scene::defaultRenderer()->registerSemanticZoomLevel("constant", 6);
 
 	Scene::defaultRenderer()->registerVisualization(Method::typeIdStatic(), "default_purpose",
-			"test", createVisualization<VDeclarationConstantSz, Method>);
+			"constant", createVisualization<VDeclarationConstantSz, Method>);
 	Scene::defaultRenderer()->registerVisualization(Class::typeIdStatic(), "default_purpose",
-			"test", createVisualization<VDeclarationConstantSz, Class>);
+			"constant", createVisualization<VDeclarationConstantSz, Class>);
 	Scene::defaultRenderer()->registerVisualization(Module::typeIdStatic(), "default_purpose",
-			"test", createVisualization<VDeclarationConstantSz, Module>);
+			"constant", createVisualization<VDeclarationConstantSz, Module>);
 	Scene::defaultRenderer()->registerVisualization(Project::typeIdStatic(), "default_purpose",
-			"test", createVisualization<VDeclarationConstantSz, Project>);
+			"constant", createVisualization<VDeclarationConstantSz, Project>);
 
 	return true;
 }

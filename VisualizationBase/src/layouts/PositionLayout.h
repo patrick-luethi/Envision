@@ -134,7 +134,7 @@ class VISUALIZATIONBASE_API PositionLayout : public Super<Layout>
 		 * Geometric zoom scale, zoomedIn and zoomedOut are parameters for optimization purposes.
 		 */
 		void automaticSemanticZoomLevelChange(ArrangementAlgorithmItem& item, QVector<ArrangementAlgorithmItem>& allItems,
-													 bool zoomedIn, bool zoomedOut, qreal geometricZoomScale);
+													 bool zoomedIn, bool zoomedOut, qreal geometricZoomScale, FullDetailSize* fds);
 
 		/**
 		 * @brief
@@ -151,10 +151,6 @@ class VISUALIZATIONBASE_API PositionLayout : public Super<Layout>
 		 */
 		QSizeF estimatedItemSizeInFullDetail(Item* item);
 
-		/**
-		 * Stores the geometric zoom scale on which an item was abstracted by the automatic semantic zoom level change.
-		 */
-		QMap<Item*,qreal> automaticSemanticZoomLevelChangeGeometricZoomLevel_;
 
 		void calculateNodesPositionInfo();
 

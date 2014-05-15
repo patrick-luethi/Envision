@@ -40,10 +40,9 @@ class VISUALIZATIONBASE_API FullDetailSize
 
 	EXTENSION_ATTRIBUTE_VALUE(Model::Float, x, setX, qreal)
 	EXTENSION_ATTRIBUTE_VALUE(Model::Float, y, setY, qreal)
-	EXTENSION_ATTRIBUTE_VALUE(Model::Float, z, setZ, qreal)
 
 	public:
-		void set(qreal x, qreal y, qreal z);
+		void set(qreal x, qreal y);
 };
 
 }
