@@ -123,6 +123,10 @@ MetaDefinition* EnvisionMetaDefinition::declare_type_id_common()
             FormalResult* result = new FormalResult(QString(), resultType);
             typeName->results()->append(result);
             context->methods()->append(typeName);
+
+				auto overrideMetaCall = new MetaCallExpression("SET_OVERRIDE_FLAG");
+				overrideMetaCall->arguments()->append(new ReferenceExpression("OVERRIDE"));
+				typeName->metaCalls()->append(overrideMetaCall);
         }
     }
 
