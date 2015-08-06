@@ -205,8 +205,5 @@ SOURCES += src/statements/AssertStatement.cpp \
     src/declarations/MetaCallMapping.cpp \
     src/expressions/MetaCallExpression.cpp \
     src/CodeGenerationVisitor.cpp \
-<<<<<<< HEAD
-    src/elements/FormalMetaArgument.cpp
-=======
+    src/elements/FormalMetaArgument.cpp \
     src/EnvisionMetaDefinition.cpp
->>>>>>> Add envision meta definition storage
