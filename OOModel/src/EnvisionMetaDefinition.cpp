@@ -34,9 +34,9 @@ MetaDefinition* EnvisionMetaDefinition::attribute()
 {
 	auto md = new MetaDefinition("ATTRIBUTE");
 
-	md->arguments()->append(new VariableDeclaration("type"));
-	md->arguments()->append(new VariableDeclaration("name"));
-	md->arguments()->append(new VariableDeclaration("setMethodName"));
+	md->arguments()->append(new FormalMetaArgument("type"));
+	md->arguments()->append(new FormalMetaArgument("name"));
+	md->arguments()->append(new FormalMetaArgument("setMethodName"));
 
 	auto context = new Class("Context");
 	{
@@ -73,9 +73,9 @@ MetaDefinition* EnvisionMetaDefinition::private_attribute()
 {
 	auto md = new MetaDefinition("PRIVATE_ATTRIBUTE");
 
-	md->arguments()->append(new VariableDeclaration("type"));
-	md->arguments()->append(new VariableDeclaration("name"));
-	md->arguments()->append(new VariableDeclaration("setMethodName"));
+	md->arguments()->append(new FormalMetaArgument("type"));
+	md->arguments()->append(new FormalMetaArgument("name"));
+	md->arguments()->append(new FormalMetaArgument("setMethodName"));
 
 	auto context = new Class("Context");
 	{
@@ -112,7 +112,7 @@ MetaDefinition* EnvisionMetaDefinition::declare_type_id_common()
 {
 	auto md = new MetaDefinition("DECLARE_TYPE_ID_COMMON");
 
-	md->arguments()->append(new VariableDeclaration("OVERRIDE"));
+	md->arguments()->append(new FormalMetaArgument("OVERRIDE"));
 
 	auto context = new Class("Context");
 	{
@@ -242,8 +242,8 @@ MetaDefinition* EnvisionMetaDefinition::declare_type_id()
 MetaDefinition* EnvisionMetaDefinition::item_common_custom_stylename()
 {
 	auto md = new MetaDefinition("ITEM_COMMON_CUSTOM_STYLENAME");
-	md->arguments()->append(new VariableDeclaration("ItemClass"));
-	md->arguments()->append(new VariableDeclaration("StyleTypeName"));
+	md->arguments()->append(new FormalMetaArgument("ItemClass"));
+	md->arguments()->append(new FormalMetaArgument("StyleTypeName"));
 
 	auto context = new Class("Context");
 	{
@@ -395,10 +395,10 @@ MetaDefinition* EnvisionMetaDefinition::begin_standard_expression_visualization_
 {
 	auto md = new MetaDefinition("BEGIN_STANDARD_EXPRESSION_VISUALIZATION_STYLE_H");
 
-	md->arguments()->append(new VariableDeclaration("apiSpecification"));
-	md->arguments()->append(new VariableDeclaration("className"));
-	md->arguments()->append(new VariableDeclaration("nodeType"));
-	md->arguments()->append(new VariableDeclaration("styleTypeName"));
+	md->arguments()->append(new FormalMetaArgument("apiSpecification"));
+	md->arguments()->append(new FormalMetaArgument("className"));
+	md->arguments()->append(new FormalMetaArgument("nodeType"));
+	md->arguments()->append(new FormalMetaArgument("styleTypeName"));
 
 	auto context = new Module("Context");
 	{
@@ -450,9 +450,9 @@ MetaDefinition* EnvisionMetaDefinition::begin_standard_expression_visualization_
 {
 	auto md = new MetaDefinition("BEGIN_STANDARD_EXPRESSION_VISUALIZATION_H");
 
-	md->arguments()->append(new VariableDeclaration("apiSpecification"));
-	md->arguments()->append(new VariableDeclaration("className"));
-	md->arguments()->append(new VariableDeclaration("nodeType"));
+	md->arguments()->append(new FormalMetaArgument("apiSpecification"));
+	md->arguments()->append(new FormalMetaArgument("className"));
+	md->arguments()->append(new FormalMetaArgument("nodeType"));
 
 	auto context = new Module("Context");
 	{
@@ -474,10 +474,10 @@ MetaDefinition* EnvisionMetaDefinition::begin_standard_enumeration_expression_vi
 {
 	auto md = new MetaDefinition("BEGIN_STANDARD_ENUMERATION_EXPRESSION_VISUALIZATION_H");
 
-	md->arguments()->append(new VariableDeclaration("apiSpecification"));
-	md->arguments()->append(new VariableDeclaration("className"));
-	md->arguments()->append(new VariableDeclaration("nodeType"));
-	md->arguments()->append(new VariableDeclaration("enumeration"));
+	md->arguments()->append(new FormalMetaArgument("apiSpecification"));
+	md->arguments()->append(new FormalMetaArgument("className"));
+	md->arguments()->append(new FormalMetaArgument("nodeType"));
+	md->arguments()->append(new FormalMetaArgument("enumeration"));
 
 	auto context = new Module("Context");
 	{
@@ -499,10 +499,10 @@ MetaDefinition* EnvisionMetaDefinition::begin_standard_flag_expression_visualiza
 {
 	auto md = new MetaDefinition("BEGIN_STANDARD_FLAG_EXPRESSION_VISUALIZATION_H");
 
-	md->arguments()->append(new VariableDeclaration("apiSpecification"));
-	md->arguments()->append(new VariableDeclaration("className"));
-	md->arguments()->append(new VariableDeclaration("nodeType"));
-	md->arguments()->append(new VariableDeclaration("flag"));
+	md->arguments()->append(new FormalMetaArgument("apiSpecification"));
+	md->arguments()->append(new FormalMetaArgument("className"));
+	md->arguments()->append(new FormalMetaArgument("nodeType"));
+	md->arguments()->append(new FormalMetaArgument("flag"));
 
 	auto context = new Module("Context");
 	{
@@ -522,8 +522,8 @@ MetaDefinition* EnvisionMetaDefinition::expression_part_h()
 {
 	auto md = new MetaDefinition("EXPRESSION_PART_H");
 
-	md->arguments()->append(new VariableDeclaration("type"));
-	md->arguments()->append(new VariableDeclaration("name"));
+	md->arguments()->append(new FormalMetaArgument("type"));
+	md->arguments()->append(new FormalMetaArgument("name"));
 
 	auto context = new Class("Context");
 	{
@@ -555,7 +555,7 @@ MetaDefinition* EnvisionMetaDefinition::prefix_h()
 {
 	auto md = new MetaDefinition("PREFIX_H");
 
-	md->arguments()->append(new VariableDeclaration("condition"));
+	md->arguments()->append(new FormalMetaArgument("condition"));
 
 	auto context = new Class("Context");
 	{
@@ -575,7 +575,7 @@ MetaDefinition* EnvisionMetaDefinition::infix_h()
 {
 	auto md = new MetaDefinition("INFIX_H");
 
-	md->arguments()->append(new VariableDeclaration("condition"));
+	md->arguments()->append(new FormalMetaArgument("condition"));
 
 	auto context = new Class("Context");
 	{
@@ -595,7 +595,7 @@ MetaDefinition* EnvisionMetaDefinition::infix2_h()
 {
 	auto md = new MetaDefinition("INFIX2_H");
 
-	md->arguments()->append(new VariableDeclaration("condition"));
+	md->arguments()->append(new FormalMetaArgument("condition"));
 
 	auto context = new Class("Context");
 	{
@@ -615,7 +615,7 @@ MetaDefinition* EnvisionMetaDefinition::postfix_h()
 {
 	auto md = new MetaDefinition("POSTFIX_H");
 
-	md->arguments()->append(new VariableDeclaration("condition"));
+	md->arguments()->append(new FormalMetaArgument("condition"));
 
 	auto context = new Class("Context");
 	{
@@ -635,7 +635,7 @@ MetaDefinition* EnvisionMetaDefinition::operand_h()
 {
 	auto md = new MetaDefinition("OPERAND_H");
 
-	md->arguments()->append(new VariableDeclaration("name"));
+	md->arguments()->append(new FormalMetaArgument("name"));
 
 	auto context = new Class("Context");
 	{
@@ -655,8 +655,8 @@ MetaDefinition* EnvisionMetaDefinition::wrapped_operand_h()
 {
 	auto md = new MetaDefinition("WRAPPED_OPERAND_H");
 
-	md->arguments()->append(new VariableDeclaration("name"));
-	md->arguments()->append(new VariableDeclaration("wrapId"));
+	md->arguments()->append(new FormalMetaArgument("name"));
+	md->arguments()->append(new FormalMetaArgument("wrapId"));
 
 	auto context = new Class("Context");
 	{
@@ -673,9 +673,9 @@ MetaDefinition* EnvisionMetaDefinition::begin_standard_expression_visualization_
 {
 	auto md = new MetaDefinition("BEGIN_STANDARD_EXPRESSION_VISUALIZATION_ALL_CPP");
 
-	md->arguments()->append(new VariableDeclaration("apiSpecification"));
-	md->arguments()->append(new VariableDeclaration("className"));
-	md->arguments()->append(new VariableDeclaration("nodeType"));
+	md->arguments()->append(new FormalMetaArgument("apiSpecification"));
+	md->arguments()->append(new FormalMetaArgument("className"));
+	md->arguments()->append(new FormalMetaArgument("nodeType"));
 
 	auto context = new Module("Context");
 	{
@@ -736,9 +736,9 @@ MetaDefinition* EnvisionMetaDefinition::begin_standard_expression_visualization_
 {
 	auto md = new MetaDefinition("BEGIN_STANDARD_EXPRESSION_VISUALIZATION_CPP");
 
-	md->arguments()->append(new VariableDeclaration("apiSpecification"));
-	md->arguments()->append(new VariableDeclaration("className"));
-	md->arguments()->append(new VariableDeclaration("nodeType"));
+	md->arguments()->append(new FormalMetaArgument("apiSpecification"));
+	md->arguments()->append(new FormalMetaArgument("className"));
+	md->arguments()->append(new FormalMetaArgument("nodeType"));
 
 	auto context = new Method("Context");
 	{
@@ -771,10 +771,10 @@ MetaDefinition* EnvisionMetaDefinition::begin_standard_enumeration_expression_vi
 {
 	auto md = new MetaDefinition("BEGIN_STANDARD_ENUMERATION_EXPRESSION_VISUALIZATION_CPP");
 
-	md->arguments()->append(new VariableDeclaration("apiSpecification"));
-	md->arguments()->append(new VariableDeclaration("className"));
-	md->arguments()->append(new VariableDeclaration("nodeType"));
-	md->arguments()->append(new VariableDeclaration("enumeration"));
+	md->arguments()->append(new FormalMetaArgument("apiSpecification"));
+	md->arguments()->append(new FormalMetaArgument("className"));
+	md->arguments()->append(new FormalMetaArgument("nodeType"));
+	md->arguments()->append(new FormalMetaArgument("enumeration"));
 
 	auto context = new Method("Context");
 	{
@@ -815,10 +815,10 @@ MetaDefinition* EnvisionMetaDefinition::begin_standard_flag_expression_visualiza
 {
 	auto md = new MetaDefinition("BEGIN_STANDARD_EXPRESSION_VISUALIZATION_CPP");
 
-	md->arguments()->append(new VariableDeclaration("apiSpecification"));
-	md->arguments()->append(new VariableDeclaration("className"));
-	md->arguments()->append(new VariableDeclaration("nodeType"));
-	md->arguments()->append(new VariableDeclaration("flag"));
+	md->arguments()->append(new FormalMetaArgument("apiSpecification"));
+	md->arguments()->append(new FormalMetaArgument("className"));
+	md->arguments()->append(new FormalMetaArgument("nodeType"));
+	md->arguments()->append(new FormalMetaArgument("flag"));
 
 	auto context = new Method("Context");
 	{
@@ -891,7 +891,7 @@ MetaDefinition* EnvisionMetaDefinition::operand_cpp()
 {
 	auto md = new MetaDefinition("OPERAND_CPP");
 
-	md->arguments()->append(new VariableDeclaration("name"));
+	md->arguments()->append(new FormalMetaArgument("name"));
 
 	auto context = new Method("Context");
 	{
@@ -924,8 +924,8 @@ MetaDefinition* EnvisionMetaDefinition::wrapped_operand_cpp()
 {
 	auto md = new MetaDefinition("WRAPPED_OPERAND_CPP");
 
-	md->arguments()->append(new VariableDeclaration("name"));
-	md->arguments()->append(new VariableDeclaration("wrapId"));
+	md->arguments()->append(new FormalMetaArgument("name"));
+	md->arguments()->append(new FormalMetaArgument("wrapId"));
 
 	auto context = new Method("Context");
 	{
@@ -969,9 +969,9 @@ MetaDefinition* EnvisionMetaDefinition::preinpostfix_cpp()
 {
 	auto md = new MetaDefinition("PREINPOSTFIX_CPP");
 
-	md->arguments()->append(new VariableDeclaration("name"));
-	md->arguments()->append(new VariableDeclaration("condition"));
-	md->arguments()->append(new VariableDeclaration("styleAttribute"));
+	md->arguments()->append(new FormalMetaArgument("name"));
+	md->arguments()->append(new FormalMetaArgument("condition"));
+	md->arguments()->append(new FormalMetaArgument("styleAttribute"));
 
 	auto context = new Method("Context");
 	{
@@ -1013,7 +1013,7 @@ MetaDefinition* EnvisionMetaDefinition::prefix_cpp()
 {
 	auto md = new MetaDefinition("PREFIX_CPP");
 
-	md->arguments()->append(new VariableDeclaration("condition"));
+	md->arguments()->append(new FormalMetaArgument("condition"));
 
 	auto context = new Method("Context");
 	{
@@ -1032,7 +1032,7 @@ MetaDefinition* EnvisionMetaDefinition::infix_cpp()
 {
 	auto md = new MetaDefinition("INFIX_CPP");
 
-	md->arguments()->append(new VariableDeclaration("condition"));
+	md->arguments()->append(new FormalMetaArgument("condition"));
 
 	auto context = new Class("Context");
 	{
@@ -1051,7 +1051,7 @@ MetaDefinition* EnvisionMetaDefinition::infix2_cpp()
 {
 	auto md = new MetaDefinition("INFIX2_CPP");
 
-	md->arguments()->append(new VariableDeclaration("condition"));
+	md->arguments()->append(new FormalMetaArgument("condition"));
 
 	auto context = new Method("Context");
 	{
@@ -1070,7 +1070,7 @@ MetaDefinition* EnvisionMetaDefinition::postfix_cpp()
 {
 	auto md = new MetaDefinition("POSTFIX_CPP");
 
-	md->arguments()->append(new VariableDeclaration("condition"));
+	md->arguments()->append(new FormalMetaArgument("condition"));
 
 	auto context = new Method("Context");
 	{
@@ -1089,11 +1089,11 @@ MetaDefinition* EnvisionMetaDefinition::begin_standard_expression_visualization_
 {
 	auto md = new MetaDefinition("BEGIN_STANDARD_EXPRESSION_VISUALIZATION_BASE");
 
-	md->arguments()->append(new VariableDeclaration("apiSpecification"));
-	md->arguments()->append(new VariableDeclaration("className"));
-	md->arguments()->append(new VariableDeclaration("nodeType"));
-	md->arguments()->append(new VariableDeclaration("styleTypeName"));
-	md->arguments()->append(new VariableDeclaration("list"));
+	md->arguments()->append(new FormalMetaArgument("apiSpecification"));
+	md->arguments()->append(new FormalMetaArgument("className"));
+	md->arguments()->append(new FormalMetaArgument("nodeType"));
+	md->arguments()->append(new FormalMetaArgument("styleTypeName"));
+	md->arguments()->append(new FormalMetaArgument("list"));
 
 	auto mb1 = new MetaBinding("list1");
 	{
