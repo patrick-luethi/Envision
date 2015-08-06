@@ -95,8 +95,6 @@ Class* addFoo(Project* parent)
 	metaCallStmt->setExpression(metaCall);
 	main->items()->append(metaCallStmt);
 
-	metaCall->generate();
-
 	return c;
 }
 
