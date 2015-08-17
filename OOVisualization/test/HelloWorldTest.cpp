@@ -55,15 +55,11 @@ using namespace Comments;
 
 namespace OOVisualization {
 
-Class* addFoo(Project* parent)
+void addFoo(Project* parent)
 {
-	auto c = new Class("Foo");
-	if (parent) parent->classes()->append(c);
+	auto m = new Module("Foo");
+	if (parent) parent->modules()->append(m);
 
-	Method* main = new Method("bar");
-	c->methods()->append(main);
-
-	ExpressionStatement* metaCallStmt = new ExpressionStatement();
 	/*MetaCallExpression* metaCall = new MetaCallExpression("ATTRIBUTE");
 		 metaCall->arguments()->append(new OOModel::PrimitiveTypeExpression(PrimitiveType::PrimitiveTypes::BOOLEAN));
 		 metaCall->arguments()->append(new ReferenceExpression("subDeclarations"));
@@ -92,10 +88,7 @@ Class* addFoo(Project* parent)
 	}
 	metaCall->arguments()->append(list);
 
-	metaCallStmt->setExpression(metaCall);
-	main->items()->append(metaCallStmt);
-
-	return c;
+	m->metaCalls()->append(metaCall);
 }
 
 TEST(OOVisualizationPlugin, JavaLibraryAndHelloWorldTest)
