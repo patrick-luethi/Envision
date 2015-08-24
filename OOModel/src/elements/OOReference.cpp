@@ -139,9 +139,9 @@ Model::Node* OOReference::computeTarget() const
 
 //	return resolveAmbiguity(candidateTargets);
 
-	auto scope = parentScope();
-	return scope->findSymbol(name());
-
+	if (auto scope = parentScope())
+		return scope->findSymbol(name());
+	return nullptr;
 }
 
 OOReference::ReferenceTargetKind OOReference::referenceTargetKind() const
