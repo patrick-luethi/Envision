@@ -39,6 +39,7 @@ void CppImportPPCallback::MacroDefined(const clang::Token& MacroNameTok, const c
 	if (name.startsWith("_")) return; // TODO: just for debug
 
 	result_.addMacroDefinition(name, MD);
+	macroImportHelper_.addMacroDefinition(name, MD);
 
 	auto begin = MD->getMacroInfo()->getDefinitionLoc();
 	auto end = MD->getMacroInfo()->getDefinitionEndLoc();
@@ -79,6 +80,7 @@ void CppImportPPCallback::MacroExpands(const clang::Token& MacroNameTok, const c
 											definitions_[parentMacroName] : nullptr;
 
 	result_.addMacroExpansion(sr, md, args, parentMacroDefinition);
+	macroImportHelper_.addMacroExpansion(sr, md, args);
 
 	//auto expansionSpellingBegin = sourceManager_->getSpellingLoc(sr.getBegin());
 	//auto expansionSpellingEnd = sourceManager_->getSpellingLoc(sr.getEnd());

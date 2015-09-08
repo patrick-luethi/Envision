@@ -29,6 +29,7 @@
 #include "../cppimport_api.h"
 #include "../manager/TranslateManager.h"
 #include "../manager/ClangMacroInfo.h"
+#include "../manager/MacroImportHelper.h"
 #include "../CppImportLogger.h"
 #include "../comments/CommentParser.h"
 
@@ -126,14 +127,14 @@ class CPPIMPORT_API ClangAstVisitor : public clang::RecursiveASTVisitor <ClangAs
 		clang::Preprocessor* preprocessor_{};
 
 		ClangMacroInfo importResult_{};
+		MacroImportHelper macroImportHelper_{};
 
 		QString getSpelling(clang::SourceLocation start, clang::SourceLocation end);
 		clang::ParentMap* pm_{};
 
 		TranslateManager* trMngr_{};
-		QString stmt2str(clang::Stmt* s);
-		clang::SourceLocation getImmedateMacroLoc(clang::SourceLocation Loc);
-		clang::SourceLocation joinTest(clang::SourceLocation l1, clang::SourceLocation l2, bool* success);
+
+		void DebugStmt(clang::Stmt* S);
 	private:
 		using Base = clang::RecursiveASTVisitor<ClangAstVisitor>;
 
@@ -187,7 +188,6 @@ class CPPIMPORT_API ClangAstVisitor : public clang::RecursiveASTVisitor <ClangAs
 		 * The decision is based on wheter the \a location is valid and on the value of \a importSysHeader_
 		 */
 		bool shouldImport(const clang::SourceLocation& location);
-		QVector<clang::SourceLocation> allTest(clang::SourceLocation loc);
 };
 
 // method

@@ -57,7 +57,8 @@ HEADERS += src/precompiled.h \
     src/CppImportPPCallback.h \
     src/manager/ClangAstNodeInfo.h \
     src/manager/ClangMacroInfo.h \
-    src/manager/ClangMacroInfoEntry.h
+    src/manager/ClangMacroInfoEntry.h \
+    src/manager/MacroImportHelper.h
 SOURCES += src/CppImportException.cpp \
 	test/SimpleTest.cpp \
     src/ClangAstConsumer.cpp \
@@ -76,4 +77,5 @@ SOURCES += src/CppImportException.cpp \
     src/CppImportPPCallback.cpp \
     src/manager/ClangAstNodeInfo.cpp \
     src/manager/ClangMacroInfo.cpp \
-    src/manager/ClangMacroInfoEntry.cpp
+    src/manager/ClangMacroInfoEntry.cpp \
+    src/manager/MacroImportHelper.cpp
