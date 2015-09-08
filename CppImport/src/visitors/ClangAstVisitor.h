@@ -28,8 +28,13 @@
 
 #include "../cppimport_api.h"
 #include "../manager/TranslateManager.h"
+#include "../manager/ClangMacroInfo.h"
 #include "../CppImportLogger.h"
 #include "../comments/CommentParser.h"
+
+namespace clang {
+	class ParentMap;
+}
 
 namespace CppImport {
 
@@ -54,6 +59,9 @@ class CPPIMPORT_API ClangAstVisitor : public clang::RecursiveASTVisitor <ClangAs
 		Model::Node* ooStackTop();
 		void pushOOStack(Model::Node* node);
 		Model::Node* popOOStack();
+
+
+		bool isParentSameExpansion(clang::Stmt* S);
 
 		// method only for debugging
 		bool VisitDecl(clang::Decl* decl);
@@ -112,6 +120,20 @@ class CPPIMPORT_API ClangAstVisitor : public clang::RecursiveASTVisitor <ClangAs
 		 */
 		bool shouldUseDataRecursionfor (clang::Stmt* S);
 
+		const clang::SourceManager* sourceManager_{};
+		clang::PreprocessingRecord* record_{};
+
+		clang::Preprocessor* preprocessor_{};
+
+		ClangMacroInfo importResult_{};
+
+		QString getSpelling(clang::SourceLocation start, clang::SourceLocation end);
+		clang::ParentMap* pm_{};
+
+		TranslateManager* trMngr_{};
+		QString stmt2str(clang::Stmt* s);
+		clang::SourceLocation getImmedateMacroLoc(clang::SourceLocation Loc);
+		clang::SourceLocation joinTest(clang::SourceLocation l1, clang::SourceLocation l2, bool* success);
 	private:
 		using Base = clang::RecursiveASTVisitor<ClangAstVisitor>;
 
@@ -119,13 +141,10 @@ class CPPIMPORT_API ClangAstVisitor : public clang::RecursiveASTVisitor <ClangAs
 		QStack<OOModel::Expression*> ooExprStack_;
 
 		CppImportLogger* log_{};
-		TranslateManager* trMngr_{};
 		CppImportUtilities* utils_{};
 		ExpressionVisitor* exprVisitor_{};
 		TemplateArgumentVisitor* templArgVisitor_{};
 		CommentParser* commentParser_{};
-		const clang::SourceManager* sourceManager_{};
-		const clang::Preprocessor* preprocessor_{};
 		bool importSysHeader_{false};
 		bool inBody_{true};
 		const QString className_{"ClangAstVisitor"};
@@ -168,6 +187,7 @@ class CPPIMPORT_API ClangAstVisitor : public clang::RecursiveASTVisitor <ClangAs
 		 * The decision is based on wheter the \a location is valid and on the value of \a importSysHeader_
 		 */
 		bool shouldImport(const clang::SourceLocation& location);
+		QVector<clang::SourceLocation> allTest(clang::SourceLocation loc);
 };
 
 // method

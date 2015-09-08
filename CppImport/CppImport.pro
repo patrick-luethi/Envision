@@ -53,7 +53,11 @@ HEADERS += src/precompiled.h \
     src/manager/TranslateManager.h \
     src/TranslateFrontendAction.h \
     src/CppImportPlugin.h \
-    src/comments/CommentParser.h
+    src/comments/CommentParser.h \
+    src/CppImportPPCallback.h \
+    src/manager/ClangAstNodeInfo.h \
+    src/manager/ClangMacroInfo.h \
+    src/manager/ClangMacroInfoEntry.h
 SOURCES += src/CppImportException.cpp \
 	test/SimpleTest.cpp \
     src/ClangAstConsumer.cpp \
@@ -68,4 +72,8 @@ SOURCES += src/CppImportException.cpp \
     src/manager/TranslateManager.cpp \
     src/TranslateFrontendAction.cpp \
     src/CppImportPlugin.cpp \
-    src/comments/CommentParser.cpp
+    src/comments/CommentParser.cpp \
+    src/CppImportPPCallback.cpp \
+    src/manager/ClangAstNodeInfo.cpp \
+    src/manager/ClangMacroInfo.cpp \
+    src/manager/ClangMacroInfoEntry.cpp

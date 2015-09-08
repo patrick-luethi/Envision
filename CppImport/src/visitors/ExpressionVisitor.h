@@ -59,6 +59,7 @@ class CPPIMPORT_API ExpressionVisitor : public clang::RecursiveASTVisitor <Expre
 
 		bool VisitExpr(clang::Expr* e);
 
+		bool TraverseStmt(clang::Stmt* S);
 		// memberExpr
 		bool TraverseMemberExpr(clang::MemberExpr* memberExpr);
 		bool TraverseUnresolvedMemberExpr(clang::UnresolvedMemberExpr* unresolvedMember);
