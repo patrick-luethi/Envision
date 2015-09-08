@@ -37,6 +37,7 @@ OOModel::FormalTypeArgument* TemplateArgumentVisitor::translateTemplateArg(clang
 	// remove reference lastTranslatedArg
 	lastTranslatedTypeArg_ = nullptr;
 	TraverseDecl(d);
+	// TODO: exprVisitor_->baseVisitor_->trMngr_->mapping_[d] = lastTranslatedTypeArg_;
 	Q_ASSERT(lastTranslatedTypeArg_);
 	return lastTranslatedTypeArg_;
 }

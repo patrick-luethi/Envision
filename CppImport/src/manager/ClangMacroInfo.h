@@ -1,6 +1,6 @@
 /***********************************************************************************************************************
  **
- ** Copyright (c) 2011, 2014 ETH Zurich
+ ** Copyright (c) 2011, 2015 ETH Zurich
  ** All rights reserved.
  **
  ** Redistribution and use in source and binary forms, with or without modification, are permitted provided that the
@@ -27,47 +27,51 @@
 #pragma once
 
 #include "cppimport_api.h"
-#include "visitors/ClangAstVisitor.h"
+#include "ClangMacroInfoEntry.h"
+#include "ClangAstNodeInfo.h"
+#include "clang/Lex/MacroArgs.h"
 
 namespace CppImport {
 
-class CPPIMPORT_API ClangAstConsumer : public clang::ASTConsumer
+class CPPIMPORT_API ClangMacroInfo
 {
 	public:
-		ClangAstConsumer(ClangAstVisitor* visitor);
+		struct ExpansionEntry
+		{
+				clang::SourceRange expansion;
+				const clang::MacroDirective* definition;
+				const clang::MacroDirective* parent;
+				QVector<clang::SourceLocation> arguments;
+				QVector<ExpansionEntry*> children;
+		};
 
-		/**
-		 * Starts the astVisitor_ on this translation unit
-		 */
-		virtual void HandleTranslationUnit(clang::ASTContext& astContext) override;
+		void test(clang::Stmt* S);
 
-		/**
-		 * Sets the compilerInstance of the logger_ and the astVisitor_ to \a compilerInstance
-		 */
-		void setCompilerInstance(const clang::CompilerInstance* compilerInstance);
+		void setSourceManager(const clang::SourceManager* sourceManager);
+
+		void addMacroDefinition(QString name, const clang::MacroDirective* md);
+		void addMacroExpansion(clang::SourceRange expansion, const clang::MacroDirective* md,
+									  const clang::MacroArgs* args, const clang::MacroDirective* parent);
+
+		ExpansionEntry* getExpansionInfo(ClangAstNodeInfo nodeInfo);
+
+		QString getDefinitionName(const clang::MacroDirective* md);
+
+
+		const clang::MacroDirective* getMacroDefinitionForArgument(ClangAstNodeInfo nodeInfo, int* argumentNumber);
+
+		const clang::MacroDirective* getMDForArg(clang::IdentifierInfo* arg);
+
+		void calculateMacroChildren();
 
 	private:
-		ClangAstVisitor* astVisitor_{};
-		clang::CompilerInstance* ci_{};
+		ExpansionEntry* getMacroExpansion(ClangAstNodeInfo nodeInfo);
 
-		void getArguments(Model::Node* node, QVector<Model::Node*>& result);
+		const clang::SourceManager* sourceManager_;
 
-		void constructMetaDefBody(Model::Node* node,
-										  ClangMacroInfo::ExpansionEntry* entry);
-		void getChildNodesWithAstInfo(Model::Node* node, QVector<Model::Node*>& result);
+		QHash<const clang::MacroDirective*, QString> definitions_;
 
-		void generateMetaCall(ClangMacroInfo::ExpansionEntry* expansionInfo,
-									 QSet<QString>& duplicatePrevention,
-									 Model::Node* ooNode,
-									 Model::Node* ooNodeParent);
-		void generateMetaDef(ClangMacroInfo::ExpansionEntry* expansionInfo,
-									 QSet<QString>& duplicatePrevention,
-									 QString definitionName, Model::Node* ooNode,
-									QVector<Model::Node*>& arguments);
-		void oldGeneration();
-		void macroGeneration();
-		QVector<Model::Node*> getTopLevelMacroExpansionNodes();
-		void handleMacroExpansion(Model::Node* node);
+		QVector<ExpansionEntry> expansions_;
 };
 
 }

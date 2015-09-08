@@ -39,6 +39,7 @@ TranslateManager::~TranslateManager()
 
 void TranslateManager::setSourceManager(const clang::SourceManager* mngr)
 {
+	sourceManager_ = mngr;
 	nh_->setSourceManager(mngr);
 }
 
@@ -55,6 +56,9 @@ OOModel::Module *TranslateManager::insertNamespace(clang::NamespaceDecl* namespa
 		return nameSpaceMap_.value(hash);
 	OOModel::Module* ooModule = new OOModel::Module(QString::fromStdString(namespaceDecl->getNameAsString()));
 	nameSpaceMap_.insert(hash, ooModule);
+
+	mapAst(namespaceDecl, ooModule);
+
 	if (namespaceDecl->getDeclContext()->isTranslationUnit())
 		rootProject_->modules()->append(ooModule);
 	else if (auto p = llvm::dyn_cast<clang::NamespaceDecl>(namespaceDecl->getDeclContext()))
@@ -76,6 +80,7 @@ bool TranslateManager::insertClass(clang::CXXRecordDecl* rDecl, OOModel::Class* 
 	if (!classMap_.contains(hash))
 	{
 		classMap_.insert(hash, ooClass);
+		mapAst(rDecl, ooClass);
 		return true;
 	}
 	return false;
@@ -87,6 +92,7 @@ bool TranslateManager::insertClassTemplate(clang::ClassTemplateDecl* classTempla
 	if (!classMap_.contains(hash))
 	{
 		classMap_.insert(hash, ooClass);
+		mapAst(classTemplate, ooClass);
 		return true;
 	}
 	return false;
@@ -99,6 +105,7 @@ bool TranslateManager::insertClassTemplateSpec
 	if (!classMap_.contains(hash))
 	{
 		classMap_.insert(hash, ooClass);
+		mapAst(classTemplate, ooClass);
 		return true;
 	}
 	return false;
@@ -165,6 +172,7 @@ OOModel::Field* TranslateManager::insertField(clang::FieldDecl* fieldDecl)
 		OOModel::Field* ooField = new OOModel::Field();
 		ooField->setName(QString::fromStdString(fieldDecl->getNameAsString()));
 		classMap_.value(hash)->fields()->append(ooField);
+		mapAst(fieldDecl, ooField);
 		return ooField;
 	}
 	return nullptr;
@@ -185,6 +193,7 @@ OOModel::Field* TranslateManager::insertStaticField(clang::VarDecl* varDecl, boo
 		OOModel::Field* ooField = new OOModel::Field(QString::fromStdString(varDecl->getNameAsString()));
 		classMap_.value(parentHash)->fields()->append(ooField);
 		staticFieldMap_.insert(hash, ooField);
+		mapAst(varDecl, ooField);
 		return ooField;
 	}
 	return nullptr;
@@ -199,6 +208,7 @@ OOModel::ExplicitTemplateInstantiation* TranslateManager::insertExplicitTemplate
 	{
 		ooExplicitTemplateInst = new OOModel::ExplicitTemplateInstantiation();
 		explicitTemplateInstMap_.insert(hash, ooExplicitTemplateInst);
+		mapAst(const_cast<clang::ClassTemplateSpecializationDecl*>(explicitTemplateInst), ooExplicitTemplateInst);
 	}
 	return ooExplicitTemplateInst;
 }
@@ -275,6 +285,22 @@ OOModel::TypeAlias* TranslateManager::insertTypeAliasTemplate(clang::TypeAliasTe
 	return ooAlias;
 }
 
+void TranslateManager::mapAst(clang::Stmt* clangAstNode, Model::Node* envisionAstNode)
+{
+	auto e = &mapping2_[envisionAstNode];
+
+	e->value_ = "Stmt";
+	e->sourceRange_ = clangAstNode->getSourceRange();
+}
+
+void TranslateManager::mapAst(clang::Decl* clangAstNode, Model::Node* envisionAstNode)
+{
+	auto e = &mapping2_[envisionAstNode];
+
+	e->value_ = "Decl";
+	e->sourceRange_ = clangAstNode->getSourceRange();
+}
+
 OOModel::Method* TranslateManager::addNewMethod(clang::CXXMethodDecl* mDecl, OOModel::Method::MethodKind kind)
 {
 	const QString hash = nh_->hashMethod(mDecl);
@@ -316,6 +342,8 @@ OOModel::Method* TranslateManager::addNewMethod(clang::CXXMethodDecl* mDecl, OOM
 
 	methodMap_.insert(hash, method);
 
+	mapAst(mDecl, method);
+
 	return method;
 }
 
@@ -345,6 +373,8 @@ OOModel::Method* TranslateManager::addNewFunction(clang::FunctionDecl* functionD
 	}
 
 	functionMap_.insert(nh_->hashFunction(functionDecl), ooFunction);
+
+	mapAst(functionDecl, ooFunction);
 
 	return ooFunction;
 }

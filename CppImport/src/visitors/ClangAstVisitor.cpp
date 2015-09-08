@@ -28,8 +28,11 @@
 #include "ExpressionVisitor.h"
 #include "../CppImportUtilities.h"
 #include "TemplateArgumentVisitor.h"
+#include "CppImportPPCallback.h"
 
 #include <clang/AST/Comment.h>
+#include <clang/AST/ParentMap.h>
+#include <clang/Lex/PreprocessingRecord.h>
 
 namespace CppImport {
 
@@ -61,12 +64,18 @@ void ClangAstVisitor::setSourceManager(const clang::SourceManager* sourceManager
 	Q_ASSERT(sourceManager);
 	sourceManager_ = sourceManager;
 	trMngr_->setSourceManager(sourceManager);
+	importResult_.setSourceManager(sourceManager);
 }
 
 void ClangAstVisitor::setPreprocessor(const clang::Preprocessor* preprocessor)
 {
 	Q_ASSERT(preprocessor);
-	preprocessor_ = preprocessor;
+	preprocessor_ = const_cast<clang::Preprocessor*>(preprocessor);
+	record_ = new clang::PreprocessingRecord(const_cast<clang::SourceManager&>(*sourceManager_));
+	preprocessor_->addPPCallbacks(std::unique_ptr<clang::PPCallbacks>(record_));
+	preprocessor_->addPPCallbacks(std::make_unique<CppImportPPCallback>(
+												preprocessor_,
+												sourceManager_, importResult_));
 }
 
 Model::Node*ClangAstVisitor::ooStackTop()
@@ -353,6 +362,9 @@ bool ClangAstVisitor::TraverseVarDecl(clang::VarDecl* varDecl)
 	ooVarDecl->setTypeExpression(utils_->translateQualifiedType(varDecl->getType(), varDecl->getLocStart()));
 	// modifiers
 	ooVarDecl->modifiers()->set(utils_->translateStorageSpecifier(varDecl->getStorageClass()));
+
+	trMngr_->mapAst(varDecl, ooVarDecl);
+
 	return true;
 }
 
@@ -391,6 +403,9 @@ bool ClangAstVisitor::TraverseEnumDecl(clang::EnumDecl* enumDecl)
 
 	OOModel::Class* ooEnumClass = new OOModel::Class
 			(QString::fromStdString(enumDecl->getNameAsString()), OOModel::Class::ConstructKind::Enum);
+
+	trMngr_->mapAst(enumDecl, ooEnumClass);
+
 	// insert in tree
 	if (OOModel::Project* curProject = DCast<OOModel::Project>(ooStack_.top()))
 		curProject->classes()->append(ooEnumClass);
@@ -568,8 +583,157 @@ bool ClangAstVisitor::TraverseUnresolvedUsingValueDecl(clang::UnresolvedUsingVal
 	return true;
 }
 
+bool ClangAstVisitor::isParentSameExpansion(clang::Stmt* S)
+{
+	if (!S->getLocStart().isMacroID() || !S->getLocEnd().isMacroID()) return false;
+	auto expansionLoc = sourceManager_->getExpansionLoc(S->getLocStart());
+	auto parent = pm_->getParent(S);
+	if (!parent) return false;
+	if (!parent->getLocStart().isMacroID() || !parent->getLocEnd().isMacroID()) return false;
+	auto parentExpansionLoc = sourceManager_->getExpansionLoc(parent->getLocStart());
+	return parentExpansionLoc == expansionLoc;
+}
+
+QString ClangAstVisitor::stmt2str(clang::Stmt* s)
+{
+	return QString::fromStdString(clang::Lexer::getSourceText(clang::CharSourceRange::getTokenRange(s->getSourceRange()),
+												  *sourceManager_, preprocessor_->getLangOpts(), 0));
+}
+
+QVector<clang::SourceLocation> ClangAstVisitor::allTest(clang::SourceLocation loc)
+{
+	QVector<clang::SourceLocation> result;
+	clang::SourceLocation last;
+
+	loc = getImmedateMacroLoc(loc);
+
+	//qDebug() << "----------";
+	do
+	{
+		last = loc;
+		result.append(loc);
+		//qDebug() << loc.getPtrEncoding();
+		loc = getImmedateMacroLoc(loc);
+	} while (last != loc);
+
+	//qDebug() << "----------";
+
+	return result;
+}
+
+clang::SourceLocation ClangAstVisitor::joinTest(clang::SourceLocation l1, clang::SourceLocation l2, bool* success)
+{
+	QVector<clang::SourceLocation> hl1 = allTest(l1);
+	QVector<clang::SourceLocation> hl2 = allTest(l2);
+	int i1 = hl1.size() - 1;
+	int i2 = hl2.size() - 1;
+
+
+	if (hl1[i1] == hl2[i2] && l1.isMacroID() && l2.isMacroID())
+	{
+		*success = true;
+		while (hl1[i1] == hl2[i2])
+		{
+			if (i1 == 0 || i2 == 0) break;
+			i1--;
+			i2--;
+		}
+
+		return hl1[i1];
+	}
+
+	*success = false;
+	return l1;
+}
+
+clang::SourceLocation ClangAstVisitor::getImmedateMacroLoc(clang::SourceLocation Loc)
+{
+	if (Loc.isMacroID())
+	{
+		while (1)
+		{
+			auto FID = sourceManager_->getFileID(Loc);
+			const clang::SrcMgr::SLocEntry *E = &sourceManager_->getSLocEntry(FID);
+			const clang::SrcMgr::ExpansionInfo &Expansion = E->getExpansion();
+			Loc = Expansion.getExpansionLocStart();
+			if (!Expansion.isMacroArgExpansion())
+				break;
+
+			Loc = sourceManager_->getImmediateExpansionRange(Loc).first;
+			auto SpellLoc = Expansion.getSpellingLoc();
+			if (SpellLoc.isFileID())
+				break; // No inner macro.
+
+			auto MacroFID = sourceManager_->getFileID(Loc);
+			if (sourceManager_->isInFileID(SpellLoc, MacroFID))
+				break;
+
+			Loc = SpellLoc;
+		}
+	}
+
+	return Loc;
+}
+
 bool ClangAstVisitor::TraverseStmt(clang::Stmt* S)
 {
+	//auto decomposedLocStart = sourceManager_->getDecomposedLoc(S->getLocStart());
+	//auto decomposedLocEnd = sourceManager_->getDecomposedLoc(S->getLocEnd());
+
+	//bool arg = (sourceManager_->isMacroArgExpansion(S->getLocStart()) &&
+	//			sourceManager_->isMacroArgExpansion(S->getLocEnd()));
+	//auto argLoc = sourceManager_->getMacroArgExpandedLocation(S->getLocStart());
+	//bool body = (sourceManager_->isMacroBodyExpansion(S->getLocStart()) &&
+	//				sourceManager_->isMacroBodyExpansion(S->getLocEnd()));
+
+	auto e1 = sourceManager_->getImmediateExpansionRange(S->getLocEnd()).first;
+	auto e2 = sourceManager_->getImmediateExpansionRange(e1).first;
+	auto e3 = sourceManager_->getImmediateExpansionRange(e2).first;
+
+	bool success;
+	auto jt = joinTest(S->getLocStart(), S->getLocEnd(), &success);
+	qDebug() << (void*)S
+				<< S->getStmtClassName()
+				//<< (isParentSameExpansion(S) ? "macro child" : "")
+				<< S->getLocStart().getPtrEncoding()
+				<< S->getLocEnd().getPtrEncoding()
+				<< "|"
+				<< getImmedateMacroLoc(S->getLocStart()).getPtrEncoding()
+				<< getImmedateMacroLoc(S->getLocEnd()).getPtrEncoding()
+				<< "|"
+				<< (success ? jt.getPtrEncoding() : "-")
+				<< "|"
+				<< QString::fromStdString(preprocessor_->getImmediateMacroName(S->getLocStart()).str())
+				<< QString::fromStdString(preprocessor_->getImmediateMacroName(S->getLocEnd()).str())
+				<< "|"
+				<< QString::fromStdString(preprocessor_->getImmediateMacroName(e1).str())
+				<< QString::fromStdString(preprocessor_->getImmediateMacroName(e2).str())
+				<< QString::fromStdString(preprocessor_->getImmediateMacroName(e3).str())
+				//<< (sourceManager_->getExpansionLoc(S->getLocStart()).isMacroID() ? "yes" : "no")
+				//<< "|"
+				//<< sourceManager_->getExpansionLoc(S->getLocStart()).getPtrEncoding()
+				//<< expansionRange.second.getPtrEncoding()
+				//<< "|"
+				//<< decomposedLocStart.first.getHashValue() << ":" << decomposedLocStart.second
+				//<< decomposedLocEnd.first.getHashValue() << ":" << decomposedLocEnd.second
+				//<< "|"
+				//<< sourceManager_->getSpellingLoc(S->getLocStart()).getPtrEncoding()
+				//<< sourceManager_->getSpellingLoc(S->getLocEnd()).getPtrEncoding()
+				//<< sourceManager_->getFileID(S->getLocStart()).getHashValue()
+				//<< sourceManager_->getFileID(S->getLocEnd()).getHashValue()
+//<< getSpelling(sourceManager_->getSpellingLoc(S->getLocStart()), sourceManager_->getSpellingLoc(S->getLocEnd()))
+				//<< (S->getLocStart().isMacroID() && S->getLocEnd().isMacroID() ?
+				//	 getSpelling(sourceManager_->getExpansionLoc(S->getLocStart()),
+				//					 sourceManager_->getExpansionLoc(S->getLocStart()))
+				//	 : "NO_MACRO")
+				//<< (arg ? (body ? "ab" : "a") : (body ? "b" : "-"))
+				//<< "//"
+				//<< argLoc.getPtrEncoding()
+				//<< getSpelling(sourceManager_->getSpellingLoc(argLoc), sourceManager_->getSpellingLoc(argLoc))
+				//<< sourceManager_->getSpellingLoc(argLoc).getPtrEncoding()
+				//<< stmt2str(S)
+				<< "|";
+
 	if (S && llvm::isa<clang::Expr>(S))
 	{
 		// always ignore implicit stuff
@@ -601,6 +765,9 @@ bool ClangAstVisitor::TraverseIfStmt(clang::IfStmt* ifStmt)
 	if (auto itemList = DCast<OOModel::StatementItemList>(ooStack_.top()))
 	{
 		OOModel::IfStatement* ooIfStmt = new OOModel::IfStatement();
+
+		trMngr_->mapAst(ifStmt, ooIfStmt);
+
 		// append the if stmt to current stmt list
 		itemList->append(ooIfStmt);
 		// condition
@@ -632,6 +799,9 @@ bool ClangAstVisitor::TraverseWhileStmt(clang::WhileStmt* whileStmt)
 	if (auto itemList = DCast<OOModel::StatementItemList>(ooStack_.top()))
 	{
 		OOModel::LoopStatement* ooLoop = new OOModel::LoopStatement();
+
+		trMngr_->mapAst(whileStmt, ooLoop);
+
 		// append the loop to current stmt list
 		itemList->append(ooLoop);
 		// condition
@@ -659,6 +829,9 @@ bool ClangAstVisitor::TraverseDoStmt(clang::DoStmt* doStmt)
 	if (auto itemList = DCast<OOModel::StatementItemList>(ooStack_.top()))
 	{
 		OOModel::LoopStatement* ooLoop = new OOModel::LoopStatement(OOModel::LoopStatement::LoopKind::PostCheck);
+
+		trMngr_->mapAst(doStmt, ooLoop);
+
 		// append the loop to current stmt list
 		itemList->append(ooLoop);
 		// condition
@@ -683,6 +856,9 @@ bool ClangAstVisitor::TraverseForStmt(clang::ForStmt* forStmt)
 	if (auto itemList = DCast<OOModel::StatementItemList>(ooStack_.top()))
 	{
 		OOModel::LoopStatement* ooLoop = new OOModel::LoopStatement();
+
+		trMngr_->mapAst(forStmt, ooLoop);
+
 		itemList->append(ooLoop);
 		bool inBody = inBody_;
 		inBody_ = false;
@@ -715,6 +891,9 @@ bool ClangAstVisitor::TraverseCXXForRangeStmt(clang::CXXForRangeStmt* forRangeSt
 	if (auto itemList = DCast<OOModel::StatementItemList>(ooStack_.top()))
 	{
 		OOModel::ForEachStatement* ooLoop = new OOModel::ForEachStatement();
+
+		trMngr_->mapAst(forRangeStmt, ooLoop);
+
 		const clang::VarDecl* loopVar = forRangeStmt->getLoopVariable();
 		itemList->append(ooLoop);
 		ooLoop->setVarName(QString::fromStdString(loopVar->getNameAsString()));
@@ -741,6 +920,9 @@ bool ClangAstVisitor::TraverseReturnStmt(clang::ReturnStmt* returnStmt)
 	if (auto itemList = DCast<OOModel::StatementItemList>(ooStack_.top()))
 	{
 		OOModel::ReturnStatement* ooReturn = new OOModel::ReturnStatement();
+
+		trMngr_->mapAst(returnStmt, ooReturn);
+
 		itemList->append(ooReturn);
 		// return expression
 		bool inBody = inBody_;
@@ -810,6 +992,9 @@ bool ClangAstVisitor::TraverseCXXTryStmt(clang::CXXTryStmt* tryStmt)
 	if (auto itemList = DCast<OOModel::StatementItemList>(ooStack_.top()))
 	{
 		OOModel::TryCatchFinallyStatement* ooTry = new OOModel::TryCatchFinallyStatement();
+
+		trMngr_->mapAst(tryStmt, ooTry);
+
 		itemList->append(ooTry);
 		bool inBody = inBody_;
 		inBody_ = true;
@@ -834,6 +1019,9 @@ bool ClangAstVisitor::TraverseCXXTryStmt(clang::CXXTryStmt* tryStmt)
 bool ClangAstVisitor::TraverseCXXCatchStmt(clang::CXXCatchStmt* catchStmt)
 {
 	OOModel::CatchClause* ooCatch = new OOModel::CatchClause();
+
+	trMngr_->mapAst(catchStmt, ooCatch);
+
 	// save inBody var
 	bool inBody = inBody_;
 	inBody_ = false;
@@ -860,6 +1048,9 @@ bool ClangAstVisitor::TraverseSwitchStmt(clang::SwitchStmt* switchStmt)
 	if (auto itemList = DCast<OOModel::StatementItemList>(ooStack_.top()))
 	{
 		OOModel::SwitchStatement* ooSwitchStmt = new OOModel::SwitchStatement();
+
+		trMngr_->mapAst(switchStmt, ooSwitchStmt);
+
 		itemList->append(ooSwitchStmt);
 		// save inbody var
 		bool inBody = inBody_;
@@ -911,6 +1102,9 @@ bool ClangAstVisitor::TraverseCaseStmt(clang::CaseStmt* caseStmt)
 	// pop the body of the previous case
 	ooStack_.pop();
 	OOModel::CaseStatement* ooSwitchCase = new OOModel::CaseStatement();
+
+	trMngr_->mapAst(caseStmt, ooSwitchCase);
+
 	// insert in tree
 	if (auto itemList = DCast<OOModel::StatementItemList>(ooStack_.top()))
 		itemList->append(ooSwitchCase);
@@ -936,6 +1130,9 @@ bool ClangAstVisitor::TraverseDefaultStmt(clang::DefaultStmt* defaultStmt)
 	// pop the body of the previous case
 	ooStack_.pop();
 	OOModel::CaseStatement* ooDefaultCase = new OOModel::CaseStatement();
+
+	trMngr_->mapAst(defaultStmt, ooDefaultCase);
+
 	// insert in tree
 	if (auto itemList = DCast<OOModel::StatementItemList>(ooStack_.top()))
 		itemList->append(ooDefaultCase);
@@ -953,7 +1150,13 @@ bool ClangAstVisitor::TraverseDefaultStmt(clang::DefaultStmt* defaultStmt)
 bool ClangAstVisitor::TraverseBreakStmt(clang::BreakStmt* breakStmt)
 {
 	if (auto itemList = DCast<OOModel::StatementItemList>(ooStack_.top()))
-		itemList->append(new OOModel::BreakStatement());
+	{
+		auto ooBreakStmt = new OOModel::BreakStatement();
+
+		trMngr_->mapAst(breakStmt, ooBreakStmt);
+
+		itemList->append(ooBreakStmt);
+	}
 	else
 		log_->writeError(className_, breakStmt, CppImportLogger::Reason::INSERT_PROBLEM);
 	return true;
@@ -962,7 +1165,13 @@ bool ClangAstVisitor::TraverseBreakStmt(clang::BreakStmt* breakStmt)
 bool ClangAstVisitor::TraverseContinueStmt(clang::ContinueStmt* continueStmt)
 {
 	if (auto itemList = DCast<OOModel::StatementItemList>(ooStack_.top()))
-		itemList->append(new OOModel::ContinueStatement());
+	{
+		auto ooContinueStmt = new OOModel::ContinueStatement();
+
+		trMngr_->mapAst(continueStmt, ooContinueStmt);
+
+		itemList->append(ooContinueStmt);
+	}
 	else
 		log_->writeError(className_, continueStmt, CppImportLogger::Reason::INSERT_PROBLEM);
 	return true;
@@ -1010,6 +1219,8 @@ bool ClangAstVisitor::TraverseMethodDecl(clang::CXXMethodDecl* methodDecl, OOMod
 			}
 		}
 	}
+
+	trMngr_->mapAst(methodDecl, ooMethod);
 
 	return true;
 }
@@ -1064,8 +1275,87 @@ void ClangAstVisitor::TraverseClass(clang::CXXRecordDecl* recordDecl, OOModel::C
 	ooClass->modifiers()->set(utils_->translateAccessSpecifier(recordDecl->getAccess()));
 }
 
+QString ClangAstVisitor::getSpelling(clang::SourceLocation start, clang::SourceLocation end)
+{
+	clang::SourceLocation b(start),
+			_e(end);
+	clang::SourceLocation e(clang::Lexer::getLocForEndOfToken(_e, 0, *sourceManager_,
+																				 preprocessor_->getLangOpts()));
+
+	return QString::fromStdString(std::string(sourceManager_->getCharacterData(b),
+																			 sourceManager_->getCharacterData(e)-
+																			  sourceManager_->getCharacterData(b)));
+}
+
 void ClangAstVisitor::TraverseFunction(clang::FunctionDecl* functionDecl, OOModel::Method* ooFunction)
 {
+	pm_ = new clang::ParentMap(functionDecl->getBody());
+
+	for (auto it = record_->begin(); it != record_->end(); it++)
+	{
+		auto entry = *it;
+
+		if (entry->getKind() == 1)
+		{
+			auto md = (clang::MacroExpansion*)entry;
+			auto name = QString::fromStdString(md->getName()->getName().str());
+
+			if (name.startsWith("_")) continue;
+
+			auto start = md->getSourceRange().getBegin();
+			auto end = md->getSourceRange().getEnd();
+
+			auto expansionRange = sourceManager_->getExpansionRange(start);
+			//auto decomposedLocStart = sourceManager_->getDecomposedLoc(start);
+			//auto decomposedLocEnd = sourceManager_->getDecomposedLoc(end);
+
+			qDebug() << "macro expansion:"
+						<< name
+						//<< start.getPtrEncoding()
+						//<< end.getPtrEncoding()
+						<< "|"
+						<< expansionRange.first.getPtrEncoding()
+						//<< expansionRange.second.getPtrEncoding()
+						//<< "|"
+						//<< decomposedLocStart.first.getHashValue() << ":" << decomposedLocStart.second
+						//<< decomposedLocEnd.first.getHashValue() << ":" << decomposedLocEnd.second
+						<< "|"
+						<< sourceManager_->getSpellingLoc(start).getPtrEncoding()
+						<< sourceManager_->getSpellingLoc(end).getPtrEncoding()
+						<< getSpelling(sourceManager_->getSpellingLoc(start), sourceManager_->getSpellingLoc(end));
+		}
+		else if (entry->getKind() == 2)
+		{
+			auto md = (clang::MacroDefinition*)entry;
+			auto name = QString::fromStdString(md->getName()->getName().str());
+
+			if (name.startsWith("_")) continue;
+
+			auto start = md->getSourceRange().getBegin();
+			auto end = md->getSourceRange().getEnd();
+
+			auto expansionRange = sourceManager_->getExpansionRange(start);
+			//auto decomposedLocStart = sourceManager_->getDecomposedLoc(start);
+			//auto decomposedLocEnd = sourceManager_->getDecomposedLoc(end);
+
+			qDebug() << "macro definition:"
+						<< name
+						//<< start.getPtrEncoding()
+						//<< end.getPtrEncoding()
+						<< "|"
+						<< expansionRange.first.getPtrEncoding()
+						//<< expansionRange.second.getPtrEncoding()
+						//<< "|"
+						//<< decomposedLocStart.first.getHashValue() << ":" << decomposedLocStart.second
+						//<< decomposedLocEnd.first.getHashValue() << ":" << decomposedLocEnd.second
+						<< "|"
+						<< sourceManager_->getSpellingLoc(md->getLocation()).getPtrEncoding()
+						<< sourceManager_->getSpellingLoc(end).getPtrEncoding()
+						<< getSpelling(sourceManager_->getSpellingLoc(start), sourceManager_->getSpellingLoc(end));
+		}
+	}
+	qDebug() << "===========================================";
+
 	Q_ASSERT(ooFunction);
 	// only visit the body if we are at the definition
 	if (functionDecl->isThisDeclarationADefinition())
@@ -1117,17 +1407,24 @@ void ClangAstVisitor::TraverseFunction(clang::FunctionDecl* functionDecl, OOMode
 		ooFunction->modifiers()->set(OOModel::Modifier::Virtual);
 }
 
-OOModel::Class*ClangAstVisitor::createClass(clang::CXXRecordDecl* recordDecl)
+OOModel::Class* ClangAstVisitor::createClass(clang::CXXRecordDecl* recordDecl)
 {
 	QString recordDeclName = QString::fromStdString(recordDecl->getNameAsString());
+
+	OOModel::Class* ooClass = nullptr;
+
 	if (recordDecl->isClass())
-		return new OOModel::Class(recordDeclName, OOModel::Class::ConstructKind::Class);
+		ooClass = new OOModel::Class(recordDeclName, OOModel::Class::ConstructKind::Class);
 	else if (recordDecl->isStruct())
-		return new OOModel::Class(recordDeclName, OOModel::Class::ConstructKind::Struct);
+		ooClass = new OOModel::Class(recordDeclName, OOModel::Class::ConstructKind::Struct);
 	else if (recordDecl->isUnion())
-		return new OOModel::Class(recordDeclName, OOModel::Class::ConstructKind::Union);
-	log_->writeError(className_, recordDecl, CppImportLogger::Reason::NOT_SUPPORTED);
-	return nullptr;
+		ooClass = new OOModel::Class(recordDeclName, OOModel::Class::ConstructKind::Union);
+	else
+		log_->writeError(className_, recordDecl, CppImportLogger::Reason::NOT_SUPPORTED);
+
+	trMngr_->mapAst(recordDecl, ooClass);
+
+	return ooClass;
 }
 
 void ClangAstVisitor::insertFriendClass(clang::TypeSourceInfo* typeInfo, OOModel::Class* ooClass)

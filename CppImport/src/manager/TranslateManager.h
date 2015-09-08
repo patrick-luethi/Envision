@@ -29,6 +29,7 @@
 #include "cppimport_api.h"
 #include "../CppImportUtilities.h"
 #include "NodeHasher.h"
+#include "ClangAstNodeInfo.h"
 
 namespace CppImport {
 
@@ -131,7 +132,13 @@ class CPPIMPORT_API TranslateManager
 		 */
 		OOModel::TypeAlias* insertTypeAliasTemplate(clang::TypeAliasTemplateDecl* typeAliasTemplate);
 
+		QHash<Model::Node*, ClangAstNodeInfo> mapping2_;
+
+		void mapAst(clang::Stmt* clangAstNode, Model::Node* envisionAstNode);
+		void mapAst(clang::Decl* clangAstNode, Model::Node* envisionAstNode);
 	private:
+		const clang::SourceManager* sourceManager_{};
+
 		OOModel::Method* addNewMethod(clang::CXXMethodDecl* mDecl, OOModel::Method::MethodKind kind);
 		OOModel::Method* addNewFunction(clang::FunctionDecl* functionDecl);
 
