@@ -605,7 +605,8 @@ void ClangAstVisitor::DebugStmt(clang::Stmt* S)
 				<< S->getLocEnd().getPtrEncoding()
 				<< "|"
 				<< (expansion ? macroImportHelper_.getDefinitionName(expansion->definition) : "-")
-				<< "|";
+				<< "|"
+				<< macroImportHelper_.getArgumentNumber(S->getSourceRange());
 }
 
 bool ClangAstVisitor::TraverseStmt(clang::Stmt* S)

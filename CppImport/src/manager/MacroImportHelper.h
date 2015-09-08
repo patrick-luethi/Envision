@@ -70,6 +70,8 @@ class CPPIMPORT_API MacroImportHelper
 
 		Model::Node* calculateAnchor(Model::Node* node, MacroImportHelper::ExpansionEntry* expansion, bool up);
 
+		clang::SourceLocation getImmediateMacroLoc(clang::SourceLocation loc); // TODO: move back private
+		int getArgumentNumber(clang::SourceRange range);
 	private:
 		const clang::SourceManager* sourceManager_;
 
@@ -78,7 +80,6 @@ class CPPIMPORT_API MacroImportHelper
 		QHash<Model::Node*, ExpansionEntry*> expansionCache_;
 		QVector<ExpansionEntry*> expansions_;
 
-		clang::SourceLocation getImmediateMacroLoc(clang::SourceLocation loc);
 		QVector<clang::SourceLocation> getMacroExpansionStack(clang::SourceLocation loc);
 		bool calculateJoin(QVector<clang::SourceLocation> hl1, QVector<clang::SourceLocation> hl2,
 								 clang::SourceLocation* result);

@@ -48,13 +48,11 @@ void MacroImportHelper::addMacroExpansion(clang::SourceRange sr, const clang::Ma
 
 	if (args)
 	{
-		auto numArguments = (int)args->getNumArguments() - 1;
-
-		for (auto i = 0; i < numArguments; i++)
+		for (auto i = 0; i < (int)args->getNumArguments() - 1; i++)
 		{
 			auto formalArg = args->getUnexpArgument((unsigned int)i);
-			auto formalArgLoc = sourceManager_->getSpellingLoc(formalArg->getLocation());
-			entry->arguments.append(formalArgLoc);
+			if (formalArg->getLocation().getRawEncoding() == 0) continue;
+			entry->arguments.append(formalArg->getLocation());
 		}
 	}
 
@@ -161,6 +159,22 @@ MacroImportHelper::ExpansionEntry* MacroImportHelper::getExpansion(clang::Source
 			if (expansions_[i]->range.getBegin() == expansionLocation) return expansions_[i];
 
 	return nullptr;
+}
+
+int MacroImportHelper::getArgumentNumber(clang::SourceRange range)
+{
+	if (sourceManager_->isMacroArgExpansion(range.getBegin()) &&
+		 sourceManager_->isMacroArgExpansion(range.getEnd()))
+	{
+		auto argumentLoc = sourceManager_->getImmediateSpellingLoc(range.getBegin());
+
+		for (auto expansion : expansions_)
+			for (auto i = 0; i < expansion->arguments.size(); i++)
+				if (expansion->arguments[i] == argumentLoc)
+					return i;
+	}
+
+	return -1;
 }
 
 MacroImportHelper::ExpansionEntry* MacroImportHelper::getExpansion(Model::Node* node)
