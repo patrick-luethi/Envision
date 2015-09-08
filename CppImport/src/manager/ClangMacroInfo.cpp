@@ -165,4 +165,14 @@ ClangMacroInfo::ExpansionEntry* ClangMacroInfo::getExpansionInfo(ClangAstNodeInf
 	return nullptr;
 }
 
+ClangMacroInfo::ExpansionEntry* ClangMacroInfo::getExpansion(clang::SourceLocation loc)
+{
+	for (auto i = 0; i < expansions_.size(); i++)
+	{
+		if (loc == expansions_[i].expansion.getBegin()) return &expansions_[i];
+	}
+
+	return nullptr;
+}
+
 }

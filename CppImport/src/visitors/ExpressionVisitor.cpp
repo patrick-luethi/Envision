@@ -205,73 +205,7 @@ bool ExpressionVisitor::TraverseCallExpr(clang::CallExpr* callExpr)
 
 bool ExpressionVisitor::TraverseStmt(clang::Stmt* S)
 {
-	auto sourceManager_ = this->baseVisitor_->sourceManager_;
-	auto preprocessor_ = this->baseVisitor_->preprocessor_;
-	//auto expansionRange = sourceManager_->getExpansionRange(S->getLocStart());
-	//auto decomposedLocStart = sourceManager_->getDecomposedLoc(S->getLocStart());
-	//auto decomposedLocEnd = sourceManager_->getDecomposedLoc(S->getLocEnd());
-	//bool arg = (sourceManager_->isMacroArgExpansion(S->getLocStart()) &&
-	//			sourceManager_->isMacroArgExpansion(S->getLocEnd()));
-	//auto argLoc = sourceManager_->getMacroArgExpandedLocation(S->getLocStart());
-	//bool body = (sourceManager_->isMacroBodyExpansion(S->getLocStart()) &&
-	//				sourceManager_->isMacroBodyExpansion(S->getLocEnd()));
-
-	 clang::SourceRange spellingRange (sourceManager_->getSpellingLoc(S->getLocStart()),
-												  sourceManager_->getSpellingLoc(S->getLocEnd()));
-	auto range = baseVisitor_->record_->getPreprocessedEntitiesInRange(spellingRange);
-
-	auto count = 0;
-	for (auto it = range.first; it != range.second; it++)
-		count++;
-
-	//baseVisitor_->importResult_.test(S);
-
-	auto e1 = sourceManager_->getImmediateExpansionRange(S->getLocEnd()).first;
-	auto e2 = sourceManager_->getImmediateExpansionRange(e1).first;
-	auto e3 = sourceManager_->getImmediateExpansionRange(e2).first;
-
-	bool success;
-	auto jt = baseVisitor_->joinTest(S->getLocStart(), S->getLocEnd(), &success);
-	qDebug() << (void*)S
-				<< S->getStmtClassName()
-				//<< (baseVisitor_->isParentSameExpansion(S) ? "macro child" : "")
-				<< S->getLocStart().getPtrEncoding()
-				<< S->getLocEnd().getPtrEncoding()
-				<< "|"
-				<< baseVisitor_->getImmedateMacroLoc(S->getLocStart()).getPtrEncoding()
-				<< baseVisitor_->getImmedateMacroLoc(S->getLocEnd()).getPtrEncoding()
-				<< "|"
-				<< (success ? jt.getPtrEncoding() : "-")
-				<< "|"
-				<< QString::fromStdString(preprocessor_->getImmediateMacroName(S->getLocStart()).str())
-				<< QString::fromStdString(preprocessor_->getImmediateMacroName(S->getLocEnd()).str())
-				<< "|"
-				<< QString::fromStdString(preprocessor_->getImmediateMacroName(e1).str())
-				<< QString::fromStdString(preprocessor_->getImmediateMacroName(e2).str())
-				<< QString::fromStdString(preprocessor_->getImmediateMacroName(e3).str())
-				//<< "|"
-				//<< decomposedLocStart.first.getHashValue() << ":" << decomposedLocStart.second
-				//<< decomposedLocEnd.first.getHashValue() << ":" << decomposedLocEnd.second
-				//<< "|"
-				//<< sourceManager_->getImmediateSpellingLoc(S->getLocStart()).getPtrEncoding()
-				//<< sourceManager_->getImmediateSpellingLoc(S->getLocEnd()).getPtrEncoding()
-				//<< sourceManager_->getFileID(S->getLocStart()).getHashValue()
-				//<< sourceManager_->getFileID(S->getLocEnd()).getHashValue()
-		//	<< this->baseVisitor_->getSpelling(
-		//			this->baseVisitor_->sourceManager_->getSpellingLoc(S->getLocStart()),
-		//							this->baseVisitor_->sourceManager_->getSpellingLoc(S->getLocEnd()))
-				//<< (S->getLocStart().isMacroID() && S->getLocEnd().isMacroID() ?
-				//	 baseVisitor_->getSpelling(expansionRange.first, expansionRange.first)
-				//	 : "NO_MACRO")
-				//<< count
-				//<< (arg ? (body ? "ab" : "a") : (body ? "b" : "-"))
-				//<< "//"
-				//<< argLoc.getPtrEncoding()
-				//<< baseVisitor_->getSpelling(sourceManager_->getSpellingLoc(argLoc), sourceManager_->getSpellingLoc(argLoc))
-				//<< sourceManager_->getSpellingLoc(argLoc).getPtrEncoding()
-				//<< baseVisitor_->getSpelling(sourceManager_->getSpellingLoc(S->getLocStart()),
-				//									  sourceManager_->getSpellingLoc(S->getLocEnd()))
-				<< "|";
+	baseVisitor_->DebugStmt(S);
 
 	return Base::TraverseStmt(S);
 }

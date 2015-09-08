@@ -28,8 +28,8 @@
 
 namespace CppImport {
 
-TranslateManager::TranslateManager(OOModel::Project* root)
-: rootProject_{root}
+TranslateManager::TranslateManager(OOModel::Project* root, MacroImportHelper* macroImportHelper)
+: rootProject_{root}, macroImportHelper_(macroImportHelper)
 {}
 
 TranslateManager::~TranslateManager()
@@ -287,6 +287,8 @@ OOModel::TypeAlias* TranslateManager::insertTypeAliasTemplate(clang::TypeAliasTe
 
 void TranslateManager::mapAst(clang::Stmt* clangAstNode, Model::Node* envisionAstNode)
 {
+	macroImportHelper_->mapAst(clangAstNode, envisionAstNode);
+
 	auto e = &mapping2_[envisionAstNode];
 
 	e->value_ = "Stmt";
@@ -295,6 +297,8 @@ void TranslateManager::mapAst(clang::Stmt* clangAstNode, Model::Node* envisionAs
 
 void TranslateManager::mapAst(clang::Decl* clangAstNode, Model::Node* envisionAstNode)
 {
+	macroImportHelper_->mapAst(clangAstNode, envisionAstNode);
+
 	auto e = &mapping2_[envisionAstNode];
 
 	e->value_ = "Decl";

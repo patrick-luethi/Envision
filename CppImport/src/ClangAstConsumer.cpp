@@ -41,57 +41,59 @@ void ClangAstConsumer::HandleTranslationUnit(clang::ASTContext& astContext)
 
 void ClangAstConsumer::macroGeneration()
 {
-	astVisitor_->importResult_.calculateMacroChildren();
+	auto mih = &astVisitor_->macroImportHelper_;
 
-	for (auto generatedNode : getTopLevelMacroExpansionNodes())
-		handleMacroExpansion(generatedNode);
+	for (auto generatedNode : mih->getTopLevelMacroExpansionNodes())
+		handleMacroExpansion(generatedNode, mih->getExpansion(generatedNode));
 }
 
-void ClangAstConsumer::handleMacroExpansion(Model::Node* node)
+void ClangAstConsumer::handleMacroExpansion(Model::Node* node, MacroImportHelper::ExpansionEntry* expansion)
 {
-	auto macroInfo = astVisitor_->importResult_;
-	auto clangNodeInfo = astVisitor_->trMngr_->mapping2_[node];
-	auto expansionInfo = macroInfo.getExpansionInfo(clangNodeInfo);
+	auto mih = &astVisitor_->macroImportHelper_;
 
-	if (expansionInfo->children.size() > 0)
+	for (auto childExpansion : expansion->children)
 	{
-		QVector<Model::Node*> childNodesWithAstInfo;
-		getChildNodesWithAstInfo(node, childNodesWithAstInfo);
+		auto cENode = mih->getNode(childExpansion);
+		handleMacroExpansion(cENode, childExpansion);
+	}
 
-		//for (auto macroExpansion : expansionInfo->children)
+	auto definitionName = mih->getDefinitionName(expansion->definition);
+
+	auto anchorUp = mih->calculateAnchor(node, expansion, true);
+	auto anchorDown = mih->calculateAnchor(node, expansion, false);
+
+	auto metaDefParent = anchorUp->firstAncestorOfType<OOModel::Project>();
+	auto metaDef = new OOModel::MetaDefinition(definitionName);
+
+	for (auto formalArgument : mih->generateFormalArguments(expansion->definition))
+		metaDef->arguments()->append(formalArgument);
+
+	if (node)
+	{
+		if (auto ooExpression = DCast<OOModel::Expression>(node->clone()))
 		{
-
+			auto context = new OOModel::Method("Context");
+			auto cloned = new OOModel::ExpressionStatement(ooExpression);
+			context->items()->append(cloned);
+			metaDef->setContext(context);
 		}
 	}
-
-	auto metaCall = new OOModel::MetaCallExpression(macroInfo.getDefinitionName(expansionInfo->definition));
-
-	node->parent()->replaceChild(node, metaCall);
-}
-
-QVector<Model::Node*> ClangAstConsumer::getTopLevelMacroExpansionNodes()
-{
-	auto trMngr_ = astVisitor_->trMngr_;
-	auto macroInfo = astVisitor_->importResult_;
-
-	QVector<Model::Node*> result;
-	for (auto it = trMngr_->mapping2_.begin(); it != trMngr_->mapping2_.end(); it++)
+	else
 	{
-		auto ooNode = it.key();
-		auto ooNodeParent = ooNode->parent();
-		auto clangNodeInfo = it.value();
-
-		auto expansionInfo = macroInfo.getExpansionInfo(clangNodeInfo);
-		if (expansionInfo == nullptr) continue;
-
-		auto parentExpansionInfo = trMngr_->mapping2_.contains(ooNodeParent) ?
-					macroInfo.getExpansionInfo(trMngr_->mapping2_[ooNodeParent]) : nullptr;
-
-		if (expansionInfo != nullptr && parentExpansionInfo == nullptr)
-			result.append(it.key());
+		auto context = new OOModel::Method("Context");
+		for (auto childExpansion : expansion->children)
+		{
+			context->items()->append(new OOModel::ExpressionStatement(
+												 new OOModel::MetaCallExpression(mih->getDefinitionName(childExpansion->definition))));
+		}
+		metaDef->setContext(context);
 	}
 
-	return result;
+	metaDefParent->subDeclarations()->append(metaDef);
+
+	auto metaCall = new OOModel::MetaCallExpression(definitionName);
+	anchorDown->parent()->replaceChild(anchorDown, metaCall);
+	mih->nodeReplaced(anchorDown, metaCall);
 }
 
 void ClangAstConsumer::oldGeneration()

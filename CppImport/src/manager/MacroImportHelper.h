@@ -27,52 +27,63 @@
 #pragma once
 
 #include "cppimport_api.h"
-#include "ClangMacroInfoEntry.h"
-#include "ClangAstNodeInfo.h"
+
+#include "ModelBase/src/nodes/Node.h"
+#include "OOModel/src/elements/FormalMetaArgument.h"
+
 #include "clang/Lex/MacroArgs.h"
+
 
 namespace CppImport {
 
-class CPPIMPORT_API ClangMacroInfo
+class CPPIMPORT_API MacroImportHelper
 {
 	public:
 		struct ExpansionEntry
 		{
-				clang::SourceRange expansion;
+				clang::SourceRange range;
 				const clang::MacroDirective* definition;
-				const clang::MacroDirective* parent;
+				ExpansionEntry* parent;
 				QVector<clang::SourceLocation> arguments;
 				QVector<ExpansionEntry*> children;
 		};
 
-		void test(clang::Stmt* S);
-
 		void setSourceManager(const clang::SourceManager* sourceManager);
 
 		void addMacroDefinition(QString name, const clang::MacroDirective* md);
-		void addMacroExpansion(clang::SourceRange expansion, const clang::MacroDirective* md,
-									  const clang::MacroArgs* args, const clang::MacroDirective* parent);
+		void addMacroExpansion(clang::SourceRange sr, const clang::MacroDirective* md,
+									  const clang::MacroArgs* args);
 
-		ExpansionEntry* getExpansionInfo(ClangAstNodeInfo nodeInfo);
-		ExpansionEntry* getExpansion(clang::SourceLocation loc);
+		void mapAst(clang::Stmt* clangAstNode, Model::Node* envisionAstNode);
+		void mapAst(clang::Decl* clangAstNode, Model::Node* envisionAstNode);
 
 		QString getDefinitionName(const clang::MacroDirective* md);
 
+		MacroImportHelper::ExpansionEntry* getExpansion(clang::SourceRange S);
+		MacroImportHelper::ExpansionEntry* getExpansion(Model::Node* node);
 
-		const clang::MacroDirective* getMacroDefinitionForArgument(ClangAstNodeInfo nodeInfo, int* argumentNumber);
+		QVector<Model::Node*> getTopLevelMacroExpansionNodes();
+		Model::Node* getNode(MacroImportHelper::ExpansionEntry* expansion);
+		void nodeReplaced(Model::Node* node, Model::Node* replacement);
 
-		const clang::MacroDirective* getMDForArg(clang::IdentifierInfo* arg);
+		QVector<OOModel::FormalMetaArgument*> generateFormalArguments(const clang::MacroDirective* definition);
 
-		void calculateMacroChildren();
+		Model::Node* calculateAnchor(Model::Node* node, MacroImportHelper::ExpansionEntry* expansion, bool up);
 
 	private:
-		ExpansionEntry* getMacroExpansion(ClangAstNodeInfo nodeInfo);
-
 		const clang::SourceManager* sourceManager_;
 
 		QHash<const clang::MacroDirective*, QString> definitions_;
+		QHash<Model::Node*, clang::SourceRange> astMapping_;
+		QHash<Model::Node*, ExpansionEntry*> expansionCache_;
+		QVector<ExpansionEntry*> expansions_;
 
-		QVector<ExpansionEntry> expansions_;
+		clang::SourceLocation getImmediateMacroLoc(clang::SourceLocation loc);
+		QVector<clang::SourceLocation> getMacroExpansionStack(clang::SourceLocation loc);
+		bool calculateJoin(QVector<clang::SourceLocation> hl1, QVector<clang::SourceLocation> hl2,
+								 clang::SourceLocation* result);
+		Model::Node*closestParentWithAstMapping(Model::Node* node);
+		Model::Node*farthestParentWithAstMapping(Model::Node* node);
 };
 
 }

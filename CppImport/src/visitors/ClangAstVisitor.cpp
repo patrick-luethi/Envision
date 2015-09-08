@@ -39,7 +39,7 @@ namespace CppImport {
 ClangAstVisitor::ClangAstVisitor(OOModel::Project* project, CppImportLogger* logger)
 :  log_{logger}
 {
-	trMngr_ = new TranslateManager(project);
+	trMngr_ = new TranslateManager(project, &macroImportHelper_);
 	exprVisitor_ = new ExpressionVisitor(this, log_);
 	utils_ = new CppImportUtilities(log_, exprVisitor_);
 	exprVisitor_->setUtilities(utils_);
@@ -65,6 +65,7 @@ void ClangAstVisitor::setSourceManager(const clang::SourceManager* sourceManager
 	sourceManager_ = sourceManager;
 	trMngr_->setSourceManager(sourceManager);
 	importResult_.setSourceManager(sourceManager);
+	macroImportHelper_.setSourceManager(sourceManager);
 }
 
 void ClangAstVisitor::setPreprocessor(const clang::Preprocessor* preprocessor)
@@ -75,7 +76,7 @@ void ClangAstVisitor::setPreprocessor(const clang::Preprocessor* preprocessor)
 	preprocessor_->addPPCallbacks(std::unique_ptr<clang::PPCallbacks>(record_));
 	preprocessor_->addPPCallbacks(std::make_unique<CppImportPPCallback>(
 												preprocessor_,
-												sourceManager_, importResult_));
+												sourceManager_, importResult_, macroImportHelper_));
 }
 
 Model::Node*ClangAstVisitor::ooStackTop()
@@ -594,145 +595,22 @@ bool ClangAstVisitor::isParentSameExpansion(clang::Stmt* S)
 	return parentExpansionLoc == expansionLoc;
 }
 
-QString ClangAstVisitor::stmt2str(clang::Stmt* s)
+void ClangAstVisitor::DebugStmt(clang::Stmt* S)
 {
-	return QString::fromStdString(clang::Lexer::getSourceText(clang::CharSourceRange::getTokenRange(s->getSourceRange()),
-												  *sourceManager_, preprocessor_->getLangOpts(), 0));
-}
+	auto expansion = macroImportHelper_.getExpansion(S->getSourceRange());
 
-QVector<clang::SourceLocation> ClangAstVisitor::allTest(clang::SourceLocation loc)
-{
-	QVector<clang::SourceLocation> result;
-	clang::SourceLocation last;
-
-	loc = getImmedateMacroLoc(loc);
-
-	//qDebug() << "----------";
-	do
-	{
-		last = loc;
-		result.append(loc);
-		//qDebug() << loc.getPtrEncoding();
-		loc = getImmedateMacroLoc(loc);
-	} while (last != loc);
-
-	//qDebug() << "----------";
-
-	return result;
-}
-
-clang::SourceLocation ClangAstVisitor::joinTest(clang::SourceLocation l1, clang::SourceLocation l2, bool* success)
-{
-	QVector<clang::SourceLocation> hl1 = allTest(l1);
-	QVector<clang::SourceLocation> hl2 = allTest(l2);
-	int i1 = hl1.size() - 1;
-	int i2 = hl2.size() - 1;
-
-
-	if (hl1[i1] == hl2[i2] && l1.isMacroID() && l2.isMacroID())
-	{
-		*success = true;
-		while (hl1[i1] == hl2[i2])
-		{
-			if (i1 == 0 || i2 == 0) break;
-			i1--;
-			i2--;
-		}
-
-		return hl1[i1];
-	}
-
-	*success = false;
-	return l1;
-}
-
-clang::SourceLocation ClangAstVisitor::getImmedateMacroLoc(clang::SourceLocation Loc)
-{
-	if (Loc.isMacroID())
-	{
-		while (1)
-		{
-			auto FID = sourceManager_->getFileID(Loc);
-			const clang::SrcMgr::SLocEntry *E = &sourceManager_->getSLocEntry(FID);
-			const clang::SrcMgr::ExpansionInfo &Expansion = E->getExpansion();
-			Loc = Expansion.getExpansionLocStart();
-			if (!Expansion.isMacroArgExpansion())
-				break;
-
-			Loc = sourceManager_->getImmediateExpansionRange(Loc).first;
-			auto SpellLoc = Expansion.getSpellingLoc();
-			if (SpellLoc.isFileID())
-				break; // No inner macro.
-
-			auto MacroFID = sourceManager_->getFileID(Loc);
-			if (sourceManager_->isInFileID(SpellLoc, MacroFID))
-				break;
-
-			Loc = SpellLoc;
-		}
-	}
-
-	return Loc;
+	qDebug() << (void*)S
+				<< S->getStmtClassName()
+				<< S->getLocStart().getPtrEncoding()
+				<< S->getLocEnd().getPtrEncoding()
+				<< "|"
+				<< (expansion ? macroImportHelper_.getDefinitionName(expansion->definition) : "-")
+				<< "|";
 }
 
 bool ClangAstVisitor::TraverseStmt(clang::Stmt* S)
 {
-	//auto decomposedLocStart = sourceManager_->getDecomposedLoc(S->getLocStart());
-	//auto decomposedLocEnd = sourceManager_->getDecomposedLoc(S->getLocEnd());
-
-	//bool arg = (sourceManager_->isMacroArgExpansion(S->getLocStart()) &&
-	//			sourceManager_->isMacroArgExpansion(S->getLocEnd()));
-	//auto argLoc = sourceManager_->getMacroArgExpandedLocation(S->getLocStart());
-	//bool body = (sourceManager_->isMacroBodyExpansion(S->getLocStart()) &&
-	//				sourceManager_->isMacroBodyExpansion(S->getLocEnd()));
-
-	auto e1 = sourceManager_->getImmediateExpansionRange(S->getLocEnd()).first;
-	auto e2 = sourceManager_->getImmediateExpansionRange(e1).first;
-	auto e3 = sourceManager_->getImmediateExpansionRange(e2).first;
-
-	bool success;
-	auto jt = joinTest(S->getLocStart(), S->getLocEnd(), &success);
-	qDebug() << (void*)S
-				<< S->getStmtClassName()
-				//<< (isParentSameExpansion(S) ? "macro child" : "")
-				<< S->getLocStart().getPtrEncoding()
-				<< S->getLocEnd().getPtrEncoding()
-				<< "|"
-				<< getImmedateMacroLoc(S->getLocStart()).getPtrEncoding()
-				<< getImmedateMacroLoc(S->getLocEnd()).getPtrEncoding()
-				<< "|"
-				<< (success ? jt.getPtrEncoding() : "-")
-				<< "|"
-				<< QString::fromStdString(preprocessor_->getImmediateMacroName(S->getLocStart()).str())
-				<< QString::fromStdString(preprocessor_->getImmediateMacroName(S->getLocEnd()).str())
-				<< "|"
-				<< QString::fromStdString(preprocessor_->getImmediateMacroName(e1).str())
-				<< QString::fromStdString(preprocessor_->getImmediateMacroName(e2).str())
-				<< QString::fromStdString(preprocessor_->getImmediateMacroName(e3).str())
-				//<< (sourceManager_->getExpansionLoc(S->getLocStart()).isMacroID() ? "yes" : "no")
-				//<< "|"
-				//<< sourceManager_->getExpansionLoc(S->getLocStart()).getPtrEncoding()
-				//<< expansionRange.second.getPtrEncoding()
-				//<< "|"
-				//<< decomposedLocStart.first.getHashValue() << ":" << decomposedLocStart.second
-				//<< decomposedLocEnd.first.getHashValue() << ":" << decomposedLocEnd.second
-				//<< "|"
-				//<< sourceManager_->getSpellingLoc(S->getLocStart()).getPtrEncoding()
-				//<< sourceManager_->getSpellingLoc(S->getLocEnd()).getPtrEncoding()
-				//<< sourceManager_->getFileID(S->getLocStart()).getHashValue()
-				//<< sourceManager_->getFileID(S->getLocEnd()).getHashValue()
-//<< getSpelling(sourceManager_->getSpellingLoc(S->getLocStart()), sourceManager_->getSpellingLoc(S->getLocEnd()))
-				//<< (S->getLocStart().isMacroID() && S->getLocEnd().isMacroID() ?
-				//	 getSpelling(sourceManager_->getExpansionLoc(S->getLocStart()),
-				//					 sourceManager_->getExpansionLoc(S->getLocStart()))
-				//	 : "NO_MACRO")
-				//<< (arg ? (body ? "ab" : "a") : (body ? "b" : "-"))
-				//<< "//"
-				//<< argLoc.getPtrEncoding()
-				//<< getSpelling(sourceManager_->getSpellingLoc(argLoc), sourceManager_->getSpellingLoc(argLoc))
-				//<< sourceManager_->getSpellingLoc(argLoc).getPtrEncoding()
-				//<< stmt2str(S)
-				<< "|";
+	DebugStmt(S);
 
 	if (S && llvm::isa<clang::Expr>(S))
 	{
