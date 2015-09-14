@@ -1,8 +1,14 @@
-#define VARIABLE(rofl, name) name
-#define NESTED_VARIABLE VARIABLE(lol, var)
-#define CONDI NESTED_VARIABLE < 10
+#define VARIABLE(name) name + 1
+#define NESTED_VARIABLE(kk) VARIABLE(kk)
+#define CONDI NESTED_VARIABLE(var) < 10
+#define METHOD(ret, rolf) bool m##rolf() { return ret; } bool n() { return false; }
+
+/*class Sowiso {
+        METHOD(true, _megaServer)
+};*/
 
 bool looping() {
 	int var = 0;
-	return CONDI;
+	int vak = 0;
+        return NESTED_VARIABLE(vak);
 }

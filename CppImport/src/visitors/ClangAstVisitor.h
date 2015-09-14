@@ -61,9 +61,6 @@ class CPPIMPORT_API ClangAstVisitor : public clang::RecursiveASTVisitor <ClangAs
 		void pushOOStack(Model::Node* node);
 		Model::Node* popOOStack();
 
-
-		bool isParentSameExpansion(clang::Stmt* S);
-
 		// method only for debugging
 		bool VisitDecl(clang::Decl* decl);
 
@@ -128,9 +125,6 @@ class CPPIMPORT_API ClangAstVisitor : public clang::RecursiveASTVisitor <ClangAs
 
 		ClangMacroInfo importResult_{};
 		MacroImportHelper macroImportHelper_{};
-
-		QString getSpelling(clang::SourceLocation start, clang::SourceLocation end);
-		clang::ParentMap* pm_{};
 
 		TranslateManager* trMngr_{};
 

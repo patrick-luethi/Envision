@@ -67,7 +67,7 @@ class CPPIMPORT_API ClangAstConsumer : public clang::ASTConsumer
 		void oldGeneration();
 		void macroGeneration();
 		QVector<Model::Node*> getTopLevelMacroExpansionNodes();
-		void handleMacroExpansion(Model::Node* node, MacroImportHelper::ExpansionEntry* expansion);
+		void handleMacroExpansion(QVector<Model::Node*> nodes, MacroImportHelper::ExpansionEntry* expansion);
 };
 
 }
