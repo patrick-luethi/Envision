@@ -32,6 +32,15 @@ ClangAstConsumer::ClangAstConsumer(ClangAstVisitor* visitor)
 	: clang::ASTConsumer(), astVisitor_(visitor)
 {}
 
+void ClangAstConsumer::setCompilerInstance(const clang::CompilerInstance* compilerInstance)
+{
+	Q_ASSERT(compilerInstance);
+	clang::SourceManager* mngr = &compilerInstance->getSourceManager();
+	Q_ASSERT(mngr);
+	astVisitor_->setSourceManager(mngr);
+	astVisitor_->setPreprocessor(&compilerInstance->getPreprocessor());
+}
+
 void ClangAstConsumer::HandleTranslationUnit(clang::ASTContext& astContext)
 {
 	astVisitor_->TraverseDecl(astContext.getTranslationUnitDecl());
@@ -43,245 +52,95 @@ void ClangAstConsumer::macroGeneration()
 {
 	auto mih = &astVisitor_->macroImportHelper_;
 
-	for (auto generatedNode : mih->getTopLevelMacroExpansionNodes())
-		handleMacroExpansion(generatedNode, mih->getExpansion(generatedNode));
+	mih->calculateMetaDefParents();
+
+	for (auto expansion : mih->getTopLevelExpansions())
+	{
+		auto generatedNodes = mih->getNodes(expansion);
+
+		qDebug() << "toplevel" << mih->getDefinitionName(expansion->definition);
+
+		for (auto generatedNode : generatedNodes)
+		{
+			mih->handleStringifycation(generatedNode);
+			mih->handleIdentifierConcatentation(generatedNode);
+		}
+
+		QVector<Model::Node*> allNodes;
+		mih->getAllNodes(expansion, &allNodes);
+		QVector<std::pair<QVector<MacroImportHelper::MacroArgumentLocation>, Model::Node*>> allArguments;
+		for (auto node : allNodes)
+			mih->getAllArguments(node, &allArguments);
+
+		for (std::pair<QVector<MacroImportHelper::MacroArgumentLocation>, Model::Node*> argument : allArguments)
+		{
+			auto argHistory = argument.first;
+			auto expansion = argHistory.first().first;
+			auto argNum = argHistory.first().second;
+			auto node = argument.second;
+
+			auto argName = mih->getArgumentNames(expansion->definition).at(argNum);
+
+			auto newNode = new OOModel::ReferenceExpression(argName);
+			node->parent()->replaceChild(node, newNode);
+			mih->nodeReplaced(node, newNode);
+		}
+
+		handleMacroExpansion(generatedNodes, expansion);
+
+		for (std::pair<QVector<MacroImportHelper::MacroArgumentLocation>, Model::Node*> argument : allArguments)
+		{
+			auto argHistory = argument.first;
+			auto node = argument.second;
+
+			for (auto i = 0; i < argHistory.size(); i++)
+			{
+				auto expansion = argHistory[i].first;
+				auto argNum = argHistory[i].second;
+				auto actualArg = i == argHistory.size() - 1 ?
+										node->clone() :
+										new OOModel::ReferenceExpression(
+											mih->getArgumentNames(argHistory[i + 1].first->definition)
+																		.at(argHistory[i + 1].second));
+
+				qDebug() << mih->getDefinitionName(expansion->definition)
+							<< argNum
+							<< expansion->metaCall
+							<< expansion->metaCall->parent()
+							<< actualArg->typeName();
+
+				expansion->metaCall->arguments()->replaceChild(expansion->metaCall->arguments()->at(argNum), actualArg);
+			}
+		}
+	}
 }
 
-void ClangAstConsumer::handleMacroExpansion(Model::Node* node, MacroImportHelper::ExpansionEntry* expansion)
+void ClangAstConsumer::handleMacroExpansion(QVector<Model::Node*> nodes, MacroImportHelper::ExpansionEntry* expansion)
 {
 	auto mih = &astVisitor_->macroImportHelper_;
 
 	for (auto childExpansion : expansion->children)
+		handleMacroExpansion(mih->getNodes(childExpansion), childExpansion);
+
+	mih->createMetaDef(nodes, expansion);
+
+	if (nodes.size() > 0)
 	{
-		auto cENode = mih->getNode(childExpansion);
-		handleMacroExpansion(cENode, childExpansion);
+		nodes.first()->parent()->replaceChild(nodes.first(), expansion->metaCall);
+		mih->nodeReplaced(nodes.first(), expansion->metaCall);
 	}
 
-	auto definitionName = mih->getDefinitionName(expansion->definition);
+	//else if (DCast<Model::List>(anchorDown->parent()))
+	//	actualContext->metaCalls()->append(expansion->metaCall);
+	//else
+	//	Q_ASSERT(false && "debug notification: found anchorDown->parent() which is not a list");
 
-	auto anchorUp = mih->calculateAnchor(node, expansion, true);
-	auto anchorDown = mih->calculateAnchor(node, expansion, false);
+	/*
+	mih->nodeReplaced(anchorDown, expansion->metaCall);
 
-	auto metaDefParent = anchorUp->firstAncestorOfType<OOModel::Project>();
-	auto metaDef = new OOModel::MetaDefinition(definitionName);
-
-	for (auto formalArgument : mih->generateFormalArguments(expansion->definition))
-		metaDef->arguments()->append(formalArgument);
-
-	if (node)
-	{
-		if (auto ooExpression = DCast<OOModel::Expression>(node->clone()))
-		{
-			auto context = new OOModel::Method("Context");
-			auto cloned = new OOModel::ExpressionStatement(ooExpression);
-			context->items()->append(cloned);
-			metaDef->setContext(context);
-		}
-	}
-	else
-	{
-		auto context = new OOModel::Method("Context");
-		for (auto childExpansion : expansion->children)
-		{
-			context->items()->append(new OOModel::ExpressionStatement(
-												 new OOModel::MetaCallExpression(mih->getDefinitionName(childExpansion->definition))));
-		}
-		metaDef->setContext(context);
-	}
-
-	metaDefParent->subDeclarations()->append(metaDef);
-
-	auto metaCall = new OOModel::MetaCallExpression(definitionName);
-	anchorDown->parent()->replaceChild(anchorDown, metaCall);
-	mih->nodeReplaced(anchorDown, metaCall);
-}
-
-void ClangAstConsumer::oldGeneration()
-{
-	//auto sourceManager_ = astVisitor_->sourceManager_;
-	auto trMngr_ = astVisitor_->trMngr_;
-	auto macroInfo = astVisitor_->importResult_;
-
-	macroInfo.calculateMacroChildren();
-
-	QSet<QString> duplicatePrevention;
-	for (auto it = trMngr_->mapping2_.begin(); it != trMngr_->mapping2_.end(); it++)
-	{
-		auto ooNode = it.key();
-		auto ooNodeParent = ooNode->parent();
-		auto clangNodeInfo = it.value();
-
-		auto expansionInfo = macroInfo.getExpansionInfo(clangNodeInfo);
-		if (expansionInfo == nullptr) continue;
-
-		auto parentExpansionInfo = trMngr_->mapping2_.contains(ooNodeParent) ?
-					macroInfo.getExpansionInfo(trMngr_->mapping2_[ooNodeParent]) : nullptr;
-
-		bool createMetaCall = expansionInfo != nullptr &&
-				(parentExpansionInfo == nullptr ||
-				 (parentExpansionInfo != nullptr && parentExpansionInfo != expansionInfo));
-
-		if (createMetaCall) generateMetaCall(expansionInfo,
-														 duplicatePrevention,
-														 ooNode,
-														 ooNodeParent);
-	}
-}
-
-void ClangAstConsumer::generateMetaCall(ClangMacroInfo::ExpansionEntry* expansionInfo,
-													 QSet<QString>& duplicatePrevention,
-													 Model::Node* ooNode,
-													 Model::Node* ooNodeParent)
-{
-	auto trMngr_ = astVisitor_->trMngr_;
-	auto macroInfo = astVisitor_->importResult_;
-
-	auto definitionName = macroInfo.getDefinitionName(expansionInfo->definition);
-	bool createMetaDef = !duplicatePrevention.contains(definitionName);
-
-	auto metaCall = new OOModel::MetaCallExpression(definitionName);
-
-	QVector<Model::Node*> arguments;
-	getArguments(ooNode, arguments);
-
-	for (auto argument : arguments)
-	{
-		int argNumber;
-		auto macroDef = macroInfo.getMacroDefinitionForArgument(trMngr_->mapping2_[argument], &argNumber);
-		if (macroDef != expansionInfo->definition) continue;
-		while (metaCall->arguments()->size() < argNumber)
-			metaCall->arguments()->append(new OOModel::EmptyExpression());
-
-		metaCall->arguments()->insert(argNumber, argument->clone());
-	}
-
-	if (createMetaDef) generateMetaDef(expansionInfo,
-												  duplicatePrevention,
-												  definitionName, ooNode,
-												  arguments);
-
-	ooNodeParent->replaceChild(ooNode, metaCall);
-}
-
-void ClangAstConsumer::generateMetaDef(ClangMacroInfo::ExpansionEntry* expansionInfo,
-													QSet<QString>& duplicatePrevention,
-													QString definitionName, Model::Node* ooNode,
-													QVector<Model::Node*>& arguments)
-{
-	auto trMngr_ = astVisitor_->trMngr_;
-	auto macroInfo = astVisitor_->importResult_;
-
-	duplicatePrevention.insert(definitionName);
-
-	auto metaDefParent = ooNode->firstAncestorOfType<OOModel::Project>();
-
-	auto metaDef = new OOModel::MetaDefinition(definitionName);
-	for (auto i = expansionInfo->definition->getMacroInfo()->arg_begin();
-		  i != expansionInfo->definition->getMacroInfo()->arg_end(); i++)
-	{
-		QString argName = QString::fromStdString((*i)->getName().str());
-		metaDef->arguments()->append(new OOModel::FormalMetaArgument(argName));
-	}
-
-	Model::Node* metaDefBody = nullptr;
-
-	constructMetaDefBody(ooNode, expansionInfo);
-
-	for (auto argument : arguments)
-	{
-		int argNumber;
-		auto macroDef = macroInfo.getMacroDefinitionForArgument(trMngr_->mapping2_[argument], &argNumber);
-		if (macroDef != expansionInfo->definition) continue;
-
-		auto formalArgument = metaDef->arguments()->at(argNumber);
-
-		auto splice = new OOModel::ReferenceExpression(formalArgument->name());
-		if (ooNode == argument)
-		{
-			metaDefBody = splice;
-		}
-		else
-		{
-			ooNode->parent()->replaceChild(argument, splice);
-		}
-	}
-
-	if (!metaDefBody) metaDefBody = ooNode->clone();
-
-	if (auto ooExpression = DCast<OOModel::Expression>(metaDefBody))
-	{
-		auto context = new OOModel::Method("Context");
-		auto cloned = new OOModel::ExpressionStatement(ooExpression);
-		context->items()->append(cloned);
-		metaDef->setContext(context);
-	}
-
-	metaDefParent->subDeclarations()->append(metaDef);
-}
-
-void ClangAstConsumer::setCompilerInstance(const clang::CompilerInstance* compilerInstance)
-{
-	Q_ASSERT(compilerInstance);
-	clang::SourceManager* mngr = &compilerInstance->getSourceManager();
-	Q_ASSERT(mngr);
-	astVisitor_->setSourceManager(mngr);
-	astVisitor_->setPreprocessor(&compilerInstance->getPreprocessor());
-}
-
-void ClangAstConsumer::getArguments(Model::Node* node, QVector<Model::Node*>& result)
-{
-	if (astVisitor_->trMngr_->mapping2_.contains(node))
-	{
-		auto clangNodeInfo = astVisitor_->trMngr_->mapping2_[node];
-
-		if (astVisitor_->sourceManager_->isMacroArgExpansion(clangNodeInfo.sourceRange_.getBegin()) &&
-			 astVisitor_->sourceManager_->isMacroArgExpansion(clangNodeInfo.sourceRange_.getEnd()))
-		{
-			result.append(node);
-		}
-	}
-
-	for (auto child : node->children())
-		getArguments(child, result);
-}
-
-void ClangAstConsumer::constructMetaDefBody(Model::Node* node, ClangMacroInfo::ExpansionEntry* entry)
-{
-	QVector<Model::Node*> childNodesWithAstInfo;
-	getChildNodesWithAstInfo(node, childNodesWithAstInfo);
-
-	for (auto child : entry->children)
-	{
-		auto cBegin = astVisitor_->sourceManager_->getSpellingLoc(child->expansion.getBegin()).getRawEncoding();
-		auto cEnd = astVisitor_->sourceManager_->getSpellingLoc(child->expansion.getEnd()).getRawEncoding();
-
-		QVector<Model::Node*> body;
-		for (auto c : childNodesWithAstInfo)
-		{
-			if (c == node) continue;
-
-			auto b = astVisitor_->sourceManager_->getSpellingLoc(
-						astVisitor_->trMngr_->mapping2_[c].sourceRange_.getBegin()).getRawEncoding();
-			auto e = astVisitor_->sourceManager_->getSpellingLoc(
-						astVisitor_->trMngr_->mapping2_[c].sourceRange_.getEnd()).getRawEncoding();
-
-			if (cBegin <= b && e <= cEnd) body.append(c);
-		}
-
-		if (body.size() > 0)
-		{
-			constructMetaDefBody(body[0], child);
-
-			QSet<QString> set;
-			generateMetaCall(child, set, body[0], body[0]->parent());
-		}
-	}
-}
-
-void ClangAstConsumer::getChildNodesWithAstInfo(Model::Node* node, QVector<Model::Node*>& result)
-{
-	if (astVisitor_->trMngr_->mapping2_.contains(node)) result.append(node);
-	for (auto child : node->children()) getChildNodesWithAstInfo(child, result);
+	for (auto n : nodes)
+		if (auto ooList = DCast<Model::List>(n->parent()))
+			ooList->remove(ooList->indexOf(n));*/
 }
 
 }

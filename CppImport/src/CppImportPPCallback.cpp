@@ -49,7 +49,7 @@ void CppImportPPCallback::MacroDefined(const clang::Token& MacroNameTok, const c
 				<< name
 				<< begin.getPtrEncoding()
 				<< end.getPtrEncoding()
-				//<< getSpelling(begin, end)
+				<< getSpelling(begin, end)
 				//<< MD->getMacroInfo()->getReplacementToken(0).getLocation().getPtrEncoding()
 				<< "|";
 }

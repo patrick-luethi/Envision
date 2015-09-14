@@ -72,6 +72,7 @@ void ClangAstVisitor::setPreprocessor(const clang::Preprocessor* preprocessor)
 {
 	Q_ASSERT(preprocessor);
 	preprocessor_ = const_cast<clang::Preprocessor*>(preprocessor);
+	macroImportHelper_.setPreprocessor(preprocessor);
 	record_ = new clang::PreprocessingRecord(const_cast<clang::SourceManager&>(*sourceManager_));
 	preprocessor_->addPPCallbacks(std::unique_ptr<clang::PPCallbacks>(record_));
 	preprocessor_->addPPCallbacks(std::make_unique<CppImportPPCallback>(
@@ -584,20 +585,18 @@ bool ClangAstVisitor::TraverseUnresolvedUsingValueDecl(clang::UnresolvedUsingVal
 	return true;
 }
 
-bool ClangAstVisitor::isParentSameExpansion(clang::Stmt* S)
-{
-	if (!S->getLocStart().isMacroID() || !S->getLocEnd().isMacroID()) return false;
-	auto expansionLoc = sourceManager_->getExpansionLoc(S->getLocStart());
-	auto parent = pm_->getParent(S);
-	if (!parent) return false;
-	if (!parent->getLocStart().isMacroID() || !parent->getLocEnd().isMacroID()) return false;
-	auto parentExpansionLoc = sourceManager_->getExpansionLoc(parent->getLocStart());
-	return parentExpansionLoc == expansionLoc;
-}
-
 void ClangAstVisitor::DebugStmt(clang::Stmt* S)
 {
-	auto expansion = macroImportHelper_.getExpansion(S->getSourceRange());
+	auto expansion = macroImportHelper_.getExpansion(S->getLocStart());
+
+	if (auto bop = clang::dyn_cast<clang::BinaryOperator>(S))
+		expansion = macroImportHelper_.getExpansion(bop->getOperatorLoc());
+
+	auto s = sourceManager_->getImmediateExpansionRange(S->getLocStart()).first;
+	auto e = sourceManager_->getImmediateExpansionRange(S->getLocEnd()).second;
+
+	auto s1 = sourceManager_->getSpellingLoc(s);
+	auto e1 = sourceManager_->getSpellingLoc(e);
 
 	qDebug() << (void*)S
 				<< S->getStmtClassName()
@@ -606,7 +605,12 @@ void ClangAstVisitor::DebugStmt(clang::Stmt* S)
 				<< "|"
 				<< (expansion ? macroImportHelper_.getDefinitionName(expansion->definition) : "-")
 				<< "|"
-				<< macroImportHelper_.getArgumentNumber(S->getSourceRange());
+				<< s.getPtrEncoding()
+				<< e.getPtrEncoding()
+				<< "|"
+				<< s1.getPtrEncoding()
+				<< e1.getPtrEncoding()
+				<< (expansion ? macroImportHelper_.getSpelling(s1, e1) : "-");
 }
 
 bool ClangAstVisitor::TraverseStmt(clang::Stmt* S)
@@ -1154,87 +1158,8 @@ void ClangAstVisitor::TraverseClass(clang::CXXRecordDecl* recordDecl, OOModel::C
 	ooClass->modifiers()->set(utils_->translateAccessSpecifier(recordDecl->getAccess()));
 }
 
-QString ClangAstVisitor::getSpelling(clang::SourceLocation start, clang::SourceLocation end)
-{
-	clang::SourceLocation b(start),
-			_e(end);
-	clang::SourceLocation e(clang::Lexer::getLocForEndOfToken(_e, 0, *sourceManager_,
-																				 preprocessor_->getLangOpts()));
-
-	return QString::fromStdString(std::string(sourceManager_->getCharacterData(b),
-																			 sourceManager_->getCharacterData(e)-
-																			  sourceManager_->getCharacterData(b)));
-}
-
 void ClangAstVisitor::TraverseFunction(clang::FunctionDecl* functionDecl, OOModel::Method* ooFunction)
 {
-	pm_ = new clang::ParentMap(functionDecl->getBody());
-
-	for (auto it = record_->begin(); it != record_->end(); it++)
-	{
-		auto entry = *it;
-
-		if (entry->getKind() == 1)
-		{
-			auto md = (clang::MacroExpansion*)entry;
-			auto name = QString::fromStdString(md->getName()->getName().str());
-
-			if (name.startsWith("_")) continue;
-
-			auto start = md->getSourceRange().getBegin();
-			auto end = md->getSourceRange().getEnd();
-
-			auto expansionRange = sourceManager_->getExpansionRange(start);
-			//auto decomposedLocStart = sourceManager_->getDecomposedLoc(start);
-			//auto decomposedLocEnd = sourceManager_->getDecomposedLoc(end);
-
-			qDebug() << "macro expansion:"
-						<< name
-						//<< start.getPtrEncoding()
-						//<< end.getPtrEncoding()
-						<< "|"
-						<< expansionRange.first.getPtrEncoding()
-						//<< expansionRange.second.getPtrEncoding()
-						//<< "|"
-						//<< decomposedLocStart.first.getHashValue() << ":" << decomposedLocStart.second
-						//<< decomposedLocEnd.first.getHashValue() << ":" << decomposedLocEnd.second
-						<< "|"
-						<< sourceManager_->getSpellingLoc(start).getPtrEncoding()
-						<< sourceManager_->getSpellingLoc(end).getPtrEncoding()
-						<< getSpelling(sourceManager_->getSpellingLoc(start), sourceManager_->getSpellingLoc(end));
-		}
-		else if (entry->getKind() == 2)
-		{
-			auto md = (clang::MacroDefinition*)entry;
-			auto name = QString::fromStdString(md->getName()->getName().str());
-
-			if (name.startsWith("_")) continue;
-
-			auto start = md->getSourceRange().getBegin();
-			auto end = md->getSourceRange().getEnd();
-
-			auto expansionRange = sourceManager_->getExpansionRange(start);
-			//auto decomposedLocStart = sourceManager_->getDecomposedLoc(start);
-			//auto decomposedLocEnd = sourceManager_->getDecomposedLoc(end);
-
-			qDebug() << "macro definition:"
-						<< name
-						//<< start.getPtrEncoding()
-						//<< end.getPtrEncoding()
-						<< "|"
-						<< expansionRange.first.getPtrEncoding()
-						//<< expansionRange.second.getPtrEncoding()
-						//<< "|"
-						//<< decomposedLocStart.first.getHashValue() << ":" << decomposedLocStart.second
-						//<< decomposedLocEnd.first.getHashValue() << ":" << decomposedLocEnd.second
-						<< "|"
-						<< sourceManager_->getSpellingLoc(md->getLocation()).getPtrEncoding()
-						<< sourceManager_->getSpellingLoc(end).getPtrEncoding()
-						<< getSpelling(sourceManager_->getSpellingLoc(start), sourceManager_->getSpellingLoc(end));
-		}
-	}
-	qDebug() << "===========================================";
-
 	Q_ASSERT(ooFunction);
 	// only visit the body if we are at the definition
 	if (functionDecl->isThisDeclarationADefinition())
