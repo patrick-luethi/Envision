@@ -55,12 +55,13 @@ void MacroImportHelper::addMacroExpansion(clang::SourceRange sr, const clang::Ma
 
 	if (args)
 	{
-		for (auto i = 0; i < (int)args->getNumArguments() - 1; i++)
+		// using getArgumentNames.size because MacroArgs::getNumArguments is sometimes too high
+		for (auto i = 0; i < getArgumentNames(entry->definition).size(); i++)
 		{
 			auto actualArg = args->getUnexpArgument((unsigned int)i);
 
-			if (actualArg->getLocation().isInvalid()) continue;
-			if (!actualArg->getIdentifierInfo()) continue;
+			//if (actualArg->getLocation().isInvalid()) continue;
+			//if (!actualArg->getIdentifierInfo()) continue;
 
 			auto argText = QString::fromStdString(actualArg->getIdentifierInfo()->getName().str());
 			entry->metaCall->arguments()->append(new OOModel::ReferenceExpression(argText + "YOLO"));
@@ -84,17 +85,46 @@ void MacroImportHelper::mapAst(clang::Stmt* clangAstNode, Model::Node* envisionA
 		astMapping_[envisionAstNode] = strLiteral->getSourceRange();
 	}
 	else
+	{
 		astMapping_[envisionAstNode] = clangAstNode->getSourceRange();
+	}
 }
 
 void MacroImportHelper::mapAst(clang::Decl* clangAstNode, Model::Node* envisionAstNode)
 {
-	if (auto ooMethod = DCast<OOModel::Method>(envisionAstNode))
+	if (auto ooClass = DCast<OOModel::Class>(envisionAstNode))
+	{
+		if (auto record = clang::dyn_cast<clang::CXXRecordDecl>(clangAstNode))
+		{
+			auto declStart = sourceManager_->getSpellingLoc(record->getSourceRange().getBegin());
+			auto declEnd = sourceManager_->getSpellingLoc(record->getSourceRange().getEnd());
+
+			QRegularExpression regex("(class\\s+)(\\w(\\w|#| )*\\w)");
+			auto match = regex.match(getSpelling(declStart, declEnd));
+
+			if (match.hasMatch())
+				ooClass->setName(match.captured(2));
+			else
+				Q_ASSERT(false && "not implemented");
+		}
+		else
+			Q_ASSERT(false && "not implemented");
+	}
+	else if (auto ooMethod = DCast<OOModel::Method>(envisionAstNode))
 	{
 		if (auto methodDecl = clang::dyn_cast<clang::FunctionDecl>(clangAstNode))
-			astMapping_[ooMethod->nameNode()] = methodDecl->getNameInfo().getSourceRange();
+		{
+			auto sr = methodDecl->getNameInfo().getSourceRange();
+
+			auto s = sourceManager_->getImmediateExpansionRange(sr.getBegin()).first;
+			if (s != getImmediateExpansion(sr.getBegin())->range.getBegin())
+			{
+				auto e = sourceManager_->getImmediateExpansionRange(sr.getEnd()).second;
+				ooMethod->setName(getSpelling(sourceManager_->getSpellingLoc(s), sourceManager_->getSpellingLoc(e)));
+			}
+		}
 		else
-			Q_ASSERT(false);
+			Q_ASSERT(false && "not implemented");
 	}
 
 	astMapping_[envisionAstNode] = clangAstNode->getSourceRange();
@@ -517,12 +547,17 @@ MacroImportHelper::getStringLiteralSpellingLoc(clang::StringLiteral* stringLiter
 
 QString MacroImportHelper::getSpelling(clang::SourceLocation start, clang::SourceLocation end)
 {
+	return QString::fromStdString(getSpellingStd(start, end));
+}
+
+std::string MacroImportHelper::getSpellingStd(clang::SourceLocation start, clang::SourceLocation end)
+{
 	clang::SourceLocation b(start), _e(end);
 	clang::SourceLocation e(clang::Lexer::getLocForEndOfToken(_e, 0, *sourceManager_, preprocessor_->getLangOpts()));
 
-	auto length = sourceManager_->getCharacterData(e) -	sourceManager_->getCharacterData(b);
+	auto length = sourceManager_->getCharacterData(e) - sourceManager_->getCharacterData(b);
 
-	return length > 0 ? QString::fromStdString(std::string(sourceManager_->getCharacterData(b), length)) : "";
+	return length > 0 ? std::string(sourceManager_->getCharacterData(b), length) : "";
 }
 
 void MacroImportHelper::handleIdentifierConcatentation(Model::Node* node)
@@ -539,6 +574,8 @@ void MacroImportHelper::handleIdentifierConcatentation(Model::Node* node)
 			auto e1 = sourceManager_->getSpellingLoc(e);
 
 			auto value = getSpelling(s1, e1);
+
+			qDebug() << "checking" << value;
 
 			if (value.contains("##"))
 			{

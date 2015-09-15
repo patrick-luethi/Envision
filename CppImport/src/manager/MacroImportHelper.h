@@ -104,6 +104,7 @@ class CPPIMPORT_API MacroImportHelper
 		QHash<const clang::MacroDirective*, OOModel::Declaration*> metaDefParents_;
 		QHash<QString, OOModel::MetaDefinition*> metaDefinitions_;
 		QHash<Model::Node*, clang::SourceRange> astMapping_;
+		QHash<OOModel::Declaration*, QString> declarationNames_;
 		QHash<Model::Node*, clang::StringLiteral*> stringLiteralMapping_;
 		QHash<Model::Node*, ExpansionEntry*> expansionCache_;
 		QVector<ExpansionEntry*> expansions_;
@@ -122,6 +123,7 @@ class CPPIMPORT_API MacroImportHelper
 		std::pair<clang::SourceLocation, clang::SourceLocation> getStringLiteralSpellingLoc(
 				clang::StringLiteral* stringLiteral);
 		OOModel::Declaration* getMetaDefParent(ExpansionEntry* expansion);
+		std::string getSpellingStd(clang::SourceLocation start, clang::SourceLocation end);
 };
 
 }
