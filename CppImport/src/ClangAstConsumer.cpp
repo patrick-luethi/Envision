@@ -126,21 +126,19 @@ void ClangAstConsumer::handleMacroExpansion(QVector<Model::Node*> nodes, MacroIm
 
 	if (nodes.size() > 0)
 	{
-		nodes.first()->parent()->replaceChild(nodes.first(), expansion->metaCall);
+		if (auto ooClass = DCast<OOModel::Class>(nodes.first()))
+			mih->getActualContext(ooClass)->metaCalls()->append(expansion->metaCall);
+		else if (auto ooMethod = DCast<OOModel::Method>(nodes.first()))
+			mih->getActualContext(ooMethod)->metaCalls()->append(expansion->metaCall);
+		else
+			nodes.first()->parent()->replaceChild(nodes.first(), expansion->metaCall);
+
 		mih->nodeReplaced(nodes.first(), expansion->metaCall);
 	}
 
-	//else if (DCast<Model::List>(anchorDown->parent()))
-	//	actualContext->metaCalls()->append(expansion->metaCall);
-	//else
-	//	Q_ASSERT(false && "debug notification: found anchorDown->parent() which is not a list");
-
-	/*
-	mih->nodeReplaced(anchorDown, expansion->metaCall);
-
-	for (auto n : nodes)
-		if (auto ooList = DCast<Model::List>(n->parent()))
-			ooList->remove(ooList->indexOf(n));*/
+	for (auto node : nodes)
+		if (auto ooList = DCast<Model::List>(node->parent()))
+			ooList->remove(ooList->indexOf(node));
 }
 
 }
