@@ -69,7 +69,7 @@ class CPPIMPORT_API MacroImportHelper
 		QHash<const clang::MacroDirective*, QString> definitions_;
 		QHash<const clang::MacroDirective*, OOModel::Declaration*> metaDefParents_;
 		QHash<QString, OOModel::MetaDefinition*> metaDefinitions_;
-		QHash<Model::Node*, clang::SourceRange> astMapping_;
+		QHash<Model::Node*, QVector<clang::SourceRange>> astMapping_;
 		QHash<Model::Node*, clang::StringLiteral*> stringLiteralMapping_;
 		QHash<Model::Node*, ExpansionEntry*> expansionCache_;
 		QVector<ExpansionEntry*> expansions_;
@@ -78,6 +78,7 @@ class CPPIMPORT_API MacroImportHelper
 
 		QString getSpelling(clang::SourceRange range);
 		QString getSpelling(clang::SourceLocation start, clang::SourceLocation end);
+		QString getSpellingField(clang::SourceLocation start);
 		QString getDefinitionName(const clang::MacroDirective* md);
 		bool isIncompleteDefinition(const clang::MacroDirective* md);
 

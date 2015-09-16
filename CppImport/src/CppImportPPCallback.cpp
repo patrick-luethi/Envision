@@ -34,9 +34,11 @@ void CppImportPPCallback::MacroDefined(const clang::Token& MacroNameTok, const c
 {
 	auto name = QString::fromStdString(MacroNameTok.getIdentifierInfo()->getName().str());
 
-	definitions_[name] = MD;
-
 	if (name.startsWith("_")) return; // TODO: just for debug
+	if (name.endsWith("_API")) return;
+	if (name.startsWith("QT_")) return;
+
+	definitions_[name] = MD;
 
 	result_.addMacroDefinition(name, MD);
 	macroImportHelper_.addMacroDefinition(name, MD);
@@ -72,9 +74,13 @@ void CppImportPPCallback::MacroExpands(const clang::Token& MacroNameTok, const c
 {
 	//auto expansionRange = sourceManager_->getExpansionRange(sr.getBegin());
 	auto name = QString::fromStdString(MacroNameTok.getIdentifierInfo()->getName().str());
+	if (!definitions_.contains(name)) return;
 
 	auto nestedMacro = MacroNameTok.getLocation().isMacroID();
 	auto parentMacroName = QString::fromStdString(preprocessor_->getImmediateMacroName(sr.getBegin()).str());
+	if (parentMacroName.startsWith("\\\n")) parentMacroName.replace(0, 2, ""); // TODO:
+
+	qDebug() << parentMacroName;
 	Q_ASSERT(!nestedMacro || definitions_.contains(parentMacroName));
 	auto parentMacroDefinition = (nestedMacro && definitions_.contains(parentMacroName)) ?
 											definitions_[parentMacroName] : nullptr;

@@ -64,7 +64,12 @@ void MacroImportHelper::addMacroExpansion(clang::SourceRange sr, const clang::Ma
 	{
 		auto actualArg = args->getUnexpArgument((unsigned int)i);
 
-		auto argText = QString::fromStdString(actualArg->getIdentifierInfo()->getName().str());
+
+		QString argText = "???";
+		if (actualArg->getIdentifierInfo())
+		{
+			argText = QString::fromStdString(actualArg->getIdentifierInfo()->getName().str());
+		}
 		entry->metaCall->arguments()->append(new OOModel::ReferenceExpression(argText));
 
 		entry->argumentLocs.append(actualArg->getLocation());
@@ -77,17 +82,24 @@ void MacroImportHelper::mapAst(clang::Stmt* clangAstNode, Model::Node* envisionA
 {
 	if (auto bop = clang::dyn_cast<clang::BinaryOperator>(clangAstNode))
 	{
-		astMapping_[envisionAstNode] = clang::SourceRange(bop->getOperatorLoc(), bop->getOperatorLoc());
+		astMapping_[envisionAstNode].append(clang::SourceRange(bop->getOperatorLoc(), bop->getOperatorLoc()));
 	}
 	else if (auto strLiteral = clang::dyn_cast<clang::StringLiteral>(clangAstNode))
 	{
 		stringLiteralMapping_[envisionAstNode] = strLiteral;
-		astMapping_[envisionAstNode] = strLiteral->getSourceRange();
+		astMapping_[envisionAstNode].append(strLiteral->getSourceRange());
 	}
 	else
 	{
-		astMapping_[envisionAstNode] = clangAstNode->getSourceRange();
+		astMapping_[envisionAstNode].append(clangAstNode->getSourceRange());
 	}
+}
+
+void MacroImportHelper::mapAst(clang::Decl* clangAstNode, Model::Node* envisionAstNode)
+{
+	handleIdentifierConcatentation(clangAstNode, envisionAstNode);
+
+	astMapping_[envisionAstNode].append(clangAstNode->getSourceRange());
 }
 
 bool MacroImportHelper::getUnexpandedCode(clang::SourceRange range, QString regex, int capture, QString *result)
@@ -99,7 +111,9 @@ bool MacroImportHelper::getUnexpandedCode(clang::SourceLocation start, clang::So
 														QString regex, int capture, QString *result)
 {
 	QRegularExpression regularExpression(regex);
-	auto match = regularExpression.match(getSpelling(start, end));
+	auto spelling = capture == 2 ? getSpellingField(start) : getSpelling(start, end);
+	qDebug() << spelling;
+	auto match = regularExpression.match(spelling);
 
 	if (match.hasMatch())
 	{
@@ -108,13 +122,6 @@ bool MacroImportHelper::getUnexpandedCode(clang::SourceLocation start, clang::So
 	}
 
 	return false;
-}
-
-void MacroImportHelper::mapAst(clang::Decl* clangAstNode, Model::Node* envisionAstNode)
-{
-	handleIdentifierConcatentation(clangAstNode, envisionAstNode);
-
-	astMapping_[envisionAstNode] = clangAstNode->getSourceRange();
 }
 
 QString MacroImportHelper::getDefinitionName(const clang::MacroDirective* md)
@@ -132,6 +139,8 @@ clang::SourceLocation MacroImportHelper::getImmediateMacroLoc(clang::SourceLocat
 		{
 			auto FID = sourceManager_->getFileID(Loc);
 			const clang::SrcMgr::SLocEntry *E = &sourceManager_->getSLocEntry(FID);
+			if (!E->isExpansion())
+				break;
 			const clang::SrcMgr::ExpansionInfo &Expansion = E->getExpansion();
 			Loc = Expansion.getExpansionLocStart();
 			if (!Expansion.isMacroArgExpansion())
@@ -280,7 +289,10 @@ void MacroImportHelper::getImmediateSpellingHistory(clang::SourceLocation loc, Q
 
 QVector<MacroImportHelper::MacroArgumentLocation> MacroImportHelper::getArgumentLocation(Model::Node* node)
 {
-	return getArgumentLocation(astMapping_[node]);
+	QVector<MacroImportHelper::MacroArgumentLocation> result;
+	if (!astMapping_[node].empty())
+		result = getArgumentLocation(astMapping_[node].first());
+	return result;
 }
 
 MacroImportHelper::ExpansionEntry* MacroImportHelper::getExpansion(Model::Node* node)
@@ -291,7 +303,10 @@ MacroImportHelper::ExpansionEntry* MacroImportHelper::getExpansion(Model::Node* 
 	{
 		if (auto n = closestParentWithAstMapping(node))
 		{
-			expansionCache_[node] = getExpansion(astMapping_[n].getBegin());
+			if (!astMapping_[n].isEmpty())
+				expansionCache_[node] = getExpansion(astMapping_[n].first().getBegin());
+			else
+				expansionCache_[node] = nullptr;
 		}
 		else
 			expansionCache_[node] = nullptr;
@@ -384,6 +399,19 @@ QVector<QString> MacroImportHelper::getArgumentNames(const clang::MacroDirective
 
 OOModel::Declaration* MacroImportHelper::getMetaDefParent(ExpansionEntry* expansion)
 {
+	auto name = getDefinitionName(expansion->definition);
+	qDebug()<< name;
+	if (name == "COMPOSITENODE_DECLARE_STANDARD_METHODS")
+	{
+		auto c = expansion->children.first();
+		name = getDefinitionName(c->definition);
+
+		qDebug() << "==============";
+		qDebug() << name;
+		qDebug() << getNodes(c).size();
+		qDebug() << "==============";
+	}
+
 	for (auto child : expansion->children)
 		if (!getNodes(child).empty())
 			return getNodes(child).first()->firstAncestorOfType<OOModel::Project>();
@@ -437,10 +465,10 @@ void MacroImportHelper::createMetaDef(QVector<Model::Node*> nodes, ExpansionEntr
 	}
 	else
 	{
-		auto childCall = expansion->children.first()->metaCall;
+		//auto childCall = expansion->children.first()->metaCall;
 
-		childCall->parent()->replaceChild(childCall, expansion->metaCall);
-		nodeReplaced(childCall, expansion->metaCall);
+		//childCall->parent()->replaceChild(childCall, expansion->metaCall);
+		//nodeReplaced(childCall, expansion->metaCall);
 
 		auto context = new OOModel::Method("Context");
 		for (auto childExpansion : expansion->children)
@@ -467,8 +495,11 @@ OOModel::Declaration* MacroImportHelper::getActualContext(Model::Node* node)
 {
 	auto current = node->parent();
 
+	qDebug() << "<<<<<";
 	while (current)
 	{
+		qDebug() << current->typeName();
+
 		if (auto result = DCast<OOModel::Project>(current))
 			return result;
 		else if (auto result = DCast<OOModel::Module>(current))
@@ -487,6 +518,7 @@ OOModel::Declaration* MacroImportHelper::getActualContext(Model::Node* node)
 
 OOModel::Declaration* MacroImportHelper::createContext(Model::Node* node)
 {
+	return new OOModel::Method("Context");
 	auto actualContext = getActualContext(node);
 
 	if (DCast<OOModel::Project>(actualContext))
@@ -564,6 +596,14 @@ QString MacroImportHelper::getSpelling(clang::SourceRange range)
 	return getSpelling(range.getBegin(), range.getEnd());
 }
 
+QString MacroImportHelper::getSpellingField(clang::SourceLocation start)
+{
+	auto end = start.getLocWithOffset(1);
+	while (!getSpelling(start, end).endsWith(";"))
+		end = end.getLocWithOffset(1);
+	return getSpelling(start, end);
+}
+
 QString MacroImportHelper::getSpelling(clang::SourceLocation start, clang::SourceLocation end)
 {
 	clang::SourceLocation b = sourceManager_->getSpellingLoc(start);
@@ -578,16 +618,20 @@ void MacroImportHelper::handleIdentifierConcatentation(clang::Decl* decl, Model:
 {
 	if (auto ooClass = DCast<OOModel::Class>(node))
 	{
-		if (auto record = clang::dyn_cast<clang::CXXRecordDecl>(decl))
+		if (auto record = clang::dyn_cast<clang::NamedDecl>(decl))
 		{
 			QString unexpandedCode;
-			if (getUnexpandedCode(record->getSourceRange(), "(class\\s+)(\\w(\\w|##)*\\w)", 2, &unexpandedCode))
+			if (getUnexpandedCode(record->getSourceRange(),
+										 "(class|struct|enum)(\\s+)(\\w+\\s+)?(\\w(\\w|##)*\\w)", 4, &unexpandedCode))
 				ooClass->setName(unexpandedCode);
 			else
 				Q_ASSERT(false && "not implemented");
 		}
 		else
+		{
+			qDebug() << decl->getDeclKindName();
 			Q_ASSERT(false && "not implemented");
+		}
 	}
 	else if (auto ooMethod = DCast<OOModel::Method>(node))
 	{
@@ -602,13 +646,41 @@ void MacroImportHelper::handleIdentifierConcatentation(clang::Decl* decl, Model:
 	}
 	else if (auto ooField = DCast<OOModel::Field>(node))
 	{
+		qDebug() << "D" << decl->getDeclKindName();
+
 		if (auto field = clang::dyn_cast<clang::FieldDecl>(decl))
 		{
 			QString unexpandedCode;
-			if (getUnexpandedCode(field->getSourceRange(), "(\\w+)(\\s+)(\\w(\\w|##)*\\w)", 3, &unexpandedCode))
+			if (getUnexpandedCode(field->getSourceRange(),
+										 "(\\S+\\s+)*(\\w(\\w|##)*\\w)", 2, &unexpandedCode))
 				ooField->setName(unexpandedCode);
 			else
+			{
+				qDebug() << ooField->name();
 				Q_ASSERT(false && "not implemented");
+			}
+		}
+		else if (auto field = clang::dyn_cast<clang::VarDecl>(decl))
+		{
+			auto s = field->getSourceRange().getBegin();
+			auto e = field->getSourceRange().getEnd();
+
+
+			qDebug() << s.getPtrEncoding()
+						<< e.getPtrEncoding()
+						<< sourceManager_->getSpellingLoc(s).getPtrEncoding()
+						<< sourceManager_->getSpellingLoc(e).getPtrEncoding()
+						<< getSpelling(sourceManager_->getSpellingLoc(s), sourceManager_->getSpellingLoc(e));
+
+			QString unexpandedCode;
+			if (getUnexpandedCode(field->getSourceRange(),
+										 "(\\S+\\s+)*(\\w(\\w|##)*\\w)", 2, &unexpandedCode))
+				ooField->setName(unexpandedCode);
+			else
+			{
+				qDebug() << ooField->name();
+				Q_ASSERT(false && "not implemented");
+			}
 		}
 		else
 			Q_ASSERT(false && "not implemented");
@@ -623,7 +695,7 @@ void MacroImportHelper::handleIdentifierConcatentation(Model::Node* node)
 			 DCast<Model::NameText>(node))
 		{
 			QString unexpandedCode;
-			if (getUnexpandedCode(astMapping_[node], &unexpandedCode))
+			if (getUnexpandedCode(astMapping_[node].first(), &unexpandedCode))
 			{
 				if (auto ooReference = DCast<OOModel::ReferenceExpression>(node))
 					ooReference->setName(unexpandedCode);
@@ -755,7 +827,7 @@ void MacroImportHelper::handleMacroExpansion(QVector<Model::Node*> nodes, MacroI
 	{
 		createMetaDef(nodes, expansion);
 
-		if (nodes.size() > 0)
+		/*if (nodes.size() > 0)
 		{
 			if (auto ooClass = DCast<OOModel::Class>(nodes.first()))
 				getActualContext(ooClass)->metaCalls()->append(expansion->metaCall);
@@ -765,7 +837,7 @@ void MacroImportHelper::handleMacroExpansion(QVector<Model::Node*> nodes, MacroI
 				nodes.first()->parent()->replaceChild(nodes.first(), expansion->metaCall);
 
 			nodeReplaced(nodes.first(), expansion->metaCall);
-		}
+		}*/
 
 		for (auto node : nodes)
 			if (auto ooList = DCast<Model::List>(node->parent()))
@@ -775,6 +847,10 @@ void MacroImportHelper::handleMacroExpansion(QVector<Model::Node*> nodes, MacroI
 
 void MacroImportHelper::DebugStmt(clang::Stmt* S)
 {
+	return;
+
+	if (!S) return;
+
 	auto expansion = getExpansion(S->getLocStart());
 
 	qDebug() << (void*)S
