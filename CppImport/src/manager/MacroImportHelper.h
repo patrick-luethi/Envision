@@ -36,21 +36,6 @@ namespace CppImport {
 class CPPIMPORT_API MacroImportHelper
 {
 	public:
-		struct ExpansionEntry
-		{
-				clang::SourceRange range;
-				const clang::MacroDirective* definition;
-				ExpansionEntry* parent;
-				QVector<clang::SourceLocation> arguments;
-				QVector<ExpansionEntry*> children;
-				OOModel::MetaCallExpression* metaCall;
-
-				bool isChildOf(ExpansionEntry* entry);
-		};
-
-		typedef std::pair<MacroImportHelper::ExpansionEntry*, int> MacroArgumentLocation;
-		typedef QVector<Model::Node*> MetaDefBody;
-
 		void setSourceManager(const clang::SourceManager* sourceManager);
 		void setPreprocessor(const clang::Preprocessor* preprocessor);
 
@@ -61,42 +46,23 @@ class CPPIMPORT_API MacroImportHelper
 		void mapAst(clang::Stmt* clangAstNode, Model::Node* envisionAstNode);
 		void mapAst(clang::Decl* clangAstNode, Model::Node* envisionAstNode);
 
-		QString getDefinitionName(const clang::MacroDirective* md);
+		void macroGeneration();
 
-		MacroImportHelper::ExpansionEntry* getImmediateExpansion(clang::SourceLocation loc);
+		void DebugStmt(clang::Stmt* S);
 
-		MacroImportHelper::ExpansionEntry* getExpansion(clang::SourceLocation loc);
-		MacroImportHelper::ExpansionEntry* getExpansion(Model::Node* node);
-		MacroImportHelper::ExpansionEntry* getExpansion(OOModel::MetaCallExpression* metaCall);
-
-		QVector<MacroImportHelper::ExpansionEntry*> getTopLevelExpansions();
-
-		QVector<Model::Node*> getNodes(MacroImportHelper::ExpansionEntry* expansion);
-
-		void nodeReplaced(Model::Node* node, Model::Node* replacement);
-
-		QVector<OOModel::FormalMetaArgument*> generateFormalArguments(const clang::MacroDirective* definition);
-
-		QVector<MacroImportHelper::MacroArgumentLocation> getArgumentLocation(clang::SourceRange range);
-		QVector<MacroImportHelper::MacroArgumentLocation> getArgumentLocation(Model::Node* node);
-
-		void getAllArguments(Model::Node* node,
-									QVector<std::pair<QVector<MacroImportHelper::MacroArgumentLocation>, Model::Node*>>* result);
-
-		Model::Node* cloneRetainingMetaCallExpansionMapping(Model::Node* node);
-		QVector<QString> getArgumentNames(const clang::MacroDirective* definition);
-
-		void handleIdentifierConcatentation(Model::Node* node);
-		void handleStringifycation(Model::Node* node);
-
-		QString getSpelling(clang::SourceLocation start, clang::SourceLocation end);
-
-		OOModel::Declaration* createContext(Model::Node* node);
-		OOModel::Declaration* getActualContext(Model::Node* node);
-		void createMetaDef(QVector<Model::Node*> nodes, ExpansionEntry* expansion);
-		void calculateMetaDefParents();
-		void getAllNodes(ExpansionEntry* expansion, QVector<Model::Node*>* result);
 	private:
+		struct ExpansionEntry
+		{
+				clang::SourceRange range;
+				const clang::MacroDirective* definition;
+				ExpansionEntry* parent;
+				QVector<clang::SourceLocation> argumentLocs;
+				QVector<ExpansionEntry*> children;
+				OOModel::MetaCallExpression* metaCall;
+
+				bool isChildOf(ExpansionEntry* entry);
+		};
+
 		const clang::SourceManager* sourceManager_;
 		const clang::Preprocessor* preprocessor_;
 
@@ -104,26 +70,64 @@ class CPPIMPORT_API MacroImportHelper
 		QHash<const clang::MacroDirective*, OOModel::Declaration*> metaDefParents_;
 		QHash<QString, OOModel::MetaDefinition*> metaDefinitions_;
 		QHash<Model::Node*, clang::SourceRange> astMapping_;
-		QHash<OOModel::Declaration*, QString> declarationNames_;
 		QHash<Model::Node*, clang::StringLiteral*> stringLiteralMapping_;
 		QHash<Model::Node*, ExpansionEntry*> expansionCache_;
 		QVector<ExpansionEntry*> expansions_;
 
-		clang::SourceLocation getImmediateMacroLoc(clang::SourceLocation loc);
+		typedef std::pair<ExpansionEntry*, int> MacroArgumentLocation;
 
+		QString getSpelling(clang::SourceRange range);
+		QString getSpelling(clang::SourceLocation start, clang::SourceLocation end);
+		QString getDefinitionName(const clang::MacroDirective* md);
+		bool isIncompleteDefinition(const clang::MacroDirective* md);
+
+		void handleMacroExpansion(QVector<Model::Node*> nodes, ExpansionEntry* expansion);
+
+		QVector<ExpansionEntry*> getTopLevelExpansions();
+
+		clang::SourceLocation getImmediateMacroLoc(clang::SourceLocation loc);
+		ExpansionEntry* getImmediateExpansion(clang::SourceLocation loc);
+		ExpansionEntry* getExpansion(clang::SourceLocation loc);
+		ExpansionEntry* getExpansion(Model::Node* node);
+		ExpansionEntry* getExpansion(OOModel::MetaCallExpression* metaCall);
+		Model::Node* closestParentWithAstMapping(Model::Node* node);
 		QVector<clang::SourceLocation> getMacroExpansionStack(clang::SourceLocation loc);
 
-		Model::Node*closestParentWithAstMapping(Model::Node* node);
-		Model::Node*farthestParentWithAstMapping(Model::Node* node);
+		QVector<Model::Node*> getNodes(ExpansionEntry* expansion);
+		void getAllNodes(ExpansionEntry* expansion, QVector<Model::Node*>* result);
 
-		void buildMetaCallExpansionMappingInfo(Model::Node* node, QList<MacroImportHelper::ExpansionEntry*>* info);
-		void useMetaCallExpansionMappingInfo(Model::Node* node, QList<MacroImportHelper::ExpansionEntry*>* info);
+		QVector<MacroArgumentLocation> getArgumentLocation(clang::SourceRange range);
+		QVector<MacroArgumentLocation> getArgumentLocation(Model::Node* node);
 		void getImmediateSpellingHistory(clang::SourceLocation loc, QVector<clang::SourceLocation>* result);
-		QString print(clang::SourceLocation loc);
-		std::pair<clang::SourceLocation, clang::SourceLocation> getStringLiteralSpellingLoc(
-				clang::StringLiteral* stringLiteral);
+		void getAllArguments(Model::Node* node,
+									QVector<std::pair<QVector<MacroArgumentLocation>, Model::Node*>>* result);
+		QVector<QString> getArgumentNames(const clang::MacroDirective* definition);
+
+		OOModel::Declaration* createContext(Model::Node* node);
+		OOModel::Declaration* getActualContext(Model::Node* node);
 		OOModel::Declaration* getMetaDefParent(ExpansionEntry* expansion);
-		std::string getSpellingStd(clang::SourceLocation start, clang::SourceLocation end);
+		void createMetaDef(QVector<Model::Node*> nodes, ExpansionEntry* expansion);
+		void nodeReplaced(Model::Node* node, Model::Node* replacement);
+
+		Model::Node* cloneRetainingMetaCallExpansionMapping(Model::Node* node);
+		void buildMetaCallExpansionMappingInfo(Model::Node* node, QList<ExpansionEntry*>* info);
+		void useMetaCallExpansionMappingInfo(Model::Node* node, QList<ExpansionEntry*>* info);
+
+		void calculateMetaDefParents();
+		void calculateMetaCallArguments();
+
+		void handleIdentifierConcatentation(Model::Node* node);
+		void handleIdentifierConcatentation(clang::Decl* decl, Model::Node* node);
+		void handleStringifycation(Model::Node* node);
+		std::pair<clang::SourceLocation, clang::SourceLocation>
+		getStringLiteralSpellingLoc(clang::StringLiteral* stringLiteral);
+
+		bool getUnexpandedCode(clang::SourceLocation loc, QString* result);
+		bool getUnexpandedCode(clang::SourceLocation start, clang::SourceLocation end, QString* result);
+		bool getUnexpandedCode(clang::SourceRange range, QString* result);
+		bool getUnexpandedCode(clang::SourceLocation start, clang::SourceLocation end, QString regex,
+									  int capture, QString* result);
+		bool getUnexpandedCode(clang::SourceRange range, QString regex, int capture, QString* result);
 };
 
 }

@@ -585,37 +585,10 @@ bool ClangAstVisitor::TraverseUnresolvedUsingValueDecl(clang::UnresolvedUsingVal
 	return true;
 }
 
-void ClangAstVisitor::DebugStmt(clang::Stmt* S)
-{
-	auto expansion = macroImportHelper_.getExpansion(S->getLocStart());
-
-	if (auto bop = clang::dyn_cast<clang::BinaryOperator>(S))
-		expansion = macroImportHelper_.getExpansion(bop->getOperatorLoc());
-
-	auto s = sourceManager_->getImmediateExpansionRange(S->getLocStart()).first;
-	auto e = sourceManager_->getImmediateExpansionRange(S->getLocEnd()).second;
-
-	auto s1 = sourceManager_->getSpellingLoc(s);
-	auto e1 = sourceManager_->getSpellingLoc(e);
-
-	qDebug() << (void*)S
-				<< S->getStmtClassName()
-				<< S->getLocStart().getPtrEncoding()
-				<< S->getLocEnd().getPtrEncoding()
-				<< "|"
-				<< (expansion ? macroImportHelper_.getDefinitionName(expansion->definition) : "-")
-				<< "|"
-				<< s.getPtrEncoding()
-				<< e.getPtrEncoding()
-				<< "|"
-				<< s1.getPtrEncoding()
-				<< e1.getPtrEncoding()
-				<< (expansion ? macroImportHelper_.getSpelling(s1, e1) : "-");
-}
 
 bool ClangAstVisitor::TraverseStmt(clang::Stmt* S)
 {
-	DebugStmt(S);
+	macroImportHelper_.DebugStmt(S);
 
 	if (S && llvm::isa<clang::Expr>(S))
 	{
