@@ -205,7 +205,7 @@ bool ExpressionVisitor::TraverseCallExpr(clang::CallExpr* callExpr)
 
 bool ExpressionVisitor::TraverseStmt(clang::Stmt* S)
 {
-	baseVisitor_->DebugStmt(S);
+	baseVisitor_->macroImportHelper_.DebugStmt(S);
 
 	return Base::TraverseStmt(S);
 }

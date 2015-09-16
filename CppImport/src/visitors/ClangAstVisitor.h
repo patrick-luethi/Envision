@@ -128,7 +128,6 @@ class CPPIMPORT_API ClangAstVisitor : public clang::RecursiveASTVisitor <ClangAs
 
 		TranslateManager* trMngr_{};
 
-		void DebugStmt(clang::Stmt* S);
 	private:
 		using Base = clang::RecursiveASTVisitor<ClangAstVisitor>;
 

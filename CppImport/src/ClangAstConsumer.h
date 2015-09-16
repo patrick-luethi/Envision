@@ -49,25 +49,6 @@ class CPPIMPORT_API ClangAstConsumer : public clang::ASTConsumer
 	private:
 		ClangAstVisitor* astVisitor_{};
 		clang::CompilerInstance* ci_{};
-
-		void getArguments(Model::Node* node, QVector<Model::Node*>& result);
-
-		void constructMetaDefBody(Model::Node* node,
-										  ClangMacroInfo::ExpansionEntry* entry);
-		void getChildNodesWithAstInfo(Model::Node* node, QVector<Model::Node*>& result);
-
-		void generateMetaCall(ClangMacroInfo::ExpansionEntry* expansionInfo,
-									 QSet<QString>& duplicatePrevention,
-									 Model::Node* ooNode,
-									 Model::Node* ooNodeParent);
-		void generateMetaDef(ClangMacroInfo::ExpansionEntry* expansionInfo,
-									 QSet<QString>& duplicatePrevention,
-									 QString definitionName, Model::Node* ooNode,
-									QVector<Model::Node*>& arguments);
-		void oldGeneration();
-		void macroGeneration();
-		QVector<Model::Node*> getTopLevelMacroExpansionNodes();
-		void handleMacroExpansion(QVector<Model::Node*> nodes, MacroImportHelper::ExpansionEntry* expansion);
 };
 
 }
