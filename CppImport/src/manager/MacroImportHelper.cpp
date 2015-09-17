@@ -257,9 +257,9 @@ MacroImportHelper::ExpansionEntry* MacroImportHelper::getExpansion(clang::Source
 	return last;
 }
 
-QVector<MacroImportHelper::MacroArgumentLocation> MacroImportHelper::getArgumentLocation(clang::SourceRange range)
+QVector<MacroImportHelper::MacroArgumentLocation> MacroImportHelper::getArgumentHistory(clang::SourceRange range)
 {
-	QVector<MacroImportHelper::MacroArgumentLocation> result;
+	QVector<MacroArgumentLocation> result;
 
 	if (sourceManager_->isMacroArgExpansion(range.getBegin()) &&
 		 sourceManager_->isMacroArgExpansion(range.getEnd()))
@@ -287,11 +287,11 @@ void MacroImportHelper::getImmediateSpellingHistory(clang::SourceLocation loc, Q
 		getImmediateSpellingHistory(next, result);
 }
 
-QVector<MacroImportHelper::MacroArgumentLocation> MacroImportHelper::getArgumentLocation(Model::Node* node)
+QVector<MacroImportHelper::MacroArgumentLocation> MacroImportHelper::getArgumentHistory(Model::Node* node)
 {
-	QVector<MacroImportHelper::MacroArgumentLocation> result;
+	QVector<MacroArgumentLocation> result;
 	if (!astMapping_[node].empty())
-		result = getArgumentLocation(astMapping_[node].first());
+		result = getArgumentHistory(astMapping_[node].first());
 	return result;
 }
 
@@ -322,6 +322,13 @@ Model::Node* MacroImportHelper::closestParentWithAstMapping(Model::Node* node)
 	if (node->parent()) return closestParentWithAstMapping(node->parent());
 
 	return nullptr;
+}
+
+QVector<Model::Node*> MacroImportHelper::getAllNodes(ExpansionEntry* expansion)
+{
+	QVector<Model::Node*> result;
+	getAllNodes(expansion, &result);
+	return result;
 }
 
 void MacroImportHelper::getAllNodes(ExpansionEntry* expansion, QVector<Model::Node*>* result)
@@ -448,6 +455,13 @@ void MacroImportHelper::createMetaDef(QVector<Model::Node*> nodes, ExpansionEntr
 				else
 					Q_ASSERT(false);
 			}
+			else if (auto ooStatement = DCast<OOModel::Statement>(cloned))
+			{
+				if (auto context = DCast<OOModel::Method>(metaDef->context()))
+					context->items()->append(ooStatement);
+				else
+					Q_ASSERT(false);
+			}
 			else if (auto ooDeclaration = DCast<OOModel::Declaration>(cloned))
 			{
 				if (auto context = DCast<OOModel::Project>(metaDef->context()))
@@ -461,14 +475,16 @@ void MacroImportHelper::createMetaDef(QVector<Model::Node*> nodes, ExpansionEntr
 				else
 					Q_ASSERT(false);
 			}
+			else
+				Q_ASSERT(false && "not implemented");
 		}
 	}
 	else
 	{
-		//auto childCall = expansion->children.first()->metaCall;
+		auto childCall = expansion->children.first()->metaCall;
 
-		//childCall->parent()->replaceChild(childCall, expansion->metaCall);
-		//nodeReplaced(childCall, expansion->metaCall);
+		childCall->parent()->replaceChild(childCall, expansion->metaCall);
+		nodeReplaced(childCall, expansion->metaCall);
 
 		auto context = new OOModel::Method("Context");
 		for (auto childExpansion : expansion->children)
@@ -495,11 +511,8 @@ OOModel::Declaration* MacroImportHelper::getActualContext(Model::Node* node)
 {
 	auto current = node->parent();
 
-	qDebug() << "<<<<<";
 	while (current)
 	{
-		qDebug() << current->typeName();
-
 		if (auto result = DCast<OOModel::Project>(current))
 			return result;
 		else if (auto result = DCast<OOModel::Module>(current))
@@ -518,7 +531,6 @@ OOModel::Declaration* MacroImportHelper::getActualContext(Model::Node* node)
 
 OOModel::Declaration* MacroImportHelper::createContext(Model::Node* node)
 {
-	return new OOModel::Method("Context");
 	auto actualContext = getActualContext(node);
 
 	if (DCast<OOModel::Project>(actualContext))
@@ -730,13 +742,13 @@ void MacroImportHelper::handleStringifycation(Model::Node* node)
 }
 
 void MacroImportHelper::getAllArguments(Model::Node* node,
-									QVector<std::pair<QVector<MacroImportHelper::MacroArgumentLocation>, Model::Node*>>* result)
+									QVector<MacroArgumentInfo>* result)
 {
-	auto argLoc = getArgumentLocation(node);
+	auto argLoc = getArgumentHistory(node);
 
 	if (!argLoc.empty())
 	{
-		result->append(make_pair(argLoc, node));
+		result->append(MacroArgumentInfo(argLoc, node));
 		return;
 	}
 
@@ -769,51 +781,44 @@ void MacroImportHelper::macroGeneration()
 			handleIdentifierConcatentation(generatedNode);
 		}
 
-		QVector<Model::Node*> allNodes;
-		getAllNodes(expansion, &allNodes);
-		QVector<std::pair<QVector<MacroImportHelper::MacroArgumentLocation>, Model::Node*>> allArguments;
-		for (auto node : allNodes)
+		QVector<MacroArgumentInfo> allArguments;
+		for (auto node : getAllNodes(expansion))
 			getAllArguments(node, &allArguments);
 
-		for (std::pair<QVector<MacroImportHelper::MacroArgumentLocation>, Model::Node*> argument : allArguments)
+		for (auto argument : allArguments)
 		{
-			auto argHistory = argument.first;
-			auto expansion = argHistory.first().first;
-			auto argNum = argHistory.first().second;
-			auto node = argument.second;
+			auto spliceLoc = argument.history.first();
 
-			auto argName = getArgumentNames(expansion->definition).at(argNum);
-
+			auto argName = getArgumentNames(spliceLoc.expansion->definition).at(spliceLoc.argumentNumber);
 			auto newNode = new OOModel::ReferenceExpression(argName);
-			node->parent()->replaceChild(node, newNode);
-			nodeReplaced(node, newNode);
+
+			argument.node->parent()->replaceChild(argument.node, newNode);
+			nodeReplaced(argument.node, newNode);
 		}
 
 		handleMacroExpansion(generatedNodes, expansion);
 
-		for (std::pair<QVector<MacroImportHelper::MacroArgumentLocation>, Model::Node*> argument : allArguments)
+		for (auto argument : allArguments)
 		{
-			auto argHistory = argument.first;
-			auto node = argument.second;
+			if (argument.history.empty()) continue;
 
-			for (auto i = 0; i < argHistory.size(); i++)
+			for (auto i = 0; i < argument.history.size() - 1; i++)
 			{
-				auto expansion = argHistory[i].first;
-				auto argNum = argHistory[i].second;
-				auto actualArg = i == argHistory.size() - 1 ?
-										node->clone() :
-										new OOModel::ReferenceExpression(
-											getArgumentNames(argHistory[i + 1].first->definition)
-																		.at(argHistory[i + 1].second));
+				auto currentLoc = argument.history[i];
+				auto nextLoc = argument.history[i + 1];
 
-				qDebug() << getDefinitionName(expansion->definition)
-							<< argNum
-							<< expansion->metaCall
-							<< expansion->metaCall->parent()
-							<< actualArg->typeName();
+				auto currentArg = currentLoc.expansion->metaCall->arguments()->at(currentLoc.argumentNumber);
+				auto newArgValue = getArgumentNames(nextLoc.expansion->definition).at(nextLoc.argumentNumber);
+				auto newArg = new OOModel::ReferenceExpression(newArgValue);
 
-				expansion->metaCall->arguments()->replaceChild(expansion->metaCall->arguments()->at(argNum), actualArg);
+				currentLoc.expansion->metaCall->arguments()->replaceChild(currentArg, newArg);
 			}
+
+			auto lastLoc = argument.history.last();
+			auto currentArg = lastLoc.expansion->metaCall->arguments()->at(lastLoc.argumentNumber);
+			auto newArg = argument.node->clone();
+
+			expansion->metaCall->arguments()->replaceChild(currentArg, newArg);
 		}
 	}
 }
@@ -827,17 +832,23 @@ void MacroImportHelper::handleMacroExpansion(QVector<Model::Node*> nodes, MacroI
 	{
 		createMetaDef(nodes, expansion);
 
-		/*if (nodes.size() > 0)
+		if (nodes.size() > 0)
 		{
 			if (auto ooClass = DCast<OOModel::Class>(nodes.first()))
 				getActualContext(ooClass)->metaCalls()->append(expansion->metaCall);
 			else if (auto ooMethod = DCast<OOModel::Method>(nodes.first()))
 				getActualContext(ooMethod)->metaCalls()->append(expansion->metaCall);
 			else
-				nodes.first()->parent()->replaceChild(nodes.first(), expansion->metaCall);
+			{
+				if (DCast<OOModel::Statement>(nodes.first()))
+					nodes.first()->parent()->replaceChild(nodes.first(),
+																		new OOModel::ExpressionStatement(expansion->metaCall));
+				else
+					nodes.first()->parent()->replaceChild(nodes.first(), expansion->metaCall);
+			}
 
 			nodeReplaced(nodes.first(), expansion->metaCall);
-		}*/
+		}
 
 		for (auto node : nodes)
 			if (auto ooList = DCast<Model::List>(node->parent()))

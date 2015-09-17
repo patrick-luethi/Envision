@@ -59,7 +59,6 @@ class CPPIMPORT_API CppImportPPCallback : public clang::PPCallbacks
 	private:
 
 		QHash<QString, const clang::MacroDirective*> definitions_;
-		QString getSpelling(clang::SourceLocation start, clang::SourceLocation end);
 };
 
 }

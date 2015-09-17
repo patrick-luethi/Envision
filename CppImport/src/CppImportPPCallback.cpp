@@ -37,37 +37,17 @@ void CppImportPPCallback::MacroDefined(const clang::Token& MacroNameTok, const c
 	if (name.startsWith("_")) return; // TODO: just for debug
 	if (name.endsWith("_API")) return;
 	if (name.startsWith("QT_")) return;
+	//if (name != "STATEMENTS") return;
 
 	definitions_[name] = MD;
 
 	result_.addMacroDefinition(name, MD);
 	macroImportHelper_.addMacroDefinition(name, MD);
 
-	auto begin = MD->getMacroInfo()->getDefinitionLoc();
-	auto end = MD->getMacroInfo()->getDefinitionEndLoc();
-
 	qDebug() << "definition"
-				<< (void*)MD
 				<< name
-				<< begin.getPtrEncoding()
-				<< end.getPtrEncoding()
-				<< getSpelling(begin, end)
-				//<< MD->getMacroInfo()->getReplacementToken(0).getLocation().getPtrEncoding()
 				<< "|";
 }
-
-QString CppImportPPCallback::getSpelling(clang::SourceLocation start, clang::SourceLocation end)
-{
-	clang::SourceLocation b(start),
-			_e(end);
-	clang::SourceLocation e(clang::Lexer::getLocForEndOfToken(_e, 0, *sourceManager_,
-																				 preprocessor_->getLangOpts()));
-
-	return QString::fromStdString(std::string(sourceManager_->getCharacterData(b),
-																			 sourceManager_->getCharacterData(e)-
-																			  sourceManager_->getCharacterData(b)));
-}
-
 
 void CppImportPPCallback::MacroExpands(const clang::Token& MacroNameTok, const clang::MacroDirective* md,
 													clang::SourceRange sr, const clang::MacroArgs* args)
@@ -76,36 +56,10 @@ void CppImportPPCallback::MacroExpands(const clang::Token& MacroNameTok, const c
 	auto name = QString::fromStdString(MacroNameTok.getIdentifierInfo()->getName().str());
 	if (!definitions_.contains(name)) return;
 
-	auto nestedMacro = MacroNameTok.getLocation().isMacroID();
-	auto parentMacroName = QString::fromStdString(preprocessor_->getImmediateMacroName(sr.getBegin()).str());
-	if (parentMacroName.startsWith("\\\n")) parentMacroName.replace(0, 2, ""); // TODO:
-
-	qDebug() << parentMacroName;
-	Q_ASSERT(!nestedMacro || definitions_.contains(parentMacroName));
-	auto parentMacroDefinition = (nestedMacro && definitions_.contains(parentMacroName)) ?
-											definitions_[parentMacroName] : nullptr;
-
-	result_.addMacroExpansion(sr, md, args, parentMacroDefinition);
 	macroImportHelper_.addMacroExpansion(sr, md, args);
 
-	//auto expansionSpellingBegin = sourceManager_->getSpellingLoc(sr.getBegin());
-	//auto expansionSpellingEnd = sourceManager_->getSpellingLoc(sr.getEnd());
-
 	qDebug() << "expanding"
-				//<< (void*)md
 				<< name
-				//<< (args ? sourceManager_->getSpellingLoc(args->getUnexpArgument(0u)->getLocation()).getPtrEncoding() : 0)
-				<< sr.getBegin().getPtrEncoding()
-				<< sr.getEnd().getPtrEncoding()
-				//<< (nestedMacro ? "nested" : "")
-				//<< (void*)parentMacroDefinition
-				//<< parentMacroName
-				//<< expansionRange.first.getPtrEncoding()
-				//<< expansionSpellingBegin.getPtrEncoding()
-				//<< expansionSpellingEnd.getPtrEncoding()
-				//<< getSpelling(expansionSpellingBegin, expansionSpellingEnd)
-				//<< (nestedMacro ? "":
-				//	QString::fromStdString(preprocessor_->getSpelling(MacroNameTok)))
 				<< "|";
 }
 
