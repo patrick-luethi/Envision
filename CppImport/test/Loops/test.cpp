@@ -13,13 +13,14 @@
 class Sowiso {
 		  METHOD(true, Sowiso)
 
-                  void tra()
+		  void tra()
 		  {
-                          STATEMENTS
+			  STATEMENTS
 		  }
 };
 
-//CLASS(hello)
+CLASS(hello)
+
 //PARTIAL_BEGIN(hi)
 //PARTIAL_END
 

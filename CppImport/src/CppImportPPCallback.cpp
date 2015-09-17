@@ -37,15 +37,20 @@ void CppImportPPCallback::MacroDefined(const clang::Token& MacroNameTok, const c
 	if (name.startsWith("_")) return; // TODO: just for debug
 	if (name.endsWith("_API")) return;
 	if (name.startsWith("QT_")) return;
-	//if (name != "STATEMENTS") return;
+	if (name != "DEFINE_TYPE_ID_COMMON" &&
+		 name != "DECLARE_TYPE_ID_COMMON" &&
+		 name != "DEFINE_TYPE_ID_BASE") return;
 
 	definitions_[name] = MD;
 
 	result_.addMacroDefinition(name, MD);
 	macroImportHelper_.addMacroDefinition(name, MD);
 
+	auto s = sourceManager_->getSpellingLoc(MD->getMacroInfo()->getDefinitionLoc());
+
 	qDebug() << "definition"
 				<< name
+				<< s.getPtrEncoding()
 				<< "|";
 }
 
@@ -60,6 +65,7 @@ void CppImportPPCallback::MacroExpands(const clang::Token& MacroNameTok, const c
 
 	qDebug() << "expanding"
 				<< name
+				<< sr.getBegin().getPtrEncoding()
 				<< "|";
 }
 
