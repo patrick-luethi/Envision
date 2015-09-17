@@ -39,6 +39,7 @@ namespace CppImport {
 ClangAstVisitor::ClangAstVisitor(OOModel::Project* project, CppImportLogger* logger)
 :  log_{logger}
 {
+	macroImportHelper_.setProject(project);
 	trMngr_ = new TranslateManager(project, &macroImportHelper_);
 	exprVisitor_ = new ExpressionVisitor(this, log_);
 	utils_ = new CppImportUtilities(log_, exprVisitor_);
@@ -356,6 +357,9 @@ bool ClangAstVisitor::TraverseVarDecl(clang::VarDecl* varDecl)
 			log_->writeError(className_, varDecl->getInit(), CppImportLogger::Reason::NOT_SUPPORTED);
 		inBody_ = inBody;
 	}
+
+	trMngr_->mapAst(varDecl, ooVarDecl);
+
 	if (wasDeclared)
 		// we know the rest of the information already
 		return true;
@@ -364,8 +368,6 @@ bool ClangAstVisitor::TraverseVarDecl(clang::VarDecl* varDecl)
 	ooVarDecl->setTypeExpression(utils_->translateQualifiedType(varDecl->getType(), varDecl->getLocStart()));
 	// modifiers
 	ooVarDecl->modifiers()->set(utils_->translateStorageSpecifier(varDecl->getStorageClass()));
-
-	trMngr_->mapAst(varDecl, ooVarDecl);
 
 	return true;
 }

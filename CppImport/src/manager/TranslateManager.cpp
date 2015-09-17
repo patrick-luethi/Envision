@@ -75,6 +75,8 @@ OOModel::Module *TranslateManager::insertNamespace(clang::NamespaceDecl* namespa
 
 bool TranslateManager::insertClass(clang::CXXRecordDecl* rDecl, OOModel::Class* ooClass)
 {
+	this->macroImportHelper_->setTranslUnit(ooClass->name());
+
 	const QString hash = nh_->hashRecord(rDecl);
 	// if rdecl is not managed yet add it:
 	if (!classMap_.contains(hash))

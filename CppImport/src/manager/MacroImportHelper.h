@@ -50,7 +50,14 @@ class CPPIMPORT_API MacroImportHelper
 
 		void DebugStmt(clang::Stmt* S);
 
+		void clear();
+
+		void setProject(OOModel::Project* project);
+		void setTranslUnit(QString v);
 	private:
+		OOModel::Project* root{};
+		QString translUnit_{};
+
 		struct ExpansionEntry
 		{
 				clang::SourceRange range;
@@ -85,11 +92,11 @@ class CPPIMPORT_API MacroImportHelper
 		const clang::Preprocessor* preprocessor_;
 
 		QHash<const clang::MacroDirective*, QString> definitions_;
-		QHash<const clang::MacroDirective*, OOModel::Declaration*> metaDefParents_;
+		QHash<QString, OOModel::Declaration*> metaDefParents_;
 		QHash<QString, OOModel::MetaDefinition*> metaDefinitions_;
 		QHash<Model::Node*, QVector<clang::SourceRange>> astMapping_;
 		QHash<Model::Node*, clang::StringLiteral*> stringLiteralMapping_;
-		QHash<Model::Node*, ExpansionEntry*> expansionCache_;
+		QHash<Model::Node*, QSet<MacroImportHelper::ExpansionEntry*>> expansionCache_;
 		QVector<ExpansionEntry*> expansions_;
 
 		QString getSpelling(clang::SourceRange range);
@@ -105,7 +112,7 @@ class CPPIMPORT_API MacroImportHelper
 		clang::SourceLocation getImmediateMacroLoc(clang::SourceLocation loc);
 		ExpansionEntry* getImmediateExpansion(clang::SourceLocation loc);
 		ExpansionEntry* getExpansion(clang::SourceLocation loc);
-		ExpansionEntry* getExpansion(Model::Node* node);
+		QSet<ExpansionEntry*> getExpansion(Model::Node* node);
 		ExpansionEntry* getExpansion(OOModel::MetaCallExpression* metaCall);
 		Model::Node* closestParentWithAstMapping(Model::Node* node);
 		QVector<clang::SourceLocation> getMacroExpansionStack(clang::SourceLocation loc);

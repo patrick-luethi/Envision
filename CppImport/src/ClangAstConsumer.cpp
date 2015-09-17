@@ -46,6 +46,8 @@ void ClangAstConsumer::HandleTranslationUnit(clang::ASTContext& astContext)
 	astVisitor_->TraverseDecl(astContext.getTranslationUnitDecl());
 
 	astVisitor_->macroImportHelper_.macroGeneration();
+
+	astVisitor_->macroImportHelper_.clear();
 }
 
 }
