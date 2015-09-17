@@ -63,6 +63,24 @@ class CPPIMPORT_API MacroImportHelper
 				bool isChildOf(ExpansionEntry* entry);
 		};
 
+		struct MacroArgumentLocation
+		{
+				MacroArgumentLocation() {}
+				MacroArgumentLocation(ExpansionEntry* e, int a) : expansion(e), argumentNumber(a) {}
+
+				ExpansionEntry* expansion;
+				int argumentNumber;
+		};
+
+		struct MacroArgumentInfo
+		{
+				MacroArgumentInfo() {}
+				MacroArgumentInfo(QVector<MacroArgumentLocation> h, Model::Node* n) : history(h), node(n) {}
+
+				QVector<MacroArgumentLocation> history;
+				Model::Node* node;
+		};
+
 		const clang::SourceManager* sourceManager_;
 		const clang::Preprocessor* preprocessor_;
 
@@ -73,8 +91,6 @@ class CPPIMPORT_API MacroImportHelper
 		QHash<Model::Node*, clang::StringLiteral*> stringLiteralMapping_;
 		QHash<Model::Node*, ExpansionEntry*> expansionCache_;
 		QVector<ExpansionEntry*> expansions_;
-
-		typedef std::pair<ExpansionEntry*, int> MacroArgumentLocation;
 
 		QString getSpelling(clang::SourceRange range);
 		QString getSpelling(clang::SourceLocation start, clang::SourceLocation end);
@@ -96,12 +112,13 @@ class CPPIMPORT_API MacroImportHelper
 
 		QVector<Model::Node*> getNodes(ExpansionEntry* expansion);
 		void getAllNodes(ExpansionEntry* expansion, QVector<Model::Node*>* result);
+		QVector<Model::Node*> getAllNodes(ExpansionEntry* expansion);
 
-		QVector<MacroArgumentLocation> getArgumentLocation(clang::SourceRange range);
-		QVector<MacroArgumentLocation> getArgumentLocation(Model::Node* node);
+		QVector<MacroArgumentLocation> getArgumentHistory(clang::SourceRange range);
+		QVector<MacroArgumentLocation> getArgumentHistory(Model::Node* node);
 		void getImmediateSpellingHistory(clang::SourceLocation loc, QVector<clang::SourceLocation>* result);
 		void getAllArguments(Model::Node* node,
-									QVector<std::pair<QVector<MacroArgumentLocation>, Model::Node*>>* result);
+									QVector<MacroArgumentInfo>* result);
 		QVector<QString> getArgumentNames(const clang::MacroDirective* definition);
 
 		OOModel::Declaration* createContext(Model::Node* node);
