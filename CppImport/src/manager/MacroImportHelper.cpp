@@ -60,10 +60,12 @@ void MacroImportHelper::addMacroExpansion(clang::SourceRange sr, const clang::Ma
 	entry->metaCall = new OOModel::MetaCallExpression(getDefinitionName(entry->definition));
 
 	// using getArgumentNames.size because MacroArgs::getNumArguments is sometimes too high
+	qDebug() << "expansion object" << entry;
+	qDebug() << getArgumentNames(entry->definition);
+
 	for (auto i = 0; i < getArgumentNames(entry->definition).size(); i++)
 	{
 		auto actualArg = args->getUnexpArgument((unsigned int)i);
-
 
 		QString argText = "???";
 		if (actualArg->getIdentifierInfo())
@@ -97,15 +99,11 @@ void MacroImportHelper::mapAst(clang::Stmt* clangAstNode, Model::Node* envisionA
 
 void MacroImportHelper::mapAst(clang::Decl* clangAstNode, Model::Node* envisionAstNode)
 {
-	//handleIdentifierConcatentation(clangAstNode, envisionAstNode);
+	handleIdentifierConcatentation(clangAstNode, envisionAstNode);
 
 	if (!astMapping_[envisionAstNode].contains(clangAstNode->getSourceRange()))
 	{
 		astMapping_[envisionAstNode].append(clangAstNode->getSourceRange());
-
-		if (auto method = DCast<OOModel::Method>(envisionAstNode))
-			if (method->name() == "hierarchyTypeIds")
-				qDebug() << "inserting" << method << clangAstNode << astMapping_[envisionAstNode].size();
 	}
 }
 
@@ -118,7 +116,8 @@ bool MacroImportHelper::getUnexpandedCode(clang::SourceLocation start, clang::So
 														QString regex, int capture, QString *result)
 {
 	QRegularExpression regularExpression(regex);
-	auto spelling = capture == 2 ? getSpellingField(start) : getSpelling(start, end);
+	//auto spelling = capture == 2 ? getSpellingField(start) : getSpelling(start, end);
+	auto spelling = getSpelling(start, end);
 	//qDebug() << spelling;
 	auto match = regularExpression.match(spelling);
 
@@ -318,23 +317,6 @@ QSet<MacroImportHelper::ExpansionEntry*> MacroImportHelper::getExpansion(Model::
 	{
 		expansionCache_[node] = {};
 
-		if (auto field = DCast<OOModel::Field>(node))
-		{
-			if (field->name() == "typeId_")
-			{
-				qDebug() << "looking at" << field;
-				auto nd = closestParentWithAstMapping(node);
-				qDebug() << "astMapping_[nd].size()" << astMapping_[nd].size();
-				for (auto range : astMapping_[nd])
-				{
-					qDebug() << "imn"
-								<< QString::fromStdString(
-										clang::Lexer::getImmediateMacroName(range.getBegin(), *sourceManager_,
-																			  preprocessor_->getLangOpts()).str());
-				}
-			}
-		}
-
 		if (auto n = closestParentWithAstMapping(node))
 			if (astMapping_.contains(n))
 				for (auto range : astMapping_[n])
@@ -402,18 +384,6 @@ QVector<Model::Node*> MacroImportHelper::getNodes(MacroImportHelper::ExpansionEn
 			topLevel.insert(node);
 		}
 
-	qDebug() << "getNodes for" << getDefinitionName(expansion->definition);
-	for (auto node : allNodesForExpansion)
-	{
-		qDebug() << "	" << node->typeName();
-		if (node->parent())
-			if (astMapping_.contains(node->parent()))
-					qDebug() << "<" << QString::fromStdString(
-													  clang::Lexer::getImmediateMacroName(astMapping_[node->parent()]
-													  .first().getBegin(), *sourceManager_,
-																							 preprocessor_->getLangOpts()).str());
-	}
-
 	for (auto node : allNodesForExpansion)
 		for (auto other : allNodesForExpansion)
 			if (node != other)
@@ -464,7 +434,7 @@ void MacroImportHelper::createMetaDef(QVector<Model::Node*> nodes, ExpansionEntr
 	auto metaDefName = getDefinitionName(expansion->definition);
 	if (metaDefinitions_.contains(metaDefName)) return;
 
-	auto metaDef = new OOModel::MetaDefinition(metaDefName + " " + translUnit_);
+	auto metaDef = new OOModel::MetaDefinition(metaDefName);
 	metaDefinitions_[metaDefName] = metaDef;
 
 	auto metaDefParent = metaDefParents_[metaDefName];
@@ -572,7 +542,9 @@ void MacroImportHelper::createMetaDef(QVector<Model::Node*> nodes, ExpansionEntr
 	{
 		if (!expansion->children.empty())
 		{
-			auto childCall = expansion->children.first()->metaCall;
+			//TODO: this only works after metacalls get handled properly again
+
+			/*auto childCall = expansion->children.first()->metaCall;
 
 			childCall->parent()->replaceChild(childCall, expansion->metaCall);
 			nodeReplaced(childCall, expansion->metaCall);
@@ -583,7 +555,7 @@ void MacroImportHelper::createMetaDef(QVector<Model::Node*> nodes, ExpansionEntr
 				context->items()->append(new OOModel::ExpressionStatement(childExpansion->metaCall));
 			}
 
-			metaDef->setContext(context);
+			metaDef->setContext(context);*/
 		}
 	}
 
@@ -703,7 +675,7 @@ QString MacroImportHelper::getSpelling(clang::SourceRange range)
 QString MacroImportHelper::getSpellingField(clang::SourceLocation start)
 {
 	auto end = start.getLocWithOffset(1);
-	while (!getSpelling(start, end).endsWith(";"))
+	while (!getSpelling(start, end).endsWith(";") && getSpelling(start, end) != "SPELLING_ERROR")
 		end = end.getLocWithOffset(1);
 	return getSpelling(start, end);
 }
@@ -715,7 +687,9 @@ QString MacroImportHelper::getSpelling(clang::SourceLocation start, clang::Sourc
 																					0, *sourceManager_, preprocessor_->getLangOpts());
 
 	auto length = sourceManager_->getCharacterData(e) - sourceManager_->getCharacterData(b);
-	return length > 0 ? QString::fromStdString(std::string(sourceManager_->getCharacterData(b), length)) : "";
+
+	return 0 < length ?
+				QString::fromStdString(std::string(sourceManager_->getCharacterData(b), length)) : "";
 }
 
 void MacroImportHelper::handleIdentifierConcatentation(clang::Decl* decl, Model::Node* node)
@@ -725,6 +699,9 @@ void MacroImportHelper::handleIdentifierConcatentation(clang::Decl* decl, Model:
 
 	if (auto ooClass = DCast<OOModel::Class>(node))
 	{
+		ooClass->setName("PLACEHOLDER");
+		return;
+
 		if (auto record = clang::dyn_cast<clang::NamedDecl>(decl))
 		{
 			QString unexpandedCode;
@@ -742,6 +719,9 @@ void MacroImportHelper::handleIdentifierConcatentation(clang::Decl* decl, Model:
 	}
 	else if (auto ooMethod = DCast<OOModel::Method>(node))
 	{
+		ooMethod->setName("PLACEHOLDER");
+		return;
+
 		if (auto methodDecl = clang::dyn_cast<clang::FunctionDecl>(decl))
 		{
 			QString unexpandedCode;
@@ -753,6 +733,9 @@ void MacroImportHelper::handleIdentifierConcatentation(clang::Decl* decl, Model:
 	}
 	else if (auto ooField = DCast<OOModel::Field>(node))
 	{
+		ooField->setName("PLACEHOLDER");
+		return;
+
 		if (auto field = clang::dyn_cast<clang::FieldDecl>(decl))
 		{
 			QString unexpandedCode;
@@ -771,11 +754,6 @@ void MacroImportHelper::handleIdentifierConcatentation(clang::Decl* decl, Model:
 			if (getUnexpandedCode(field->getSourceRange(),
 										 "(\\S+\\s+)*(\\w(\\w|##)*\\w)", 2, &unexpandedCode))
 				ooField->setName(unexpandedCode);
-			else
-			{
-				qDebug() << ooField->name();
-				Q_ASSERT(false && "not implemented");
-			}
 		}
 		else
 			Q_ASSERT(false && "not implemented");
@@ -786,17 +764,11 @@ void MacroImportHelper::handleIdentifierConcatentation(Model::Node* node)
 {
 	if (astMapping_.contains(node))
 	{
-		if (DCast<OOModel::ReferenceExpression>(node) ||
-			 DCast<Model::NameText>(node))
+		if (auto ooReference = DCast<OOModel::ReferenceExpression>(node))
 		{
 			QString unexpandedCode;
 			if (getUnexpandedCode(astMapping_[node].first(), &unexpandedCode))
-			{
-				if (auto ooReference = DCast<OOModel::ReferenceExpression>(node))
-					ooReference->setName(unexpandedCode);
-				else if (auto name = DCast<Model::NameText>(node))
-					name->set(unexpandedCode);
-			}
+				ooReference->setName("PLACEHOLDER");
 		}
 	}
 
@@ -851,7 +823,7 @@ void MacroImportHelper::clear()
 {
 	definitions_.clear();
 	metaDefParents_.clear();
-	metaDefinitions_.clear();
+	//metaDefinitions_.clear();
 	astMapping_.clear();
 	stringLiteralMapping_.clear();
 	expansionCache_.clear();
@@ -881,11 +853,11 @@ void MacroImportHelper::macroGeneration()
 
 		//qDebug() << "toplevel" << getDefinitionName(expansion->definition);
 
-		/*for (auto generatedNode : generatedNodes)
+		for (auto generatedNode : generatedNodes)
 		{
 			//handleStringifycation(generatedNode);
 			handleIdentifierConcatentation(generatedNode);
-		}*/
+		}
 
 		QVector<MacroArgumentInfo> allArguments;
 		/*for (auto node : getAllNodes(expansion))

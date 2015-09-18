@@ -36,7 +36,7 @@ void NodeHasher::setSourceManager(const clang::SourceManager* sourceManager)
 
 const QString NodeHasher::hashFunction(const clang::FunctionDecl* functionDecl)
 {
-	QString hash = QString::fromStdString(functionDecl->getNameAsString());
+	QString hash = QString::fromStdString(functionDecl->getNameAsString()) + QString::number((long)functionDecl);
 	hash.prepend(QString::fromStdString(functionDecl->getReturnType().getAsString()).append("_"));
 	hash.append("_").append(functionDecl->getNumParams());
 
