@@ -132,7 +132,7 @@ bool ExpressionVisitor::TraverseCXXDependentScopeMemberExpr(clang::CXXDependentS
 
 bool ExpressionVisitor::TraverseDeclRefExpr(clang::DeclRefExpr* declRefExpr)
 {
-	QString name = QString::fromStdString(declRefExpr->getDecl()->getNameAsString());
+	QString name = this->baseVisitor_->macroImportHelper_.getNamedDeclName(declRefExpr->getDecl());
 
 	OOModel::ReferenceExpression* ooReference = nullptr;
 
@@ -732,11 +732,14 @@ bool ExpressionVisitor::TraverseUnaryOp(clang::UnaryOperator* unaryOperator)
 bool ExpressionVisitor::TraverseExplCastExpr(clang::ExplicitCastExpr* castExpr, OOModel::CastExpression::CastKind kind)
 {
 	OOModel::CastExpression* ooCast = new OOModel::CastExpression(kind);
+
 	// setType to cast to
 	ooCast->setType(utils_->translateQualifiedType(castExpr->getType(), castExpr->getLocStart()));
 	// visit subexpr
 	TraverseStmt(castExpr->getSubExprAsWritten());
 	if (!ooExprStack_.empty()) ooCast->setExpr(ooExprStack_.pop());
+
+	baseVisitor_->macroImportHelper_.correctCastType(castExpr, ooCast);
 
 	ooExprStack_.push(ooCast);
 	return true;

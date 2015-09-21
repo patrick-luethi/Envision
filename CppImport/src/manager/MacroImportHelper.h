@@ -54,6 +54,12 @@ class CPPIMPORT_API MacroImportHelper
 
 		void setProject(OOModel::Project* project);
 		void setTranslUnit(QString v);
+
+		QString getNamedDeclName(clang::NamedDecl* decl);
+		void correctFormalArgType(clang::NamedDecl* namedDecl, OOModel::FormalArgument* arg);
+		void correctCastType(clang::Expr* expr, OOModel::CastExpression* cast);
+		void correctFormalResultType(clang::FunctionDecl* method, OOModel::Method*  ooMethod);
+
 	private:
 		OOModel::Project* root{};
 		QString translUnit_{};
@@ -147,12 +153,14 @@ class CPPIMPORT_API MacroImportHelper
 		std::pair<clang::SourceLocation, clang::SourceLocation>
 		getStringLiteralSpellingLoc(clang::StringLiteral* stringLiteral);
 
-		bool getUnexpandedCode(clang::SourceLocation loc, QString* result);
-		bool getUnexpandedCode(clang::SourceLocation start, clang::SourceLocation end, QString* result);
-		bool getUnexpandedCode(clang::SourceRange range, QString* result);
-		bool getUnexpandedCode(clang::SourceLocation start, clang::SourceLocation end, QString regex,
-									  int capture, QString* result);
-		bool getUnexpandedCode(clang::SourceRange range, QString regex, int capture, QString* result);
+		bool getUnexpandedCode(clang::SourceLocation loc, QString* result,
+									  clang::SourceLocation* outStart = nullptr, clang::SourceLocation* outEnd = nullptr);
+		bool getUnexpandedCode(clang::SourceLocation start, clang::SourceLocation end, QString* result,
+									  clang::SourceLocation* outStart = nullptr, clang::SourceLocation* outEnd = nullptr);
+		bool getUnexpandedCode(clang::SourceRange range, QString* result,
+									  clang::SourceLocation* outStart = nullptr, clang::SourceLocation* outEnd = nullptr);
+
+		clang::SourceLocation getLocForEndOfToken(clang::SourceLocation loc);
 };
 
 }

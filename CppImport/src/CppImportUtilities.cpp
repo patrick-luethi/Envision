@@ -27,6 +27,7 @@
 #include "CppImportUtilities.h"
 #include "CppImportException.h"
 #include "visitors/ExpressionVisitor.h"
+#include "visitors/ClangAstVisitor.h"
 
 namespace CppImport {
 
@@ -520,12 +521,12 @@ OOModel::Expression* CppImportUtilities::translateTypePtr(const clang::Type* typ
 	else if (auto typedefType = llvm::dyn_cast<clang::TypedefType>(type))
 	{
 		translatedType = new OOModel::ReferenceExpression(
-					QString::fromStdString(typedefType->getDecl()->getNameAsString()));
+					exprVisitor_->baseVisitor_->macroImportHelper_.getNamedDeclName(typedefType->getDecl()));
 	}
 	else if (auto recordType = llvm::dyn_cast<clang::RecordType>(type))
 	{
 		OOModel::ReferenceExpression* ooRef = new OOModel::ReferenceExpression
-				(QString::fromStdString(recordType->getDecl()->getNameAsString()));
+				(exprVisitor_->baseVisitor_->macroImportHelper_.getNamedDeclName(recordType->getDecl()));
 		if (auto qualifier = recordType->getDecl()->getQualifier())
 			ooRef->setPrefix(translateNestedNameSpecifier(qualifier, location));
 		translatedType = ooRef;
@@ -545,7 +546,7 @@ OOModel::Expression* CppImportUtilities::translateTypePtr(const clang::Type* typ
 	else if (auto enumType = llvm::dyn_cast<clang::EnumType>(type))
 	{
 		OOModel::ReferenceExpression* ooRef = new OOModel::ReferenceExpression
-				(QString::fromStdString(enumType->getDecl()->getNameAsString()));
+				(exprVisitor_->baseVisitor_->macroImportHelper_.getNamedDeclName(enumType->getDecl()));
 		if (auto qualifier = enumType->getDecl()->getQualifier())
 			ooRef->setPrefix(translateNestedNameSpecifier(qualifier, location));
 		translatedType = ooRef;
@@ -568,15 +569,10 @@ OOModel::Expression* CppImportUtilities::translateTypePtr(const clang::Type* typ
 		// TODO: this might not always be a nice solution, to just return the inner type of a parenthesized type.
 		translatedType = translateQualifiedType(parenType->getInnerType(), location);
 	}
-	else if (auto typeDefType = llvm::dyn_cast<clang::TypedefType>(type))
-	{
-		translatedType = new OOModel::ReferenceExpression
-				(QString::fromStdString(typeDefType->getDecl()->getNameAsString()));
-	}
 	else if (auto templateParmType = llvm::dyn_cast<clang::TemplateTypeParmType>(type))
 	{
 		translatedType = new OOModel::ReferenceExpression(
-					QString::fromStdString(templateParmType->getDecl()->getNameAsString()));
+					exprVisitor_->baseVisitor_->macroImportHelper_.getNamedDeclName(templateParmType->getDecl()));
 	}
 	else if (auto functionProtoType = llvm::dyn_cast<clang::FunctionProtoType>(type))
 	{

@@ -325,6 +325,8 @@ OOModel::Method* TranslateManager::addNewMethod(clang::CXXMethodDecl* mDecl, OOM
 			OOModel::FormalResult* methodResult = new OOModel::FormalResult();
 			methodResult->setTypeExpression(restype);
 			method->results()->append(methodResult);
+
+			macroImportHelper_->correctFormalResultType(mDecl, method);
 		}
 	}
 	// process arguments
@@ -332,10 +334,12 @@ OOModel::Method* TranslateManager::addNewMethod(clang::CXXMethodDecl* mDecl, OOM
 	for (;it != mDecl->param_end();++it)
 	{
 		OOModel::FormalArgument* arg = new OOModel::FormalArgument();
-		arg->setName(QString::fromStdString((*it)->getNameAsString()));
+		arg->setName(QString::fromStdString((*it)->getNameAsString())); //here
 		OOModel::Expression* type = utils_->translateQualifiedType((*it)->getType(), (*it)->getLocStart());
 		if (type) arg->setTypeExpression(type);
 		method->arguments()->append(arg);
+
+		macroImportHelper_->correctFormalArgType(*it, arg);
 	}
 	// find the correct class to add the method
 	if (classMap_.contains(nh_->hashRecord(mDecl->getParent())))
@@ -366,6 +370,8 @@ OOModel::Method* TranslateManager::addNewFunction(clang::FunctionDecl* functionD
 		OOModel::FormalResult* methodResult = new OOModel::FormalResult();
 		methodResult->setTypeExpression(restype);
 		ooFunction->results()->append(methodResult);
+
+		macroImportHelper_->correctFormalResultType(functionDecl, ooFunction);
 	}
 	// process arguments
 	clang::FunctionDecl::param_const_iterator it = functionDecl->param_begin();
