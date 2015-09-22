@@ -719,6 +719,48 @@ void MacroImportHelper::correctFormalResultType(clang::FunctionDecl* method, OOM
 	}
 }
 
+void MacroImportHelper::correctMethodCall(clang::Expr* expr, OOModel::MethodCallExpression* methodCall)
+{
+	OOModel::ReferenceExpression* ref = DCast<OOModel::ReferenceExpression>(methodCall->callee());
+	if (!ref) return;
+
+	QString unexpandedCode;
+	clang::SourceLocation e;
+	if (getUnexpandedCode(expr->getSourceRange().getBegin(), &unexpandedCode, nullptr, &e))
+	{
+		QStack<OOModel::ReferenceExpression*> refs;
+		while (true)
+		{
+			refs.push(ref);
+
+			if (ref->prefix())
+			{
+				ref = DCast<OOModel::ReferenceExpression>(ref->prefix());
+				if (!ref)
+				{
+					qDebug() << "could not correct methodcall" << methodCall;
+					return;
+				}
+			}
+			else
+				break;
+		}
+
+		refs.pop()->setName(unexpandedCode);
+
+		while (!refs.empty())
+		{
+			e = getLocForEndOfToken(sourceManager_->getSpellingLoc(e)); // skip separator
+
+			refs.pop()->setName(getSpelling(e, e));
+
+			e = getLocForEndOfToken(sourceManager_->getSpellingLoc(e)); // next separator
+		}
+
+		//methodCall->setCallee(new OOModel::ReferenceExpression(unexpandedCode));
+	}
+}
+
 void MacroImportHelper::correctCastType(clang::Expr* expr, OOModel::CastExpression* cast)
 {
 	if (!expr->getSourceRange().getBegin().isMacroID() ||

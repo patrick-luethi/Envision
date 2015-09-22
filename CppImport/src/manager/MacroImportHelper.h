@@ -59,6 +59,7 @@ class CPPIMPORT_API MacroImportHelper
 		void correctFormalArgType(clang::NamedDecl* namedDecl, OOModel::FormalArgument* arg);
 		void correctCastType(clang::Expr* expr, OOModel::CastExpression* cast);
 		void correctFormalResultType(clang::FunctionDecl* method, OOModel::Method*  ooMethod);
+		void correctMethodCall(clang::Expr* expr, OOModel::MethodCallExpression* methodCall);
 
 	private:
 		OOModel::Project* root{};
