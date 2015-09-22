@@ -520,13 +520,18 @@ OOModel::Expression* CppImportUtilities::translateTypePtr(const clang::Type* typ
 	}
 	else if (auto typedefType = llvm::dyn_cast<clang::TypedefType>(type))
 	{
-		translatedType = new OOModel::ReferenceExpression(
-					exprVisitor_->baseVisitor_->macroImportHelper_.getNamedDeclName(typedefType->getDecl()));
+		auto ooRef = new OOModel::ReferenceExpression(
+					QString::fromStdString(typedefType->getDecl()->getNameAsString()));
+		exprVisitor_->baseVisitor_->macroImportHelper_.correctReferenceExpression(location, ooRef);
+
+		translatedType = ooRef;
 	}
 	else if (auto recordType = llvm::dyn_cast<clang::RecordType>(type))
 	{
-		OOModel::ReferenceExpression* ooRef = new OOModel::ReferenceExpression
-				(exprVisitor_->baseVisitor_->macroImportHelper_.getNamedDeclName(recordType->getDecl()));
+		auto ooRef = new OOModel::ReferenceExpression(
+					QString::fromStdString(recordType->getDecl()->getNameAsString()));
+		exprVisitor_->baseVisitor_->macroImportHelper_.correctReferenceExpression(location, ooRef);
+
 		if (auto qualifier = recordType->getDecl()->getQualifier())
 			ooRef->setPrefix(translateNestedNameSpecifier(qualifier, location));
 		translatedType = ooRef;
@@ -571,8 +576,11 @@ OOModel::Expression* CppImportUtilities::translateTypePtr(const clang::Type* typ
 	}
 	else if (auto templateParmType = llvm::dyn_cast<clang::TemplateTypeParmType>(type))
 	{
-		translatedType = new OOModel::ReferenceExpression(
-					exprVisitor_->baseVisitor_->macroImportHelper_.getNamedDeclName(templateParmType->getDecl()));
+		auto ooRef = new OOModel::ReferenceExpression(
+					QString::fromStdString(templateParmType->getDecl()->getNameAsString()));
+		exprVisitor_->baseVisitor_->macroImportHelper_.correctReferenceExpression(location, ooRef);
+
+		translatedType = ooRef;
 	}
 	else if (auto functionProtoType = llvm::dyn_cast<clang::FunctionProtoType>(type))
 	{
@@ -634,6 +642,7 @@ OOModel::Expression* CppImportUtilities::translateTypePtr(const clang::Type* typ
 		log_->typeNotSupported(type, location);
 		translatedType = createErrorExpression("Unsupported Type");
 	}
+
 	return translatedType;
 }
 

@@ -60,7 +60,9 @@ class CPPIMPORT_API MacroImportHelper
 		void correctCastType(clang::Expr* expr, OOModel::CastExpression* cast);
 		void correctFormalResultType(clang::FunctionDecl* method, OOModel::Method*  ooMethod);
 		void correctMethodCall(clang::Expr* expr, OOModel::MethodCallExpression* methodCall);
-
+		void correctReferenceExpression(clang::SourceLocation loc, OOModel::ReferenceExpression* reference);
+		OOModel::Expression* correctIntegerLiteral(clang::IntegerLiteral* intLit);
+		void removeStuff();
 	private:
 		OOModel::Project* root{};
 		QString translUnit_{};
@@ -95,6 +97,32 @@ class CPPIMPORT_API MacroImportHelper
 				Model::Node* node;
 		};
 
+		class NodeMapping
+		{
+			public:
+				void add(Model::Node* original, Model::Node* clone)
+				{
+					clones_[clone] = original;
+					originals_[original] = clone;
+				}
+
+				Model::Node* original(Model::Node* clone)
+				{
+					return clones_[clone];
+				}
+
+
+				Model::Node* clone(Model::Node* original)
+				{
+					return originals_[original];
+				}
+
+			private:
+				QHash<Model::Node*, Model::Node*> clones_;
+				QHash<Model::Node*, Model::Node*> originals_;
+
+		};
+
 		const clang::SourceManager* sourceManager_;
 		const clang::Preprocessor* preprocessor_;
 
@@ -105,6 +133,8 @@ class CPPIMPORT_API MacroImportHelper
 		QHash<Model::Node*, clang::StringLiteral*> stringLiteralMapping_;
 		QHash<Model::Node*, QSet<MacroImportHelper::ExpansionEntry*>> expansionCache_;
 		QVector<ExpansionEntry*> expansions_;
+		QSet<Model::Node*> toBeRemoved_;
+		QSet<QString> metaCallDuplicationPrevention_;
 
 		QString getSpelling(clang::SourceRange range);
 		QString getSpelling(clang::SourceLocation start, clang::SourceLocation end);
@@ -112,7 +142,7 @@ class CPPIMPORT_API MacroImportHelper
 		QString getDefinitionName(const clang::MacroDirective* md);
 		bool isIncompleteDefinition(const clang::MacroDirective* md);
 
-		void handleMacroExpansion(QVector<Model::Node*> nodes, ExpansionEntry* expansion);
+		void handleMacroExpansion(QVector<Model::Node*> nodes, ExpansionEntry* expansion, NodeMapping* mapping);
 
 		QVector<ExpansionEntry*> getTopLevelExpansions();
 
@@ -124,7 +154,7 @@ class CPPIMPORT_API MacroImportHelper
 		Model::Node* closestParentWithAstMapping(Model::Node* node);
 		QVector<clang::SourceLocation> getMacroExpansionStack(clang::SourceLocation loc);
 
-		QVector<Model::Node*> getNodes(ExpansionEntry* expansion);
+		QVector<Model::Node*> getNodes(ExpansionEntry* expansion, NodeMapping* mapping);
 		void getAllNodes(ExpansionEntry* expansion, QVector<Model::Node*>* result);
 		QVector<Model::Node*> getAllNodes(ExpansionEntry* expansion);
 
@@ -138,7 +168,7 @@ class CPPIMPORT_API MacroImportHelper
 		OOModel::Declaration* createContext(Model::Node* node);
 		OOModel::Declaration* getActualContext(Model::Node* node);
 		OOModel::Declaration* getMetaDefParent(ExpansionEntry* expansion);
-		void createMetaDef(QVector<Model::Node*> nodes, ExpansionEntry* expansion);
+		void createMetaDef(QVector<Model::Node*> nodes, ExpansionEntry* expansion, NodeMapping* mapping);
 		void nodeReplaced(Model::Node* node, Model::Node* replacement);
 
 		Model::Node* cloneRetainingMetaCallExpansionMapping(Model::Node* node);
@@ -150,7 +180,7 @@ class CPPIMPORT_API MacroImportHelper
 
 		void handleIdentifierConcatentation(Model::Node* node);
 		void handleIdentifierConcatentation(clang::Decl* decl, Model::Node* node);
-		void handleStringifycation(Model::Node* node);
+		void handleStringifycation(Model::Node* node, NodeMapping* mapping);
 		std::pair<clang::SourceLocation, clang::SourceLocation>
 		getStringLiteralSpellingLoc(clang::StringLiteral* stringLiteral);
 
@@ -162,6 +192,26 @@ class CPPIMPORT_API MacroImportHelper
 									  clang::SourceLocation* outStart = nullptr, clang::SourceLocation* outEnd = nullptr);
 
 		clang::SourceLocation getLocForEndOfToken(clang::SourceLocation loc);
+
+		Model::Node* cloneWithMapping(Model::Node* node, NodeMapping* mapping);
+		void buildMappingInfo(Model::Node* node, QList<Model::Node*>* info);
+		void useMappingInfo(Model::Node* node, QList<Model::Node*>* info, NodeMapping* mapping);
+		QVector<Model::Node*> getTopLevelNodes(MacroImportHelper::ExpansionEntry* expansion);
+		OOModel::Declaration* createContext(OOModel::Declaration* actualContext);
+		bool contains(clang::SourceRange range, clang::SourceRange other);
+		OOModel::Declaration* getActualContext(ExpansionEntry* expansion);
+		bool validContext(Model::Node* node);
+		QVector<Model::Node*> getClones(QVector<Model::Node*> nodes, NodeMapping* mapping);
+		QVector<Model::Node*> getNodesWithNoAncestor(QVector<Model::Node*> nodes);
+
+		void removeNode(Model::Node* node);
+		void getChildrenNotBelongingToExpansion(Model::Node* node, MacroImportHelper::ExpansionEntry* expansion,
+															 NodeMapping* mapping, QVector<Model::Node*>* result);
+		QString getSpelling(clang::SourceLocation loc);
+		bool nameSeparator(QString candidate);
+		bool getUnexpandedNameWithQualifiers(clang::SourceLocation loc, QString* result);
+		QString hashExpansion(ExpansionEntry* expansion);
+		bool shouldCreateMetaCall(ExpansionEntry* expansion);
 };
 
 }

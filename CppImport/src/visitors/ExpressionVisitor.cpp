@@ -343,7 +343,7 @@ bool ExpressionVisitor::TraverseCXXDeleteExpr(clang::CXXDeleteExpr* deleteExpr)
 
 bool ExpressionVisitor::TraverseIntegerLiteral(clang::IntegerLiteral* intLit)
 {
-	auto ooIntegerLiteral = new OOModel::IntegerLiteral(intLit->getValue().getLimitedValue());
+	auto ooIntegerLiteral = baseVisitor_->macroImportHelper_.correctIntegerLiteral(intLit);
 
 	baseVisitor_->trMngr_->mapAst(intLit, ooIntegerLiteral);
 
