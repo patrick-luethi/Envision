@@ -198,6 +198,9 @@ bool ExpressionVisitor::TraverseCallExpr(clang::CallExpr* callExpr)
 			log_->writeError(className_, *argIt, CppImportLogger::Reason::NOT_SUPPORTED);
 	}
 
+	baseVisitor_->macroImportHelper_.correctMethodCall(callExpr->getCallee(), ooMethodCall);
+	baseVisitor_->trMngr_->mapAst(callExpr, ooMethodCall);
+
 	ooExprStack_.push(ooMethodCall);
 
 	return true;
@@ -265,7 +268,7 @@ bool ExpressionVisitor::TraverseCXXOperatorCallExpr(clang::CXXOperatorCallExpr* 
 		case CppImportUtilities::OverloadKind::MethodCall:
 		{
 			OOModel::MethodCallExpression* ooCall = new OOModel::MethodCallExpression();
-			baseVisitor_->trMngr_->mapAst(callExpr, ooCall);
+
 			for (unsigned i = 0; i < numArguments - 1; i++)
 			{
 				if (!ooExprStack_.empty())
@@ -274,6 +277,9 @@ bool ExpressionVisitor::TraverseCXXOperatorCallExpr(clang::CXXOperatorCallExpr* 
 			if (!ooExprStack_.empty())
 			{
 				ooCall->setCallee(ooExprStack_.pop());
+
+				baseVisitor_->trMngr_->mapAst(callExpr, ooCall);
+
 				ooExprStack_.push(ooCall);
 				break;
 			}
@@ -416,6 +422,10 @@ bool ExpressionVisitor::TraverseCXXConstructExpr(clang::CXXConstructExpr* constr
 			else
 				log_->writeError(className_, *argIt, CppImportLogger::Reason::NOT_SUPPORTED);
 		}
+
+		baseVisitor_->macroImportHelper_.correctMethodCall(constructExpr, ooMethodCall);
+		baseVisitor_->trMngr_->mapAst(constructExpr, ooMethodCall);
+
 		ooExprStack_.push(ooMethodCall);
 		return true;
 	}
