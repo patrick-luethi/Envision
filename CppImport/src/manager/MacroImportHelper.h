@@ -145,7 +145,7 @@ class CPPIMPORT_API MacroImportHelper
 		bool isIncompleteDefinition(const clang::MacroDirective* md);
 
 		void handleMacroExpansion(QVector<Model::Node*> nodes, ExpansionEntry* expansion, NodeMapping* mapping,
-										  QVector<MacroArgumentInfo>& arguments);
+										  QVector<MacroArgumentInfo>& arguments, QHash<ExpansionEntry*, Model::Node*>* splices);
 
 		QVector<ExpansionEntry*> getTopLevelExpansions();
 
@@ -172,7 +172,7 @@ class CPPIMPORT_API MacroImportHelper
 		OOModel::Declaration* getActualContext(Model::Node* node);
 		OOModel::Declaration* getMetaDefParent(ExpansionEntry* expansion);
 		void createMetaDef(QVector<Model::Node*> nodes, ExpansionEntry* expansion, NodeMapping* mapping,
-								 QVector<MacroArgumentInfo>& arguments);
+								 QVector<MacroArgumentInfo>& arguments, QHash<ExpansionEntry*, Model::Node*>* splices);
 		void nodeReplaced(Model::Node* node, Model::Node* replacement);
 
 		Model::Node* cloneRetainingMetaCallExpansionMapping(Model::Node* node);
@@ -210,7 +210,8 @@ class CPPIMPORT_API MacroImportHelper
 
 		void removeNode(Model::Node* node);
 		void getChildrenNotBelongingToExpansion(Model::Node* node, MacroImportHelper::ExpansionEntry* expansion,
-															 NodeMapping* mapping, QVector<Model::Node*>* result);
+															 NodeMapping* mapping, QVector<Model::Node*>* result,
+															 QHash<ExpansionEntry*, Model::Node*>* splices);
 		QString getSpelling(clang::SourceLocation loc);
 		bool nameSeparator(QString candidate);
 		bool getUnexpandedNameWithQualifiers(clang::SourceLocation loc, QString* result);
