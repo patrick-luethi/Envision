@@ -535,7 +535,7 @@ OOModel::Declaration* MacroImportHelper::getMetaDefParent(ExpansionEntry*)
 }
 
 void MacroImportHelper::createMetaDef(QVector<Model::Node*> nodes, ExpansionEntry* expansion,
-												  NodeMapping* mapping)
+												  NodeMapping* mapping, QVector<MacroArgumentInfo>& arguments)
 {
 	auto metaDefName = getDefinitionName(expansion->definition);
 	if (metaDefinitions_.contains(metaDefName)) return;
@@ -557,8 +557,24 @@ void MacroImportHelper::createMetaDef(QVector<Model::Node*> nodes, ExpansionEntr
 		for (auto n : nodes)
 		{
 			NodeMapping childMapping;
-			//auto cloned = cloneWithMapping(mapping->original(n), &childMapping);
-			auto cloned = cloneWithMapping(n, mapping, &childMapping);
+			auto cloned = cloneWithMapping(mapping->original(n), &childMapping);
+			//auto cloned = cloneWithMapping(n, mapping, &childMapping);
+
+			for (auto argument : arguments)
+			{
+				auto original = mapping->original(argument.node);
+
+				if (auto child = childMapping.clone(original))
+				{
+					auto spliceLoc = argument.history.first();
+
+					auto argName = getArgumentNames(spliceLoc.expansion->definition).at(spliceLoc.argumentNumber);
+					auto newNode = new OOModel::ReferenceExpression(argName);
+
+					child->parent()->replaceChild(child, newNode);
+					childMapping.add(original, newNode);
+				}
+			}
 
 			QVector<Model::Node*> tbrs;
 			getChildrenNotBelongingToExpansion(cloned, expansion, &childMapping, &tbrs);
@@ -1206,30 +1222,20 @@ void MacroImportHelper::macroGeneration()
 	{
 		NodeMapping mapping;
 		QVector<Model::Node*> generatedNodes;
+		QVector<MacroArgumentInfo> allArguments;
 		for (auto node : getTopLevelNodes(expansion))
-			generatedNodes.append(cloneWithMapping(node, &mapping));
+		{
+			auto generatedNode = cloneWithMapping(node, &mapping);
 
-		for (auto generatedNode : generatedNodes)
+			getAllArguments(generatedNode, &allArguments, &mapping);
 			handleStringifycation(generatedNode, &mapping);
 
-		QVector<MacroArgumentInfo> allArguments;
-		for (auto node : generatedNodes)
-			getAllArguments(node, &allArguments, &mapping);
-
-		for (auto argument : allArguments)
-		{
-			auto spliceLoc = argument.history.first();
-
-			auto argName = getArgumentNames(spliceLoc.expansion->definition).at(spliceLoc.argumentNumber);
-			auto newNode = new OOModel::ReferenceExpression(argName);
-
-			argument.node->parent()->replaceChild(argument.node, newNode);
-			mapping.add(mapping.original(argument.node), newNode);
+			generatedNodes.append(generatedNode);
 		}
 
-		handleMacroExpansion(generatedNodes, expansion, &mapping);
+		handleMacroExpansion(generatedNodes, expansion, &mapping, allArguments);
 
-		for (auto argument : allArguments)
+		/*for (auto argument : allArguments)
 		{
 			if (argument.history.empty()) continue;
 
@@ -1250,7 +1256,7 @@ void MacroImportHelper::macroGeneration()
 			auto newArg = argument.node->clone();
 
 			expansion->metaCall->arguments()->replaceChild(currentArg, newArg);
-		}
+		}*/
 	}
 }
 
@@ -1299,14 +1305,14 @@ QString MacroImportHelper::hashExpansion(ExpansionEntry* expansion)
 }
 
 void MacroImportHelper::handleMacroExpansion(QVector<Model::Node*> nodes, MacroImportHelper::ExpansionEntry* expansion,
-															NodeMapping* mapping)
+															NodeMapping* mapping, QVector<MacroArgumentInfo>& arguments)
 {
 	for (auto childExpansion : expansion->children)
-		handleMacroExpansion(getNodes(childExpansion, mapping), childExpansion, mapping);
+		handleMacroExpansion(getNodes(childExpansion, mapping), childExpansion, mapping, arguments);
 
 	if (!isIncompleteDefinition(expansion->definition))
 	{
-		createMetaDef(nodes, expansion, mapping);
+		createMetaDef(nodes, expansion, mapping, arguments);
 
 		if (!expansion->parent)
 		{
