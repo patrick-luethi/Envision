@@ -66,15 +66,6 @@ void MacroImportHelper::addMacroExpansion(clang::SourceRange sr, const clang::Ma
 	{
 		auto actualArg = args->getUnexpArgument((unsigned int)i);
 
-		if (entry->parent)
-		if (getDefinitionName(md) == "DEFINE_TYPE_ID_DERIVED" &&
-			 getDefinitionName(entry->parent->definition) == "COMPOSITENODE_DEFINE_TYPE_REGISTRATION_METHODS_COMMON" &&
-			 i == 1)
-		{
-			QString aaa;
-			getUnexpandedNameWithQualifiers(actualArg->getLocation(), &aaa);
-		}
-
 		QString unexpandedName;
 		if (getUnexpandedNameWithQualifiers(actualArg->getLocation(), &unexpandedName))
 		{
@@ -82,8 +73,9 @@ void MacroImportHelper::addMacroExpansion(clang::SourceRange sr, const clang::Ma
 		}
 		else if (actualArg->getIdentifierInfo())
 		{
-			//auto argText = QString::fromStdString(actualArg->getIdentifierInfo()->getName().str());
-			entry->metaCall->arguments()->append(new OOModel::ReferenceExpression("argText"));
+			auto argText = QString::fromStdString(actualArg->getIdentifierInfo()->getName().str());
+			entry->metaCall->arguments()->append(new OOModel::ReferenceExpression(argText));
+			qDebug() << "using identifier info to build meta call argument (this should not happen ideally)";
 		}
 		else
 			entry->metaCall->arguments()->append(new OOModel::EmptyExpression());
@@ -227,7 +219,7 @@ bool MacroImportHelper::getUnexpandedNameWithQualifiers(clang::SourceLocation lo
 		return true;
 	}
 
-	QRegularExpression regularExpression("^\\w*$");
+	QRegularExpression regularExpression("^(\\w|##)*$");
 	auto match = regularExpression.match(*result);
 	if (!match.hasMatch())
 	{
@@ -1274,10 +1266,12 @@ void MacroImportHelper::macroGeneration()
 			auto currentArg = lastLoc.expansion->metaCall->arguments()->at(lastLoc.argumentNumber);
 			auto newArg = argument.node->clone();
 
+
 			if (DCast<OOModel::BooleanLiteral>(newArg) ||
-				 DCast<OOModel::StringLiteral>(newArg))
+				 DCast<OOModel::StringLiteral>(newArg) ||
+				 DCast<OOModel::NullLiteral>(newArg))
 			{
-				expansion->metaCall->arguments()->replaceChild(currentArg, newArg);
+				lastLoc.expansion->metaCall->arguments()->replaceChild(currentArg, newArg);
 			}
 			else
 			{
