@@ -177,6 +177,9 @@ bool ClangAstVisitor::TraverseClassTemplateSpecializationDecl
 		if (auto p = llvm::dyn_cast<clang::NamedDecl>(specializationDecl->getSpecializedTemplate()->getDeclContext()))
 			ooRef->setPrefix(new OOModel::ReferenceExpression(QString::fromStdString(p->getNameAsString())));
 		ooExplicitTemplateInst->setInstantiatedClass(ooRef);
+
+		macroImportHelper_.correctExplicitTemplateInst(specializationDecl, ooRef);
+
 		// add to tree
 		if (auto decl = DCast<OOModel::Declaration>(ooStack_.top()))
 			decl->subDeclarations()->append(ooExplicitTemplateInst);

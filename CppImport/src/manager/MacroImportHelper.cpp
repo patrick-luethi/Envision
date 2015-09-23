@@ -226,7 +226,11 @@ bool MacroImportHelper::getUnexpandedNameWithQualifiers(clang::SourceLocation lo
 			break;
 		current = getLocForEndOfToken(current);
 
-		*result += sepa + getSpelling(current);
+		auto identifier = getSpelling(current);
+		if (identifier == ",")
+			break;
+
+		*result += sepa + identifier;
 		current = getLocForEndOfToken(current);
 	}
 
@@ -553,7 +557,8 @@ void MacroImportHelper::createMetaDef(QVector<Model::Node*> nodes, ExpansionEntr
 		for (auto n : nodes)
 		{
 			NodeMapping childMapping;
-			auto cloned = cloneWithMapping(mapping->original(n), &childMapping);
+			//auto cloned = cloneWithMapping(mapping->original(n), &childMapping);
+			auto cloned = cloneWithMapping(n, mapping, &childMapping);
 
 			QVector<Model::Node*> tbrs;
 			getChildrenNotBelongingToExpansion(cloned, expansion, &childMapping, &tbrs);
@@ -759,6 +764,25 @@ Model::Node* MacroImportHelper::cloneWithMapping(Model::Node* node, NodeMapping*
 	useMappingInfo(clone, &info, mapping);
 
 	return clone;
+}
+
+Model::Node* MacroImportHelper::cloneWithMapping(Model::Node* node, NodeMapping* master, NodeMapping* mapping)
+{
+	auto clone = node->clone();
+
+	QList<Model::Node*> info;
+	buildMappingInfo(node, &info, master);
+	useMappingInfo(clone, &info, mapping);
+
+	return clone;
+}
+
+void MacroImportHelper::buildMappingInfo(Model::Node* node, QList<Model::Node*>* info, NodeMapping* master)
+{
+	info->push_back(master->original(node));
+
+	for (auto child : node->children())
+		buildMappingInfo(child, info);
 }
 
 void MacroImportHelper::buildMappingInfo(Model::Node* node, QList<Model::Node*>* info)
@@ -989,6 +1013,37 @@ void MacroImportHelper::correctReferenceExpression(clang::SourceLocation loc, OO
 	}
 }
 
+void MacroImportHelper::correctExplicitTemplateInst(clang::ClassTemplateSpecializationDecl* specializationDecl,
+																	 OOModel::ReferenceExpression* ref)
+{
+	if (!specializationDecl->getSourceRange().getBegin().isMacroID() ||
+		 !specializationDecl->getSourceRange().getEnd().isMacroID())
+		return;
+
+	auto spelling = getSpelling(specializationDecl->getLocation(), specializationDecl->getSourceRange().getEnd());
+
+	// TODO: improve parsing to handle more complicated cases.
+	QString ident = "(\\w+)";
+	QRegularExpression regularExpression("^" + ident + "<" + ident + "::" + ident + ">$");
+
+	auto match = regularExpression.match(spelling);
+	if (match.hasMatch())
+	{
+		ref->setName(match.captured(1));
+
+		auto typeArgPrefix = new OOModel::ReferenceExpression(match.captured(2));
+		auto typeArg = new OOModel::ReferenceExpression(match.captured(3));
+		typeArg->setPrefix(typeArgPrefix);
+
+		ref->typeArguments()->clear();
+		ref->typeArguments()->append(typeArg);
+	}
+	else
+	{
+		qDebug() << "could not correct explicit template instantiation: " << spelling;
+	}
+}
+
 OOModel::Expression* MacroImportHelper::correctIntegerLiteral(clang::IntegerLiteral* intLit)
 {
 	if (intLit->getLocation().isMacroID())
@@ -1085,10 +1140,9 @@ void MacroImportHelper::handleStringifycation(Model::Node* node, NodeMapping* ma
 		handleStringifycation(child, mapping);
 }
 
-void MacroImportHelper::getAllArguments(Model::Node* node,
-									QVector<MacroArgumentInfo>* result)
+void MacroImportHelper::getAllArguments(Model::Node* node, QVector<MacroArgumentInfo>* result, NodeMapping* mapping)
 {
-	auto argLoc = getArgumentHistory(node);
+	auto argLoc = getArgumentHistory(mapping->original(node));
 
 	if (!argLoc.empty())
 	{
@@ -1097,7 +1151,7 @@ void MacroImportHelper::getAllArguments(Model::Node* node,
 	}
 
 	for (auto child : node->children())
-		getAllArguments(child, result);
+		getAllArguments(child, result, mapping);
 }
 
 bool MacroImportHelper::ExpansionEntry::isChildOf(MacroImportHelper::ExpansionEntry* entry)
@@ -1150,8 +1204,6 @@ void MacroImportHelper::macroGeneration()
 
 	for (auto expansion : getTopLevelExpansions())
 	{
-		qDebug() << "toplevel" << getDefinitionName(expansion->definition);
-
 		NodeMapping mapping;
 		QVector<Model::Node*> generatedNodes;
 		for (auto node : getTopLevelNodes(expansion))
@@ -1160,9 +1212,9 @@ void MacroImportHelper::macroGeneration()
 		for (auto generatedNode : generatedNodes)
 			handleStringifycation(generatedNode, &mapping);
 
-		/*QVector<MacroArgumentInfo> allArguments;
-		for (auto node : getAllNodes(expansion))
-			getAllArguments(node, &allArguments);
+		QVector<MacroArgumentInfo> allArguments;
+		for (auto node : generatedNodes)
+			getAllArguments(node, &allArguments, &mapping);
 
 		for (auto argument : allArguments)
 		{
@@ -1172,12 +1224,12 @@ void MacroImportHelper::macroGeneration()
 			auto newNode = new OOModel::ReferenceExpression(argName);
 
 			argument.node->parent()->replaceChild(argument.node, newNode);
-			nodeReplaced(argument.node, newNode);
-		}*/
+			mapping.add(mapping.original(argument.node), newNode);
+		}
 
 		handleMacroExpansion(generatedNodes, expansion, &mapping);
 
-		/*for (auto argument : allArguments)
+		for (auto argument : allArguments)
 		{
 			if (argument.history.empty()) continue;
 
@@ -1198,7 +1250,7 @@ void MacroImportHelper::macroGeneration()
 			auto newArg = argument.node->clone();
 
 			expansion->metaCall->arguments()->replaceChild(currentArg, newArg);
-		}*/
+		}
 	}
 }
 

@@ -61,6 +61,8 @@ class CPPIMPORT_API MacroImportHelper
 		void correctFormalResultType(clang::FunctionDecl* method, OOModel::Method*  ooMethod);
 		void correctMethodCall(clang::Expr* expr, OOModel::MethodCallExpression* methodCall);
 		void correctReferenceExpression(clang::SourceLocation loc, OOModel::ReferenceExpression* reference);
+		void correctExplicitTemplateInst(clang::ClassTemplateSpecializationDecl* specializationDecl,
+													OOModel::ReferenceExpression* reference);
 		OOModel::Expression* correctIntegerLiteral(clang::IntegerLiteral* intLit);
 		void removeStuff();
 	private:
@@ -162,7 +164,7 @@ class CPPIMPORT_API MacroImportHelper
 		QVector<MacroArgumentLocation> getArgumentHistory(Model::Node* node);
 		void getImmediateSpellingHistory(clang::SourceLocation loc, QVector<clang::SourceLocation>* result);
 		void getAllArguments(Model::Node* node,
-									QVector<MacroArgumentInfo>* result);
+									QVector<MacroArgumentInfo>* result, NodeMapping* mapping);
 		QVector<QString> getArgumentNames(const clang::MacroDirective* definition);
 
 		OOModel::Declaration* createContext(Model::Node* node);
@@ -212,6 +214,8 @@ class CPPIMPORT_API MacroImportHelper
 		bool getUnexpandedNameWithQualifiers(clang::SourceLocation loc, QString* result);
 		QString hashExpansion(ExpansionEntry* expansion);
 		bool shouldCreateMetaCall(ExpansionEntry* expansion);
+		void buildMappingInfo(Model::Node* node, QList<Model::Node*>* info, NodeMapping* master);
+		Model::Node*cloneWithMapping(Model::Node* node, NodeMapping* master, NodeMapping* mapping);
 };
 
 }
