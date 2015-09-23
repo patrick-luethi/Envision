@@ -144,7 +144,8 @@ class CPPIMPORT_API MacroImportHelper
 		QString getDefinitionName(const clang::MacroDirective* md);
 		bool isIncompleteDefinition(const clang::MacroDirective* md);
 
-		void handleMacroExpansion(QVector<Model::Node*> nodes, ExpansionEntry* expansion, NodeMapping* mapping);
+		void handleMacroExpansion(QVector<Model::Node*> nodes, ExpansionEntry* expansion, NodeMapping* mapping,
+										  QVector<MacroArgumentInfo>& arguments);
 
 		QVector<ExpansionEntry*> getTopLevelExpansions();
 
@@ -170,7 +171,8 @@ class CPPIMPORT_API MacroImportHelper
 		OOModel::Declaration* createContext(Model::Node* node);
 		OOModel::Declaration* getActualContext(Model::Node* node);
 		OOModel::Declaration* getMetaDefParent(ExpansionEntry* expansion);
-		void createMetaDef(QVector<Model::Node*> nodes, ExpansionEntry* expansion, NodeMapping* mapping);
+		void createMetaDef(QVector<Model::Node*> nodes, ExpansionEntry* expansion, NodeMapping* mapping,
+								 QVector<MacroArgumentInfo>& arguments);
 		void nodeReplaced(Model::Node* node, Model::Node* replacement);
 
 		Model::Node* cloneRetainingMetaCallExpansionMapping(Model::Node* node);
