@@ -59,9 +59,21 @@ void MacroImportHelper::addMacroExpansion(clang::SourceRange sr, const clang::Ma
 	if (entry->parent) entry->parent->children.append(entry);
 	entry->metaCall = new OOModel::MetaCallExpression(getDefinitionName(entry->definition));
 
-	for (auto i = 0; i < getArgumentNames(entry->definition).size(); i++)
+	auto test = getArgumentNames(entry->definition).size();
+	if (getDefinitionName(md) == "DEFINE_TYPE_ID_DERIVED") test = 3;
+
+	for (auto i = 0; i < test; i++)
 	{
 		auto actualArg = args->getUnexpArgument((unsigned int)i);
+
+		if (entry->parent)
+		if (getDefinitionName(md) == "DEFINE_TYPE_ID_DERIVED" &&
+			 getDefinitionName(entry->parent->definition) == "COMPOSITENODE_DEFINE_TYPE_REGISTRATION_METHODS_COMMON" &&
+			 i == 1)
+		{
+			QString aaa;
+			getUnexpandedNameWithQualifiers(actualArg->getLocation(), &aaa);
+		}
 
 		QString unexpandedName;
 		if (getUnexpandedNameWithQualifiers(actualArg->getLocation(), &unexpandedName))
@@ -210,6 +222,10 @@ bool MacroImportHelper::getUnexpandedNameWithQualifiers(clang::SourceLocation lo
 		*result = getSpelling(loc);
 		current = getLocForEndOfToken(loc);
 	}
+	else if (result->startsWith("#"))
+	{
+		return true;
+	}
 
 	QRegularExpression regularExpression("^\\w*$");
 	auto match = regularExpression.match(*result);
@@ -222,6 +238,7 @@ bool MacroImportHelper::getUnexpandedNameWithQualifiers(clang::SourceLocation lo
 	while (true)
 	{
 		auto sepa = getSpelling(current);
+		qDebug() << sepa;
 		if (!nameSeparator(sepa))
 			break;
 		current = getLocForEndOfToken(current);
@@ -957,6 +974,8 @@ void MacroImportHelper::correctMethodCall(clang::Expr* expr, OOModel::MethodCall
 	auto ref = DCast<OOModel::ReferenceExpression>(methodCall->callee());
 	if (!ref) return;
 
+	if (ref->name() == "QString") return;
+
 	QStack<OOModel::ReferenceExpression*> refs;
 	while (true)
 	{
@@ -1235,7 +1254,7 @@ void MacroImportHelper::macroGeneration()
 
 		handleMacroExpansion(generatedNodes, expansion, &mapping, allArguments);
 
-		/*for (auto argument : allArguments)
+		for (auto argument : allArguments)
 		{
 			if (argument.history.empty()) continue;
 
@@ -1255,8 +1274,16 @@ void MacroImportHelper::macroGeneration()
 			auto currentArg = lastLoc.expansion->metaCall->arguments()->at(lastLoc.argumentNumber);
 			auto newArg = argument.node->clone();
 
-			expansion->metaCall->arguments()->replaceChild(currentArg, newArg);
-		}*/
+			if (DCast<OOModel::BooleanLiteral>(newArg) ||
+				 DCast<OOModel::StringLiteral>(newArg))
+			{
+				expansion->metaCall->arguments()->replaceChild(currentArg, newArg);
+			}
+			else
+			{
+				qDebug() << "forana" << newArg->typeName();
+			}
+		}
 	}
 }
 
