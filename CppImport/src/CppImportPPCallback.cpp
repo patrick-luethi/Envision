@@ -87,6 +87,7 @@ void CppImportPPCallback::MacroDefined(const clang::Token& MacroNameTok, const c
 
 	auto s = sourceManager_->getSpellingLoc(MD->getMacroInfo()->getDefinitionLoc());
 
+	return;
 	qDebug() << "definition"
 				<< name
 				<< s.getPtrEncoding()
@@ -100,11 +101,14 @@ void CppImportPPCallback::MacroExpands(const clang::Token& MacroNameTok, const c
 	auto name = QString::fromStdString(MacroNameTok.getIdentifierInfo()->getName().str());
 	if (!definitions_.contains(name)) return;
 
+
+	macroImportHelper_.addMacroExpansion(sr, md, args);
+
+	return;
 	qDebug() << "expanding"
 				<< name
 				<< sr.getBegin().getPtrEncoding()
 				<< "|";
-	macroImportHelper_.addMacroExpansion(sr, md, args);
 }
 
 }
