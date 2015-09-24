@@ -1279,19 +1279,23 @@ void MacroImportHelper::macroGeneration()
 			}
 
 			auto lastLoc = argument.history.last();
-			auto currentArg = lastLoc.expansion->metaCall->arguments()->at(lastLoc.argumentNumber);
+			auto currentArg = DCast<OOModel::ReferenceExpression>(
+						lastLoc.expansion->metaCall->arguments()->at(lastLoc.argumentNumber));
+			Q_ASSERT(currentArg);
 			auto newArg = argument.node->clone();
 
-
-			if (DCast<OOModel::BooleanLiteral>(newArg) ||
-				 DCast<OOModel::StringLiteral>(newArg) ||
-				 DCast<OOModel::NullLiteral>(newArg))
+			if (!currentArg->name().startsWith("#"))
 			{
-				lastLoc.expansion->metaCall->arguments()->replaceChild(currentArg, newArg);
-			}
-			else
-			{
-				qDebug() << "forana" << newArg->typeName();
+				if (DCast<OOModel::BooleanLiteral>(newArg) ||
+					 DCast<OOModel::StringLiteral>(newArg) ||
+					 DCast<OOModel::NullLiteral>(newArg))
+				{
+					lastLoc.expansion->metaCall->arguments()->replaceChild(currentArg, newArg);
+				}
+				else
+				{
+					qDebug() << "forana" << newArg->typeName();
+				}
 			}
 		}
 	}
