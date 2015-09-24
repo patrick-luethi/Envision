@@ -34,6 +34,8 @@
 #include "declarations/MetaDefinition.h"
 #include "expressions/BooleanLiteral.h"
 
+#include <expressions/StringLiteral.h>
+
 namespace OOModel {
 
 CodeGenerationVisitor::CodeGenerationVisitor(QMap<QString, Model::Node *> args) : args_{args} {}
@@ -49,7 +51,7 @@ void CodeGenerationVisitor::visitReferenceExpression(CodeGenerationVisitor* v, O
 {
 	auto input = n->name();
 
-	if (!input.contains("##"))
+	if (!input.contains("#"))
 	{
 		if (auto argument = v->args_[input])
 		{
@@ -76,20 +78,35 @@ void CodeGenerationVisitor::visitReferenceExpression(CodeGenerationVisitor* v, O
 	}
 	else
 	{
-		// case: n's name is a concatenated identifier (a##b)
-		// -> build identifier
+		if (input.startsWith("#") && !input.startsWith("##"))
+		{
+			// case: stringification
 
-		QStringList parts = input.split("##");
-		bool modified = false;
+			input.replace(0, 1, "");
 
-		for (auto i = 0; i < parts.size(); i++)
-			if (auto argument = DCast<ReferenceExpression>(v->args_[parts[i]]))
+			if (auto argument = DCast<ReferenceExpression>(v->args_[input]))
 			{
-				parts[i] = argument->name();
-				modified = true;
+				n->parent()->replaceChild(n, new OOModel::StringLiteral(argument->name()));
+				return;
 			}
+		}
+		else
+		{
+			// case: n's name is a concatenated identifier (a##b)
+			// -> build identifier
 
-		if (modified) n->setName(parts.join(""));
+			QStringList parts = input.split("##");
+			bool modified = false;
+
+			for (auto i = 0; i < parts.size(); i++)
+				if (auto argument = DCast<ReferenceExpression>(v->args_[parts[i]]))
+				{
+					parts[i] = argument->name();
+					modified = true;
+				}
+
+			if (modified) n->setName(parts.join(""));
+		}
 	}
 
 	v->visitChildren(n);
