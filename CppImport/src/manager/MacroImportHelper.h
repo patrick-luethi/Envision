@@ -65,6 +65,7 @@ class CPPIMPORT_API MacroImportHelper
 													OOModel::ReferenceExpression* reference);
 		OOModel::Expression* correctIntegerLiteral(clang::IntegerLiteral* intLit);
 		void removeStuff();
+		QString getSpelling(clang::SourceRange range);
 	private:
 		OOModel::Project* root{};
 		QString translUnit_{};
@@ -138,13 +139,12 @@ class CPPIMPORT_API MacroImportHelper
 		QSet<Model::Node*> toBeRemoved_;
 		QSet<QString> metaCallDuplicationPrevention_;
 
-		QString getSpelling(clang::SourceRange range);
 		QString getSpelling(clang::SourceLocation start, clang::SourceLocation end);
 		QString getSpellingField(clang::SourceLocation start);
 		QString getDefinitionName(const clang::MacroDirective* md);
 		bool isIncompleteDefinition(const clang::MacroDirective* md);
 
-		void handleMacroExpansion(QVector<Model::Node*> nodes, ExpansionEntry* expansion, NodeMapping* mapping,
+		void handleMacroExpansion(QVector<Model::Node*>& nodes, ExpansionEntry* expansion, NodeMapping* mapping,
 										  QVector<MacroArgumentInfo>& arguments, QHash<ExpansionEntry*, Model::Node*>* splices);
 
 		QVector<ExpansionEntry*> getTopLevelExpansions();
@@ -158,6 +158,7 @@ class CPPIMPORT_API MacroImportHelper
 		QVector<clang::SourceLocation> getMacroExpansionStack(clang::SourceLocation loc);
 
 		QVector<Model::Node*> getNodes(ExpansionEntry* expansion, NodeMapping* mapping);
+		QVector<Model::Node*> getNodes(ExpansionEntry* expansion, QVector<Model::Node*>& nodes, NodeMapping* mapping);
 		void getAllNodes(ExpansionEntry* expansion, QVector<Model::Node*>* result);
 		QVector<Model::Node*> getAllNodes(ExpansionEntry* expansion);
 
@@ -219,6 +220,8 @@ class CPPIMPORT_API MacroImportHelper
 		bool shouldCreateMetaCall(ExpansionEntry* expansion);
 		void buildMappingInfo(Model::Node* node, QList<Model::Node*>* info, NodeMapping* master);
 		Model::Node*cloneWithMapping(Model::Node* node, NodeMapping* master, NodeMapping* mapping);
+		static int depthFirstSearchIndex(Model::Node* current, int* counter, Model::Node* goal);
+		static bool nodeComparator(Model::Node* e1, Model::Node* e2);
 };
 
 }
