@@ -476,6 +476,50 @@ QVector<Model::Node*> MacroImportHelper::getNodes(MacroImportHelper::ExpansionEn
 				if (node->isAncestorOf(other))
 					topLevel.remove(other);
 
+	QVector<Model::Node*> unorderedOriginalResult;
+	for (auto node : topLevel)
+		unorderedOriginalResult.append(node);
+
+	qSort(unorderedOriginalResult.begin(), unorderedOriginalResult.end(), nodeComparator);
+
+	QVector<Model::Node*> orderedClonedResult;
+	for (auto node : unorderedOriginalResult)
+		orderedClonedResult.append(mapping->clone(node));
+
+	return orderedClonedResult;
+}
+
+bool MacroImportHelper::nodeComparator(Model::Node* e1, Model::Node* e2)
+{
+	int i1 = 0;
+	int i2 = 0;
+
+	auto a = e1->lowestCommonAncestor(e2);
+
+	return depthFirstSearchIndex(a, &i1, e1) < depthFirstSearchIndex(a, &i2, e2);
+}
+
+QVector<Model::Node*> MacroImportHelper::getNodes(MacroImportHelper::ExpansionEntry* expansion,
+																  QVector<Model::Node*>& nodes,
+																  NodeMapping* mapping)
+{
+	Q_ASSERT(expansion);
+
+	QVector<Model::Node*> allNodesForExpansion;
+	QSet<Model::Node*> topLevel;
+	for (auto node : nodes)
+		if (getExpansion(node).contains(expansion))
+		{
+			allNodesForExpansion.append(node);
+			topLevel.insert(node);
+		}
+
+	for (auto node : allNodesForExpansion)
+		for (auto other : allNodesForExpansion)
+			if (node != other)
+				if (node->isAncestorOf(other))
+					topLevel.remove(other);
+
 	QVector<Model::Node*> result;
 	for (auto node : topLevel)
 		result.append(mapping->clone(node));
@@ -549,6 +593,11 @@ void MacroImportHelper::createMetaDef(QVector<Model::Node*> nodes, ExpansionEntr
 	auto metaDefName = getDefinitionName(expansion->definition);
 	if (metaDefinitions_.contains(metaDefName)) return;
 
+	if (metaDefName == "CHECK_INT_EQUAL")
+	{
+		qDebug() << 1;
+	}
+
 	auto metaDef = new OOModel::MetaDefinition(metaDefName);
 	metaDefinitions_[metaDefName] = metaDef;
 
@@ -586,18 +635,24 @@ void MacroImportHelper::createMetaDef(QVector<Model::Node*> nodes, ExpansionEntr
 			for (auto childExpansion : expansion->children)
 				if (auto splice = splices->value(childExpansion))
 				{
-					auto clonedSplice = childMapping.clone(splice);
-
-					if (DCast<OOModel::Declaration>(clonedSplice))
+					if (auto clonedSplice = childMapping.clone(splice))
 					{
-						auto parentDecl = clonedSplice->firstAncestorOfType<OOModel::Declaration>();
-						Q_ASSERT(parentDecl);
+						if (DCast<OOModel::Declaration>(clonedSplice))
+						{
+							if (auto parentDecl = clonedSplice->firstAncestorOfType<OOModel::Declaration>())
+							{
+								parentDecl->metaCalls()->append(childExpansion->metaCall);
+							}
+							else
+							{
+								metaDef->context()->metaCalls()->append(childExpansion->metaCall);
+							}
 
-						parentDecl->metaCalls()->append(childExpansion->metaCall);
-						removeNode(clonedSplice);
+							removeNode(clonedSplice);
+						}
+						else
+							qDebug() << "not inserted metacall" << clonedSplice->parent()->typeName();
 					}
-					else
-						qDebug() << "not inserted metacall" << clonedSplice->parent()->typeName();
 				}
 
 			QVector<Model::Node*> tbrs;
@@ -605,6 +660,7 @@ void MacroImportHelper::createMetaDef(QVector<Model::Node*> nodes, ExpansionEntr
 
 			if (tbrs.contains(cloned)) continue;
 
+			if (metaDefName != "CHECK_INT_EQUAL")
 			for (auto tbr : tbrs)
 				removeNode(tbr);
 
@@ -618,6 +674,11 @@ void MacroImportHelper::createMetaDef(QVector<Model::Node*> nodes, ExpansionEntr
 					{
 						continue; // TODO: skips important stuff has to be removed
 					}
+					if (auto sLit = DCast<OOModel::StringLiteral>(cloned))
+					{
+						qDebug() << sLit->value();
+					}
+
 					Q_ASSERT(false);
 				}
 			}
@@ -649,6 +710,14 @@ void MacroImportHelper::createMetaDef(QVector<Model::Node*> nodes, ExpansionEntr
 						context->fields()->append(ooField);
 					else if (auto context = DCast<OOModel::Class>(metaDef->context()))
 						context->fields()->append(ooField);
+					else
+						Q_ASSERT(false);
+				}
+				else if (auto ooVarDecl = DCast<OOModel::VariableDeclaration>(cloned))
+				{
+					if (auto context = DCast<OOModel::Method>(metaDef->context()))
+						context->items()->append(new OOModel::ExpressionStatement(
+									new OOModel::VariableDeclarationExpression(ooVarDecl)));
 					else
 						Q_ASSERT(false);
 				}
@@ -713,10 +782,7 @@ OOModel::Declaration* MacroImportHelper::getActualContext(ExpansionEntry* expans
 				}
 
 	if (candidates.empty())
-	{
-		qDebug() << "ROOT";
 		return root;
-	}
 
 	auto result = candidates.first();
 
@@ -980,7 +1046,7 @@ void MacroImportHelper::correctMethodCall(clang::Expr* expr, OOModel::MethodCall
 	auto ref = DCast<OOModel::ReferenceExpression>(methodCall->callee());
 	if (!ref) return;
 
-	if (ref->name() == "QString") return;
+	auto qString = ref->name() == "QString";
 
 	QStack<OOModel::ReferenceExpression*> refs;
 	while (true)
@@ -1043,6 +1109,23 @@ void MacroImportHelper::correctMethodCall(clang::Expr* expr, OOModel::MethodCall
 
 		refs.pop()->setName(next);
 	}
+
+	if (qString && ref->name().startsWith("#"))
+	{
+		Q_ASSERT(methodCall->arguments()->size() == 1);
+		auto sLit = DCast<OOModel::StringLiteral>(methodCall->arguments()->first());
+		Q_ASSERT(sLit);
+		sLit->setValue(ref->name());
+		auto newLit = new OOModel::ReferenceExpression(ref->name());
+		methodCall->arguments()->replaceChild(sLit,
+														  newLit);
+		if (astMapping_.contains(sLit))
+		{
+			astMapping_.insert(newLit, astMapping_[sLit]);
+			astMapping_.remove(sLit);
+		}
+		ref->setName("QString");
+	}
 }
 
 void MacroImportHelper::correctReferenceExpression(clang::SourceLocation loc, OOModel::ReferenceExpression* reference)
@@ -1091,8 +1174,8 @@ OOModel::Expression* MacroImportHelper::correctIntegerLiteral(clang::IntegerLite
 	{
 		QString unexpandedCode;
 		if (getUnexpandedCode(intLit->getLocation(), &unexpandedCode))
-			if (unexpandedCode.startsWith("_"))
-				return new OOModel::ReferenceExpression(unexpandedCode);
+			if (unexpandedCode == "__LINE__")
+				return new OOModel::MetaCallExpression(unexpandedCode);
 	}
 
 	return new OOModel::IntegerLiteral(intLit->getValue().getLimitedValue());
@@ -1171,8 +1254,19 @@ void MacroImportHelper::handleStringifycation(Model::Node* node, NodeMapping* ma
 
 		auto value = getSpelling(loc.first, loc.second);
 
-		if (auto ooStringLiteral = DCast<OOModel::StringLiteral>(node))
-			ooStringLiteral->setValue(value);
+		if (auto ooStringLiteral = DCast<OOModel::StringLiteral>(mapping->original(node)))
+		{
+			if (value != "__FILE__")
+				ooStringLiteral->setValue(value);
+			else
+			{
+				auto newVal = new OOModel::MetaCallExpression(value);
+				ooStringLiteral->parent()->replaceChild(ooStringLiteral, newVal);
+				//PROBLEMZONE
+				stringLiteralMapping_.remove(mapping->original(node));
+				mapping->add(newVal, node);
+			}
+		}
 		else
 			Q_ASSERT(false);
 	}
@@ -1279,22 +1373,24 @@ void MacroImportHelper::macroGeneration()
 			}
 
 			auto lastLoc = argument.history.last();
-			auto currentArg = DCast<OOModel::ReferenceExpression>(
-						lastLoc.expansion->metaCall->arguments()->at(lastLoc.argumentNumber));
-			Q_ASSERT(currentArg);
-			auto newArg = argument.node->clone();
+			auto lastArg = lastLoc.expansion->metaCall->arguments()->at(lastLoc.argumentNumber);
 
-			if (!currentArg->name().startsWith("#"))
+			if (auto currentArg = DCast<OOModel::ReferenceExpression>(lastArg))
 			{
-				if (DCast<OOModel::BooleanLiteral>(newArg) ||
-					 DCast<OOModel::StringLiteral>(newArg) ||
-					 DCast<OOModel::NullLiteral>(newArg))
+				auto newArg = argument.node->clone();
+
+				if (!currentArg->name().startsWith("#"))
 				{
-					lastLoc.expansion->metaCall->arguments()->replaceChild(currentArg, newArg);
-				}
-				else
-				{
-					qDebug() << "forana" << newArg->typeName();
+					if (DCast<OOModel::BooleanLiteral>(newArg) ||
+						 DCast<OOModel::StringLiteral>(newArg) ||
+						 DCast<OOModel::NullLiteral>(newArg))
+					{
+						lastLoc.expansion->metaCall->arguments()->replaceChild(currentArg, newArg);
+					}
+					else
+					{
+						qDebug() << "forana" << newArg->typeName();
+					}
 				}
 			}
 		}
@@ -1309,12 +1405,21 @@ void MacroImportHelper::removeStuff()
 
 void MacroImportHelper::removeNode(Model::Node* node)
 {
-	if (!node->parent()) return;
+	if (!node) return;
 
-	if (auto ooList = DCast<Model::List>(node->parent()))
-		ooList->remove(ooList->indexOf(node));
+	if (auto ooList = DCast<Model::List>(node))
+	{
+		ooList->clear();
+	}
 	else
-		qDebug() << "cannot remove" << node->parent()->typeName();
+	{
+		if (!node->parent()) return;
+
+		if (auto ooList = DCast<Model::List>(node->parent()))
+			ooList->remove(ooList->indexOf(node));
+		else
+			removeNode(node->parent());
+	}
 }
 
 bool MacroImportHelper::shouldCreateMetaCall(ExpansionEntry* expansion)
@@ -1345,13 +1450,31 @@ QString MacroImportHelper::hashExpansion(ExpansionEntry* expansion)
 	return hash;
 }
 
-void MacroImportHelper::handleMacroExpansion(QVector<Model::Node*> nodes,
+int MacroImportHelper::depthFirstSearchIndex(Model::Node* current, int* counter, Model::Node* goal)
+{
+	if (current == goal) return *counter;
+
+	for (auto child : current->children())
+	{
+		(*counter)++;
+		int result = depthFirstSearchIndex(child, counter, goal);
+		if (result >= 0) return result;
+	}
+
+	return -1;
+}
+
+void MacroImportHelper::handleMacroExpansion(QVector<Model::Node*>& nodes,
 																		MacroImportHelper::ExpansionEntry* expansion,
 																		NodeMapping* mapping, QVector<MacroArgumentInfo>& arguments,
 																		QHash<ExpansionEntry*, Model::Node*>* splices)
 {
 	for (auto childExpansion : expansion->children)
-		handleMacroExpansion(getNodes(childExpansion, mapping), childExpansion, mapping, arguments, splices);
+	{
+		auto childExpansionNodes = getNodes(childExpansion, mapping);
+
+		handleMacroExpansion(childExpansionNodes, childExpansion, mapping, arguments, splices);
+	}
 
 	if (!isIncompleteDefinition(expansion->definition))
 	{
