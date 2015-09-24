@@ -4,7 +4,7 @@
 #define METHOD(ret, rolf) bool rolf##_w() { int x; return ret; } bool n() { return false; }
 #define CLASS(name) class name    { \
 			static int name##Index_; \
-			METHOD(nullptr, name##_Method)     \
+                        METHOD(#name, name##_Method)     \
 			};
 #define PARTIAL_BEGIN(name) class name    { int name##Index_;
 #define PARTIAL_END  METHOD(nullptr, name##_Method)     };
