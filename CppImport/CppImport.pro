@@ -55,10 +55,15 @@ HEADERS += src/precompiled.h \
     src/CppImportPlugin.h \
     src/comments/CommentParser.h \
     src/CppImportPPCallback.h \
-    src/manager/ClangAstNodeInfo.h \
-    src/manager/ClangMacroInfo.h \
-    src/manager/ClangMacroInfoEntry.h \
-    src/manager/MacroImportHelper.h
+    src/manager/MacroImportHelper.h \
+    src/manager/ClangHelper.h \
+    src/manager/ImportCorrection.h \
+    src/manager/ExpansionManager.h \
+    src/manager/MacroExpansion.h \
+    src/manager/AstMapping.h \
+    src/manager/NodeMapping.h \
+    src/manager/MacroArgumentLocation.h \
+    src/manager/MacroArgumentInfo.h
 SOURCES += src/CppImportException.cpp \
 	test/SimpleTest.cpp \
     src/ClangAstConsumer.cpp \
@@ -75,7 +80,11 @@ SOURCES += src/CppImportException.cpp \
     src/CppImportPlugin.cpp \
     src/comments/CommentParser.cpp \
     src/CppImportPPCallback.cpp \
-    src/manager/ClangAstNodeInfo.cpp \
-    src/manager/ClangMacroInfo.cpp \
-    src/manager/ClangMacroInfoEntry.cpp \
-    src/manager/MacroImportHelper.cpp
+    src/manager/MacroImportHelper.cpp \
+    src/manager/ClangHelper.cpp \
+    src/manager/ExpansionManager.cpp \
+    src/manager/MacroExpansion.cpp \
+    src/manager/AstMapping.cpp \
+    src/manager/NodeMapping.cpp \
+    src/manager/MacroArgumentLocation.cpp \
+    src/manager/MacroArgumentInfo.cpp

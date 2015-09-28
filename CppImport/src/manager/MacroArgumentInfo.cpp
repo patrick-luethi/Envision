@@ -24,7 +24,7 @@
  **
  **********************************************************************************************************************/
 
-#include "ClangMacroInfoEntry.h"
+#include "MacroArgumentInfo.h"
 
 namespace CppImport {
 

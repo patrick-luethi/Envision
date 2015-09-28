@@ -522,7 +522,7 @@ OOModel::Expression* CppImportUtilities::translateTypePtr(const clang::Type* typ
 	{
 		auto ooRef = new OOModel::ReferenceExpression(
 					QString::fromStdString(typedefType->getDecl()->getNameAsString()));
-		exprVisitor_->baseVisitor_->macroImportHelper_.correctReferenceExpression(location, ooRef);
+		exprVisitor_->baseVisitor_->macroImportHelper_.expansionManager_.correctReferenceExpression(location, ooRef);
 
 		translatedType = ooRef;
 	}
@@ -530,7 +530,7 @@ OOModel::Expression* CppImportUtilities::translateTypePtr(const clang::Type* typ
 	{
 		auto ooRef = new OOModel::ReferenceExpression(
 					QString::fromStdString(recordType->getDecl()->getNameAsString()));
-		exprVisitor_->baseVisitor_->macroImportHelper_.correctReferenceExpression(location, ooRef);
+		exprVisitor_->baseVisitor_->macroImportHelper_.expansionManager_.correctReferenceExpression(location, ooRef);
 
 		if (auto qualifier = recordType->getDecl()->getQualifier())
 			ooRef->setPrefix(translateNestedNameSpecifier(qualifier, location));
@@ -551,7 +551,7 @@ OOModel::Expression* CppImportUtilities::translateTypePtr(const clang::Type* typ
 	else if (auto enumType = llvm::dyn_cast<clang::EnumType>(type))
 	{
 		OOModel::ReferenceExpression* ooRef = new OOModel::ReferenceExpression
-				(exprVisitor_->baseVisitor_->macroImportHelper_.getNamedDeclName(enumType->getDecl()));
+				(QString::fromStdString(enumType->getDecl()->getNameAsString()));
 		if (auto qualifier = enumType->getDecl()->getQualifier())
 			ooRef->setPrefix(translateNestedNameSpecifier(qualifier, location));
 		translatedType = ooRef;
@@ -578,7 +578,7 @@ OOModel::Expression* CppImportUtilities::translateTypePtr(const clang::Type* typ
 	{
 		auto ooRef = new OOModel::ReferenceExpression(
 					QString::fromStdString(templateParmType->getDecl()->getNameAsString()));
-		exprVisitor_->baseVisitor_->macroImportHelper_.correctReferenceExpression(location, ooRef);
+		exprVisitor_->baseVisitor_->macroImportHelper_.expansionManager_.correctReferenceExpression(location, ooRef);
 
 		translatedType = ooRef;
 	}

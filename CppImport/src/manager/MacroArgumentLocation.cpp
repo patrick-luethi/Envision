@@ -24,55 +24,8 @@
  **
  **********************************************************************************************************************/
 
-#pragma once
-
-#include "cppimport_api.h"
-#include "ClangMacroInfoEntry.h"
-#include "ClangAstNodeInfo.h"
-#include "clang/Lex/MacroArgs.h"
+#include "MacroArgumentLocation.h"
 
 namespace CppImport {
-
-class CPPIMPORT_API ClangMacroInfo
-{
-	public:
-		struct ExpansionEntry
-		{
-				clang::SourceRange expansion;
-				const clang::MacroDirective* definition;
-				const clang::MacroDirective* parent;
-				QVector<clang::SourceLocation> arguments;
-				QVector<ExpansionEntry*> children;
-		};
-
-		void test(clang::Stmt* S);
-
-		void setSourceManager(const clang::SourceManager* sourceManager);
-
-		void addMacroDefinition(QString name, const clang::MacroDirective* md);
-		void addMacroExpansion(clang::SourceRange expansion, const clang::MacroDirective* md,
-									  const clang::MacroArgs* args, const clang::MacroDirective* parent);
-
-		ExpansionEntry* getExpansionInfo(ClangAstNodeInfo nodeInfo);
-		ExpansionEntry* getExpansion(clang::SourceLocation loc);
-
-		QString getDefinitionName(const clang::MacroDirective* md);
-
-
-		const clang::MacroDirective* getMacroDefinitionForArgument(ClangAstNodeInfo nodeInfo, int* argumentNumber);
-
-		const clang::MacroDirective* getMDForArg(clang::IdentifierInfo* arg);
-
-		void calculateMacroChildren();
-
-	private:
-		ExpansionEntry* getMacroExpansion(ClangAstNodeInfo nodeInfo);
-
-		const clang::SourceManager* sourceManager_;
-
-		QHash<const clang::MacroDirective*, QString> definitions_;
-
-		QVector<ExpansionEntry> expansions_;
-};
 
 }

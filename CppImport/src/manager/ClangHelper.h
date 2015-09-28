@@ -30,13 +30,33 @@
 
 namespace CppImport {
 
-class CPPIMPORT_API ClangAstNodeInfo
+class CPPIMPORT_API ClangHelper
 {
 	public:
 
-		QString value_;
+		void setSourceManager(const clang::SourceManager* sourceManager);
+		void setPreprocessor(const clang::Preprocessor* preprocessor);
 
-		clang::SourceRange sourceRange_;
+		clang::SourceLocation getLocForEndOfToken(clang::SourceLocation loc);
+
+		QString getSpelling(clang::SourceRange range);
+		QString getSpelling(clang::SourceLocation loc);
+		QString getSpelling(clang::SourceLocation start, clang::SourceLocation end);
+
+		clang::SourceLocation getImmediateMacroLoc(clang::SourceLocation loc);
+
+		void getImmediateSpellingHistory(clang::SourceLocation loc, QVector<clang::SourceLocation>* result);
+
+		QVector<QString> getArgumentNames(const clang::MacroDirective* definition);
+
+		bool contains(clang::SourceRange range, clang::SourceRange other);
+
+		const clang::SourceManager* sourceManager();
+
+	private:
+		const clang::Preprocessor* preprocessor_;
+		const clang::SourceManager* sm_;
+
 };
 
 }

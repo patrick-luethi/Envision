@@ -132,7 +132,7 @@ bool ExpressionVisitor::TraverseCXXDependentScopeMemberExpr(clang::CXXDependentS
 
 bool ExpressionVisitor::TraverseDeclRefExpr(clang::DeclRefExpr* declRefExpr)
 {
-	QString name = this->baseVisitor_->macroImportHelper_.getNamedDeclName(declRefExpr->getDecl());
+	QString name = QString::fromStdString(declRefExpr->getDecl()->getNameAsString());
 
 	OOModel::ReferenceExpression* ooReference = nullptr;
 
@@ -198,7 +198,7 @@ bool ExpressionVisitor::TraverseCallExpr(clang::CallExpr* callExpr)
 			log_->writeError(className_, *argIt, CppImportLogger::Reason::NOT_SUPPORTED);
 	}
 
-	baseVisitor_->macroImportHelper_.correctMethodCall(callExpr->getCallee(), ooMethodCall);
+	baseVisitor_->macroImportHelper_.expansionManager_.correctMethodCall(callExpr->getCallee(), ooMethodCall);
 	baseVisitor_->trMngr_->mapAst(callExpr, ooMethodCall);
 
 	ooExprStack_.push(ooMethodCall);
@@ -208,8 +208,6 @@ bool ExpressionVisitor::TraverseCallExpr(clang::CallExpr* callExpr)
 
 bool ExpressionVisitor::TraverseStmt(clang::Stmt* S)
 {
-	baseVisitor_->macroImportHelper_.DebugStmt(S);
-
 	return Base::TraverseStmt(S);
 }
 
@@ -343,7 +341,7 @@ bool ExpressionVisitor::TraverseCXXDeleteExpr(clang::CXXDeleteExpr* deleteExpr)
 
 bool ExpressionVisitor::TraverseIntegerLiteral(clang::IntegerLiteral* intLit)
 {
-	auto ooIntegerLiteral = baseVisitor_->macroImportHelper_.correctIntegerLiteral(intLit);
+	auto ooIntegerLiteral = baseVisitor_->macroImportHelper_.expansionManager_.correctIntegerLiteral(intLit);
 
 	baseVisitor_->trMngr_->mapAst(intLit, ooIntegerLiteral);
 
@@ -393,7 +391,7 @@ bool ExpressionVisitor::TraverseCharacterLiteral(clang::CharacterLiteral* charLi
 
 bool ExpressionVisitor::TraverseStringLiteral(clang::StringLiteral* stringLiteral)
 {
-	auto ooStringLiteral = new OOModel::StringLiteral(QString::fromStdString(stringLiteral->getBytes().str()));
+	auto ooStringLiteral = baseVisitor_->macroImportHelper_.expansionManager_.correctStringLiteral(stringLiteral);
 
 	baseVisitor_->trMngr_->mapAst(stringLiteral, ooStringLiteral);
 
@@ -423,7 +421,7 @@ bool ExpressionVisitor::TraverseCXXConstructExpr(clang::CXXConstructExpr* constr
 				log_->writeError(className_, *argIt, CppImportLogger::Reason::NOT_SUPPORTED);
 		}
 
-		baseVisitor_->macroImportHelper_.correctMethodCall(constructExpr, ooMethodCall);
+		baseVisitor_->macroImportHelper_.expansionManager_.correctMethodCall(constructExpr, ooMethodCall);
 		baseVisitor_->trMngr_->mapAst(constructExpr, ooMethodCall);
 
 		ooExprStack_.push(ooMethodCall);
@@ -749,7 +747,7 @@ bool ExpressionVisitor::TraverseExplCastExpr(clang::ExplicitCastExpr* castExpr, 
 	TraverseStmt(castExpr->getSubExprAsWritten());
 	if (!ooExprStack_.empty()) ooCast->setExpr(ooExprStack_.pop());
 
-	baseVisitor_->macroImportHelper_.correctCastType(castExpr, ooCast);
+	baseVisitor_->macroImportHelper_.expansionManager_.correctCastType(castExpr, ooCast);
 
 	ooExprStack_.push(ooCast);
 	return true;

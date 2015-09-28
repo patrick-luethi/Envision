@@ -65,7 +65,6 @@ void ClangAstVisitor::setSourceManager(const clang::SourceManager* sourceManager
 	Q_ASSERT(sourceManager);
 	sourceManager_ = sourceManager;
 	trMngr_->setSourceManager(sourceManager);
-	importResult_.setSourceManager(sourceManager);
 	macroImportHelper_.setSourceManager(sourceManager);
 }
 
@@ -78,7 +77,7 @@ void ClangAstVisitor::setPreprocessor(const clang::Preprocessor* preprocessor)
 	preprocessor_->addPPCallbacks(std::unique_ptr<clang::PPCallbacks>(record_));
 	preprocessor_->addPPCallbacks(std::make_unique<CppImportPPCallback>(
 												preprocessor_,
-												sourceManager_, importResult_, macroImportHelper_));
+												sourceManager_, macroImportHelper_));
 }
 
 Model::Node*ClangAstVisitor::ooStackTop()
@@ -178,7 +177,7 @@ bool ClangAstVisitor::TraverseClassTemplateSpecializationDecl
 			ooRef->setPrefix(new OOModel::ReferenceExpression(QString::fromStdString(p->getNameAsString())));
 		ooExplicitTemplateInst->setInstantiatedClass(ooRef);
 
-		macroImportHelper_.correctExplicitTemplateInst(specializationDecl, ooRef);
+		macroImportHelper_.expansionManager_.correctExplicitTemplateInst(specializationDecl, ooRef);
 
 		// add to tree
 		if (auto decl = DCast<OOModel::Declaration>(ooStack_.top()))
@@ -593,8 +592,6 @@ bool ClangAstVisitor::TraverseUnresolvedUsingValueDecl(clang::UnresolvedUsingVal
 
 bool ClangAstVisitor::TraverseStmt(clang::Stmt* S)
 {
-	macroImportHelper_.DebugStmt(S);
-
 	if (S && llvm::isa<clang::Expr>(S))
 	{
 		// always ignore implicit stuff

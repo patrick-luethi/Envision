@@ -79,7 +79,7 @@ Model::TreeManager*CppImportManager::createTreeManager(const bool statisticsPerP
 		SAFE_DELETE(tool);
 	}
 
-	visitor->macroImportHelper_.removeStuff();
+	visitor->macroImportHelper_.finalize();
 
 	// statistics
 	if (!statisticsPerProject)
