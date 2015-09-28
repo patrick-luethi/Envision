@@ -56,8 +56,7 @@ HEADERS += src/precompiled.h \
     src/comments/CommentParser.h \
     src/CppImportPPCallback.h \
     src/manager/MacroImportHelper.h \
-    src/manager/ClangHelper.h \
-    src/manager/ImportCorrection.h \
+	src/manager/ClangHelper.h \
     src/manager/ExpansionManager.h \
     src/manager/MacroExpansion.h \
     src/manager/AstMapping.h \

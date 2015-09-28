@@ -60,8 +60,14 @@ QString ClangHelper::getSpelling(clang::SourceLocation start, clang::SourceLocat
 
 	auto length = sm_->getCharacterData(e) - sm_->getCharacterData(b);
 
-	return 0 < length ?
-				QString::fromStdString(std::string(sm_->getCharacterData(b), length)) : "";
+	try
+	{
+		return 0 < length ? QString::fromStdString(std::string(sm_->getCharacterData(b), length)) : "";
+	}
+	catch (...)
+	{
+		return "ERROR_IN_GET_SPELLING";
+	}
 }
 
 clang::SourceLocation ClangHelper::getImmediateMacroLoc(clang::SourceLocation Loc)

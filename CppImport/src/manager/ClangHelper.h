@@ -59,9 +59,89 @@ class CPPIMPORT_API ClangHelper
 				Token(ClangHelper* clang, clang::SourceLocation loc) : clang_(clang), loc_(loc) {}
 
 				QString value() { return clang_->getSpelling(loc_); }
-				Token next() { return Token(clang_, clang_->getLocForEndOfToken(loc_)); }
+
+				Token next()
+				{
+					auto nextLoc = clang_->getLocForEndOfToken(loc_);
+					if (nextLoc == loc_) nextLoc = loc_.getLocWithOffset(1);
+
+					return Token(clang_, nextLoc);
+				}
+
+				QVector<Token*> type()
+				{
+					auto first = qualifiedIdentifier();
+
+					if (toString(first) == "const")
+					{
+						auto nextToken = first.last()->next();
+						while (nextToken.isEmpty() || nextToken.isWhitespace()) nextToken = nextToken.next();
+						auto second = nextToken.qualifiedIdentifier();
+
+						QVector<Token*> total;
+						for (auto f : first) total.append(f);
+						for (auto s : second) total.append(s);
+						return total;
+					}
+
+					return first;
+				}
+
+				QVector<Token*> qualifiedIdentifier()
+				{
+					QVector<Token*> result;
+					buildQualifiedIdentifier(&result);
+					return result;
+				}
+
+				QVector<Token*> identifier()
+				{
+					QVector<Token*> result;
+					buildIdentifier(&result);
+					return result;
+				}
+
+				QString toString(QVector<Token*> tokens)
+				{
+					if (tokens.empty()) return "";
+
+					return clang_->getSpelling(tokens.first()->loc(), tokens.last()->loc());
+				}
+
+				bool isIdentifier() { return matchesRegex("^\\w+$");	}
+				bool isWhitespace() { return matchesRegex("^\\s+$"); }
+				bool isEmpty() { return value().length() == 0; }
+				bool isConcatenation() { return value() == "##"; }
+				bool isStringifycation() { return value() == "#"; }
+				bool isNamespaceSeparator() { return value() == "::"; }
+
+				clang::SourceLocation loc() { return loc_; }
+
+				bool matchesRegex(QString regex)
+				{
+					QRegularExpression regularExpression(regex);
+					return regularExpression.match(value()).hasMatch();
+				}
 
 			private:
+				void buildQualifiedIdentifier(QVector<Token*>* tokens)
+				{
+					if (isIdentifier() || isConcatenation() || isStringifycation() || isNamespaceSeparator())
+					{
+						tokens->append(new Token(clang_, loc_));
+						next().buildQualifiedIdentifier(tokens);
+					}
+				}
+
+				void buildIdentifier(QVector<Token*>* tokens)
+				{
+					if (isIdentifier() || isConcatenation() || isStringifycation())
+					{
+						tokens->append(new Token(clang_, loc_));
+						next().buildIdentifier(tokens);
+					}
+				}
+
 				ClangHelper* clang_;
 				clang::SourceLocation loc_;
 		};
