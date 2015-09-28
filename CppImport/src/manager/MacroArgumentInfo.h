@@ -28,17 +28,18 @@
 
 #include "cppimport_api.h"
 
+#include "MacroArgumentLocation.h"
+
 namespace CppImport {
 
-class CPPIMPORT_API ClangMacroInfoEntry
+class CPPIMPORT_API MacroArgumentInfo
 {
 	public:
-		ClangMacroInfoEntry(QString name, const clang::MacroDirective* md) :
-			name_(name), md_(md) { }
+		MacroArgumentInfo() {}
+		MacroArgumentInfo(QVector<MacroArgumentLocation> h, Model::Node* n) : history(h), node(n) {}
 
-		QString name_;
-
-		const clang::MacroDirective* md_;
+		QVector<MacroArgumentLocation> history;
+		Model::Node* node;
 };
 
 }

@@ -28,7 +28,6 @@
 
 #include "cppimport_api.h"
 #include "Core/src/EnvisionException.h"
-#include "manager/ClangMacroInfo.h"
 #include "manager/MacroImportHelper.h"
 
 namespace CppImport {
@@ -40,10 +39,9 @@ class CPPIMPORT_API CppImportPPCallback : public clang::PPCallbacks
 		CppImportPPCallback(
 				const clang::Preprocessor* preprocessor,
 				const clang::SourceManager* sourceManager,
-				ClangMacroInfo& result,
 				MacroImportHelper& macroImportHelper)
 			: preprocessor_(const_cast<clang::Preprocessor*>(preprocessor)),
-			  sourceManager_(sourceManager), result_(result), macroImportHelper_(macroImportHelper) { }
+			  sourceManager_(sourceManager), macroImportHelper_(macroImportHelper) { }
 
 		virtual void MacroDefined(const clang::Token& MacroNameTok, const clang::MacroDirective* MD) override;
 
@@ -53,7 +51,6 @@ class CPPIMPORT_API CppImportPPCallback : public clang::PPCallbacks
 		clang::Preprocessor* preprocessor_;
 		const clang::SourceManager* sourceManager_;
 
-		ClangMacroInfo& result_;
 		MacroImportHelper& macroImportHelper_;
 
 	private:

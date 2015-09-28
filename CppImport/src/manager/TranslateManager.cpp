@@ -75,8 +75,6 @@ OOModel::Module *TranslateManager::insertNamespace(clang::NamespaceDecl* namespa
 
 bool TranslateManager::insertClass(clang::CXXRecordDecl* rDecl, OOModel::Class* ooClass)
 {
-	this->macroImportHelper_->setTranslUnit(ooClass->name());
-
 	const QString hash = nh_->hashRecord(rDecl);
 	// if rdecl is not managed yet add it:
 	if (!classMap_.contains(hash))
@@ -289,22 +287,12 @@ OOModel::TypeAlias* TranslateManager::insertTypeAliasTemplate(clang::TypeAliasTe
 
 void TranslateManager::mapAst(clang::Stmt* clangAstNode, Model::Node* envisionAstNode)
 {
-	macroImportHelper_->mapAst(clangAstNode, envisionAstNode);
-
-	auto e = &mapping2_[envisionAstNode];
-
-	e->value_ = "Stmt";
-	e->sourceRange_ = clangAstNode->getSourceRange();
+	macroImportHelper_->expansionManager_.mapAst(clangAstNode, envisionAstNode);
 }
 
 void TranslateManager::mapAst(clang::Decl* clangAstNode, Model::Node* envisionAstNode)
 {
-	macroImportHelper_->mapAst(clangAstNode, envisionAstNode);
-
-	auto e = &mapping2_[envisionAstNode];
-
-	e->value_ = "Decl";
-	e->sourceRange_ = clangAstNode->getSourceRange();
+	macroImportHelper_->expansionManager_.mapAst(clangAstNode, envisionAstNode);
 }
 
 OOModel::Method* TranslateManager::addNewMethod(clang::CXXMethodDecl* mDecl, OOModel::Method::MethodKind kind)
@@ -326,7 +314,7 @@ OOModel::Method* TranslateManager::addNewMethod(clang::CXXMethodDecl* mDecl, OOM
 			methodResult->setTypeExpression(restype);
 			method->results()->append(methodResult);
 
-			macroImportHelper_->correctFormalResultType(mDecl, method);
+			macroImportHelper_->expansionManager_.correctFormalResultType(mDecl, method);
 		}
 	}
 	// process arguments
@@ -339,7 +327,7 @@ OOModel::Method* TranslateManager::addNewMethod(clang::CXXMethodDecl* mDecl, OOM
 		if (type) arg->setTypeExpression(type);
 		method->arguments()->append(arg);
 
-		macroImportHelper_->correctFormalArgType(*it, arg);
+		macroImportHelper_->expansionManager_.correctFormalArgType(*it, arg);
 	}
 	// find the correct class to add the method
 	if (classMap_.contains(nh_->hashRecord(mDecl->getParent())))
@@ -371,7 +359,7 @@ OOModel::Method* TranslateManager::addNewFunction(clang::FunctionDecl* functionD
 		methodResult->setTypeExpression(restype);
 		ooFunction->results()->append(methodResult);
 
-		macroImportHelper_->correctFormalResultType(functionDecl, ooFunction);
+		macroImportHelper_->expansionManager_.correctFormalResultType(functionDecl, ooFunction);
 	}
 	// process arguments
 	clang::FunctionDecl::param_const_iterator it = functionDecl->param_begin();

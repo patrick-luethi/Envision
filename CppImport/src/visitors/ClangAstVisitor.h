@@ -28,7 +28,6 @@
 
 #include "../cppimport_api.h"
 #include "../manager/TranslateManager.h"
-#include "../manager/ClangMacroInfo.h"
 #include "../manager/MacroImportHelper.h"
 #include "../CppImportLogger.h"
 #include "../comments/CommentParser.h"
@@ -123,7 +122,6 @@ class CPPIMPORT_API ClangAstVisitor : public clang::RecursiveASTVisitor <ClangAs
 
 		clang::Preprocessor* preprocessor_{};
 
-		ClangMacroInfo importResult_{};
 		MacroImportHelper macroImportHelper_{};
 
 		TranslateManager* trMngr_{};

@@ -37,53 +37,10 @@ void CppImportPPCallback::MacroDefined(const clang::Token& MacroNameTok, const c
 	if (name.startsWith("_")) return; // TODO: just for debug
 	if (name.endsWith("_API")) return;
 	if (name.startsWith("QT_")) return;
-	/*if (name != "DEFINE_TYPE_ID_COMMON" &&
-		 name != "DECLARE_TYPE_ID_COMMON" &&
-		 name != "DEFINE_TYPE_ID_BASE" &&
-		 name != "DEFINE_TYPE_ID_DERIVED" &&
-		 name != "NODE_DECLARE_STANDARD_METHODS" &&
-		 name != "COMPOSITENODE_DECLARE_STANDARD_METHODS" &&
-		 name != "ATTRIBUTE" &&
-		 //name != "ATTRIBUTE_OOP_ANNOTATIONS" &&
-		 name != "REGISTER_ATTRIBUTE" &&
-		 //name != "ATTRIBUTE_VALUE_CUSTOM_RETURN" &&
-		 name != "COMPOSITENODE_DEFINE_TYPE_REGISTRATION_METHODS_COMMON" &&
-		 name != "COMPOSITENODE_DEFINE_TYPE_REGISTRATION_METHODS" &&
-		 //name != "COMPOSITENODE_DEFINE_TYPE_REGISTRATION_METHODS_WITH_DEFAULT_PROXY" &&
-		 //name != "NODE_DEFINE_TYPE_REGISTRATION_METHODS_COMMON"
-		 name != "DECLARE_TYPE_ID" &&
-		 name != "DECLARE_TYPE_ID_BASE" &&
-		 name != "DECLARE_TYPED_LIST" &&
-		 name != "DEFINE_TYPED_LIST" &&
-		 name != "NODE_DEFINE_EMPTY_CONSTRUCTORS" &&
-		 name != "COMPOSITENODE_DEFINE_EMPTY_CONSTRUCTORS" &&
-		 name != "NODE_DEFINE_TYPE_REGISTRATION_METHODS_COMMON" &&
-		 name != "NODE_DEFINE_TYPE_REGISTRATION_METHODS" &&
-		 name != "NODE_DEFINE_TYPE_REGISTRATION_METHODS_WITH_DEFAULT_PROXY" &&
-		 name != "COMPOSITENODE_DEFINE_TYPE_REGISTRATION_METHODS_WITH_DEFAULT_PROXY" &&
-		 name != "PRIVATE_ATTRIBUTE" &&
-		 name != "SET_ATTR_VAL" &&
-		 name != "SET_EXTENSION_ATTR_VAL" &&
-		 name != "ATTRIBUTE_VALUE" &&
-		 name != "PRIVATE_ATTRIBUTE_VALUE" &&
-		 name != "ATTRIBUTE_VALUE_CUSTOM_RETURN" &&
-		 name != "DECLARE_EXTENSION" &&
-		 name != "DEFINE_EXTENSION" &&
-		 name != "EXTENSION_ATTRIBUTE" &&
-		 name != "EXTENSION_PRIVATE_ATTRIBUTE" &&
-		 name != "EXTENSION_ATTRIBUTE_VALUE" &&
-		 name != "EXTENSION_PRIVATE_ATTRIBUTE_VALUE" &&
-		 name != "EXTENSION_ATTRIBUTE_VALUE_CUSTOM_RETURN" &&
-		 name != "REGISTER_EXTENSION_ATTRIBUTE"
-		 )
-	{
-		qDebug() << "ignored" << name;
-		return;
-	}*/
+
 	definitions_[name] = MD;
 
-	result_.addMacroDefinition(name, MD);
-	macroImportHelper_.addMacroDefinition(name, MD);
+	macroImportHelper_.expansionManager_.addMacroDefinition(name, MD);
 
 	auto s = sourceManager_->getSpellingLoc(MD->getMacroInfo()->getDefinitionLoc());
 
@@ -102,7 +59,7 @@ void CppImportPPCallback::MacroExpands(const clang::Token& MacroNameTok, const c
 	if (!definitions_.contains(name)) return;
 
 
-	macroImportHelper_.addMacroExpansion(sr, md, args);
+	macroImportHelper_.expansionManager_.addMacroExpansion(sr, md, args);
 
 	return;
 	qDebug() << "expanding"

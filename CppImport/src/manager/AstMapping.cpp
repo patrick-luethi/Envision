@@ -1,6 +1,6 @@
 /***********************************************************************************************************************
  **
- ** Copyright (c) 2011, 2014 ETH Zurich
+ ** Copyright (c) 2011, 2015 ETH Zurich
  ** All rights reserved.
  **
  ** Redistribution and use in source and binary forms, with or without modification, are permitted provided that the
@@ -24,28 +24,17 @@
  **
  **********************************************************************************************************************/
 
-#include "ClangAstConsumer.h"
+#include "AstMapping.h"
 
 namespace CppImport {
 
-ClangAstConsumer::ClangAstConsumer(ClangAstVisitor* visitor)
-	: clang::ASTConsumer(), astVisitor_(visitor)
-{}
-
-void ClangAstConsumer::setCompilerInstance(const clang::CompilerInstance* compilerInstance)
+Model::Node* AstMapping::closestParentWithAstMapping(Model::Node* node)
 {
-	Q_ASSERT(compilerInstance);
-	clang::SourceManager* mngr = &compilerInstance->getSourceManager();
-	Q_ASSERT(mngr);
-	astVisitor_->setSourceManager(mngr);
-	astVisitor_->setPreprocessor(&compilerInstance->getPreprocessor());
-}
+	if (!node) return nullptr;
+	if (astMapping_.contains(node)) return node;
+	if (node->parent()) return closestParentWithAstMapping(node->parent());
 
-void ClangAstConsumer::HandleTranslationUnit(clang::ASTContext& astContext)
-{
-	astVisitor_->TraverseDecl(astContext.getTranslationUnitDecl());
-
-	astVisitor_->macroImportHelper_.macroGeneration();
+	return nullptr;
 }
 
 }

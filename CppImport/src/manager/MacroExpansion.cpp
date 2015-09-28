@@ -24,7 +24,7 @@
  **
  **********************************************************************************************************************/
 
-#include "ClangAstNodeInfo.h"
+#include "MacroExpansion.h"
 
 namespace CppImport {
 
