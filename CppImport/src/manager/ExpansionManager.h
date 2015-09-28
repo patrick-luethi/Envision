@@ -75,17 +75,12 @@ class CPPIMPORT_API ExpansionManager
 		bool validContext(Model::Node* node);
 		OOModel::Declaration* getActualContext(MacroExpansion* expansion);
 
-
-		bool getUnexpandedCode(clang::SourceLocation loc, QString* result, clang::SourceLocation* outEnd = nullptr);
-		bool getUnexpandedCode(clang::SourceLocation start, clang::SourceLocation end, QString* result,
-									  clang::SourceLocation* outEnd = nullptr);
-		bool getUnexpandedCode(clang::SourceRange range, QString* result, clang::SourceLocation* outEnd = nullptr);
 		bool getUnexpandedNameWithQualifiers(clang::SourceLocation loc, QString* result);
 		bool nameSeparator(QString candidate);
 
 		void correctFormalArgType(clang::NamedDecl* namedDecl, OOModel::FormalArgument* arg);
 		void correctCastType(clang::Expr* expr, OOModel::CastExpression* cast);
-		void correctFormalResultType(clang::FunctionDecl* method, OOModel::Method*  ooMethod);
+		OOModel::FormalResult* correctFormalResultType(clang::FunctionDecl* method);
 		void correctMethodCall(clang::Expr* expr, OOModel::MethodCallExpression* methodCall);
 		void correctReferenceExpression(clang::SourceLocation loc, OOModel::ReferenceExpression* reference);
 		void correctExplicitTemplateInst(clang::ClassTemplateSpecializationDecl* specializationDecl,
@@ -102,6 +97,7 @@ class CPPIMPORT_API ExpansionManager
 
 		OOModel::Project* root_{};
 
+		ClangHelper::Token getUnexpToken(clang::SourceLocation start);
 	private:
 		ClangHelper clang_;
 		AstMapping astMapping_;

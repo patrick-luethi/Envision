@@ -58,7 +58,6 @@ class CPPIMPORT_API MacroImportHelper
 
 		QHash<QString, OOModel::MetaDefinition*> metaDefinitions_;
 
-		void calculateMetaCallArguments();
 		void clear();
 
 		void handleMacroExpansion(QVector<Model::Node*> nodes, MacroExpansion* expansion, NodeMapping* mapping,

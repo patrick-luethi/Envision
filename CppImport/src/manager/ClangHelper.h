@@ -53,6 +53,21 @@ class CPPIMPORT_API ClangHelper
 
 		const clang::SourceManager* sourceManager();
 
+		class Token
+		{
+			public:
+				Token(ClangHelper* clang, clang::SourceLocation loc) : clang_(clang), loc_(loc) {}
+
+				QString value() { return clang_->getSpelling(loc_); }
+				Token next() { return Token(clang_, clang_->getLocForEndOfToken(loc_)); }
+
+			private:
+				ClangHelper* clang_;
+				clang::SourceLocation loc_;
+		};
+
+		bool isMacroRange(clang::SourceRange range) { return range.getBegin().isMacroID() && range.getEnd().isMacroID(); }
+
 	private:
 		const clang::Preprocessor* preprocessor_;
 		const clang::SourceManager* sm_;
