@@ -709,6 +709,8 @@ bool ExpressionVisitor::TraverseAssignment(clang::BinaryOperator* binaryOperator
 	if (!ooExprStack_.empty()) ooBinOp->setRight(ooExprStack_.pop());
 	else log_->writeError(className_, binaryOperator->getRHS(), CppImportLogger::Reason::NOT_SUPPORTED);
 
+	baseVisitor_->trMngr_->mapAst(binaryOperator, ooBinOp);
+
 	ooExprStack_.push(ooBinOp);
 	return true;
 }

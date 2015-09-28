@@ -98,7 +98,7 @@ void MacroImportHelper::createMetaDef(QVector<Model::Node*> nodes, MacroExpansio
 	}
 
 	for (auto childExpansion : expansion->children)
-		if (!splices->value(childExpansion))
+		if (!childExpansion->metaCall->parent())
 			metaDef->context()->metaCalls()->append(childExpansion->metaCall);
 
 	metaDefParent->subDeclarations()->append(metaDef);
@@ -141,7 +141,16 @@ bool MacroImportHelper::removeUnownedNodes(Model::Node* cloned,
 
 	if (tbrs.contains(cloned)) return true;
 
-	for (auto tbr : tbrs)
+	QSet<Model::Node*> topLevel;
+	for (auto entry : tbrs) topLevel.insert(entry);
+
+	for (Model::Node* entry : tbrs)
+		for (auto other : tbrs)
+			if (entry != other)
+				if (entry->isAncestorOf(other))
+					topLevel.remove(other);
+
+	for (auto tbr : topLevel)
 		removeNode(tbr);
 
 	return false;
@@ -349,6 +358,8 @@ void MacroImportHelper::macroGeneration()
 			generatedNodes.append(generatedNode);
 		}
 
+		expansionManager_.orderNodes(generatedNodes);
+
 		handleMacroExpansion(generatedNodes, expansion, &mapping, allArguments, &splices);
 
 		QVector<Model::Node*> topLevelNodes;
@@ -404,18 +415,8 @@ void MacroImportHelper::macroGeneration()
 				auto newArg = argument.node->clone();
 
 				if (!currentArg->name().startsWith("#"))
-				{
-					if (DCast<OOModel::BooleanLiteral>(newArg) ||
-						 DCast<OOModel::StringLiteral>(newArg) ||
-						 DCast<OOModel::NullLiteral>(newArg))
-					{
+					if (!DCast<OOModel::ReferenceExpression>(newArg))
 						lastLoc.expansion->metaCall->arguments()->replaceChild(currentArg, newArg);
-					}
-					else
-					{
-						qDebug() << "forana" << newArg->typeName();
-					}
-				}
 			}
 		}
 	}
@@ -428,8 +429,14 @@ void MacroImportHelper::finalize()
 	for (auto i = finalizationInfo.metaCalls.begin(); i != finalizationInfo.metaCalls.end(); i++)
 		if (DCast<OOModel::Statement>(i.key()))
 			i.key()->parent()->replaceChild(i.key(), new OOModel::ExpressionStatement(i.value()->metaCall));
+		else if (DCast<OOModel::Expression>(i.key()))
+			i.key()->parent()->replaceChild(i.key(), i.value()->metaCall);
+		else if (DCast<OOModel::VariableDeclaration>(i.key()) &&
+					DCast<OOModel::VariableDeclarationExpression>(i.key()->parent()))
+			i.key()->parent()->parent()->replaceChild(i.key()->parent(), i.value()->metaCall);
 		else
-			qDebug() << "not inserted top level metacall";
+			qDebug() << "not inserte"
+							"d top level metacall" << i.key()->typeName();
 
 	for (auto tbr : finalizationInfo.nodes)
 		removeNode(tbr);
@@ -441,8 +448,24 @@ void MacroImportHelper::removeNode(Model::Node* node)
 
 	if (auto ooList = DCast<Model::List>(node->parent()))
 		ooList->remove(ooList->indexOf(node));
+	else if (auto ooVarDecl = DCast<OOModel::VariableDeclaration>(node->parent()))
+	{
+		if (ooVarDecl->initialValue() == node)
+			ooVarDecl->setInitialValue(nullptr);
+	}
+	else if (auto skip = DCast<OOModel::VariableDeclarationExpression>(node->parent()))
+	{
+		removeNode(skip);
+	}
+	else if (auto skip = DCast<OOModel::ExpressionStatement>(node->parent()))
+	{
+		removeNode(skip);
+	}
 	else
-		removeNode(node->parent());
+	{
+		qDebug() << "not removed" << node->typeName() << "in" << node->parent()->typeName();
+		qDebug() << 1;
+	}
 }
 
 void MacroImportHelper::handleMacroExpansion(QVector<Model::Node*> nodes,

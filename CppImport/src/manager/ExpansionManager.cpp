@@ -40,9 +40,16 @@ AstMapping* ExpansionManager::astMapping()
 
 void ExpansionManager::mapAst(clang::Stmt* clangAstNode, Model::Node* envisionAstNode)
 {
+	if (auto de = DCast<OOModel::ReferenceExpression>(envisionAstNode))
+		if (!de->prefix() && de->typeArguments()->size() == 0)
+			de->setName(getUnexpandedSpelling(clangAstNode->getSourceRange()));
+
 	if (auto bop = clang::dyn_cast<clang::BinaryOperator>(clangAstNode))
 		astMapping()->astMapping_[envisionAstNode]
 				.append(clang::SourceRange(bop->getOperatorLoc(), bop->getOperatorLoc()));
+	else if (auto op = clang::dyn_cast<clang::CXXOperatorCallExpr>(clangAstNode))
+		astMapping()->astMapping_[envisionAstNode]
+				.append(clang::SourceRange(op->getOperatorLoc(), op->getOperatorLoc()));
 	else
 		astMapping()->astMapping_[envisionAstNode].append(clangAstNode->getSourceRange());
 }
@@ -70,27 +77,40 @@ void ExpansionManager::addMacroExpansion(clang::SourceRange sr, const clang::Mac
 	if (entry->parent) entry->parent->children.append(entry);
 	entry->metaCall = new OOModel::MetaCallExpression(getDefinitionName(entry->definition));
 
-	qDebug() << "*" << getDefinitionName(entry->definition);
-
-	for (auto i = 0; i < clang()->getArgumentNames(entry->definition).size(); i++)
+	if (!md->getMacroInfo()->isObjectLike())
 	{
-		auto actualArg = args->getUnexpArgument((unsigned int)i);
+		QRegularExpression regex ("\\((.*)\\)", QRegularExpression::DotMatchesEverythingOption);
+		auto match = regex.match(getUnexpandedSpelling(sr));
 
-		QString unexpandedName;
-		if (getUnexpandedNameWithQualifiers(actualArg->getLocation(), &unexpandedName))
-		{
-			entry->metaCall->arguments()->append(new OOModel::ReferenceExpression(unexpandedName));
-		}
-		else if (actualArg->getIdentifierInfo())
-		{
-			auto argText = QString::fromStdString(actualArg->getIdentifierInfo()->getName().str());
-			entry->metaCall->arguments()->append(new OOModel::ReferenceExpression(argText));
-			qDebug() << "using identifier info to build meta call argument (this should not happen ideally)";
-		}
-		else
-			entry->metaCall->arguments()->append(new OOModel::EmptyExpression());
+		auto arguments = match.captured(1).split(",");
 
-		entry->argumentLocs.append(actualArg->getLocation());
+		if (getDefinitionName(entry->definition) == "DEFINE_TYPE_ID_DERIVED")
+		{
+			qDebug() << "fifo" << getUnexpandedSpelling(sr) << arguments[1];
+		}
+
+		for (auto i = 0; i < clang()->getArgumentNames(entry->definition).size(); i++)
+		{
+			auto actualArg = args->getUnexpArgument((unsigned int)i);
+
+			entry->metaCall->arguments()->append(new OOModel::ReferenceExpression(arguments[i]));
+
+			/*QString unexpandedName;
+			if (getUnexpandedNameWithQualifiers(actualArg->getLocation(), &unexpandedName))
+			{
+				entry->metaCall->arguments()->append(new OOModel::ReferenceExpression(unexpandedName));
+			}
+			else if (actualArg->getIdentifierInfo())
+			{
+				auto argText = QString::fromStdString(actualArg->getIdentifierInfo()->getName().str());
+				entry->metaCall->arguments()->append(new OOModel::ReferenceExpression(argText));
+				qDebug() << "using identifier info to build meta call argument (this should not happen ideally)";
+			}
+			else
+				entry->metaCall->arguments()->append(new OOModel::EmptyExpression());*/
+
+			entry->argumentLocs.append(actualArg->getLocation());
+		}
 	}
 
 	expansions_.append(entry);
@@ -150,7 +170,7 @@ QSet<MacroExpansion*> ExpansionManager::getExpansion(Model::Node* node)
 {
 	if (!node) return {}; //TODO: necessary?
 
-	if (!expansionCache_.contains(node))
+	//if (!expansionCache_.contains(node))
 	{
 		expansionCache_[node] = {};
 
@@ -231,6 +251,37 @@ bool ExpansionManager::shouldCreateMetaCall(MacroExpansion* expansion)
 	return false;
 }
 
+void ExpansionManager::orderNodes(QVector<Model::Node*>& input)
+{
+	qSort(input.begin(), input.end(),
+			[](Model::Node* e1, Model::Node* e2)
+			{
+				if (auto commonAncestor = e1->lowestCommonAncestor(e2))
+					if (auto list = DCast<Model::List>(commonAncestor))
+					{
+						int index1 = -1;
+						for (auto c : list->children())
+							if (c == e1 || c->isAncestorOf(e1))
+							{
+								index1 = list->indexOf(c);
+								break;
+							}
+
+						int index2 = -1;
+						for (auto c : list->children())
+							if (c == e2 || c->isAncestorOf(e2))
+							{
+								index2 = list->indexOf(c);
+								break;
+							}
+
+						return index1 < index2;
+					}
+
+				return true;
+			});
+}
+
 QVector<Model::Node*> ExpansionManager::getNodes(MacroExpansion* expansion,
 																  NodeMapping* mapping)
 {
@@ -255,22 +306,7 @@ QVector<Model::Node*> ExpansionManager::getNodes(MacroExpansion* expansion,
 	for (auto node : topLevel)
 		unorderedOriginalResult.append(node);
 
-	qSort(unorderedOriginalResult.begin(), unorderedOriginalResult.end(),
-			[](Model::Node* e1, Model::Node* e2)
-			{
-				if (auto commonAncestor = e1->lowestCommonAncestor(e2))
-					if (auto list = DCast<Model::List>(commonAncestor))
-						for (auto i = 0; i < list->size(); i++)
-						{
-							if (e1->lowestCommonAncestor(list->at(i)))
-								return true;
-
-							if (e2->lowestCommonAncestor(list->at(i)))
-								return false;
-						}
-
-				return true;
-			});
+	orderNodes(unorderedOriginalResult);
 
 	QVector<Model::Node*> orderedClonedResult;
 	for (auto node : unorderedOriginalResult)
@@ -354,18 +390,40 @@ bool ExpansionManager::getUnexpandedNameWithQualifiers(clang::SourceLocation loc
 
 bool ExpansionManager::nameSeparator(QString candidate)
 {
-	return candidate == "::" || candidate == "." || candidate == "<" || candidate == ">";
+	return candidate == "::" || candidate == "." || candidate == "<" || candidate == ">" || candidate == "->";
+}
+
+bool ExpansionManager::isExpansionception(clang::SourceLocation loc)
+{
+	if (loc.isMacroID())
+		if (auto immediateExpansion = getImmediateExpansion(loc))
+			return clang()->sourceManager()->getImmediateExpansionRange(loc).first != immediateExpansion->range.getBegin();
+
+	return false;
 }
 
 ClangHelper::Token ExpansionManager::getUnexpToken(clang::SourceLocation start)
 {
-	auto s = clang()->sourceManager()->getImmediateExpansionRange(start).first;
-	auto immediateExpansion = getImmediateExpansion(start);
+	auto loc = isExpansionception(start) ? clang()->sourceManager()->getImmediateExpansionRange(start).first : start;
 
-	if (immediateExpansion && s != immediateExpansion->range.getBegin())
-		start = s;
+	return ClangHelper::Token(&clang_, clang()->sourceManager()->getSpellingLoc(loc));
+}
 
-	return ClangHelper::Token(&clang_, clang()->sourceManager()->getSpellingLoc(start));
+QString ExpansionManager::getUnexpandedSpelling(clang::SourceRange range)
+{
+	clang::SourceLocation start, end;
+
+	if (isExpansionception(range.getBegin()))
+		start = clang()->sourceManager()->getImmediateExpansionRange(range.getBegin()).first;
+	else
+		start = range.getBegin();
+
+	if (isExpansionception(range.getEnd()))
+		end = clang()->sourceManager()->getImmediateExpansionRange(range.getEnd()).second;
+	else
+		end = range.getEnd();
+
+	return clang()->getSpelling(start, end);
 }
 
 void ExpansionManager::correctFormalArgType(clang::NamedDecl* namedDecl, OOModel::FormalArgument* arg)
@@ -373,26 +431,55 @@ void ExpansionManager::correctFormalArgType(clang::NamedDecl* namedDecl, OOModel
 	if (!clang()->isMacroRange(namedDecl->getSourceRange())) return;
 
 	auto token = getUnexpToken(namedDecl->getSourceRange().getBegin());
+	auto typeTokens = token.type();
 
-	if (token.next().value() == "*")
-		arg->setTypeExpression(new OOModel::PointerTypeExpression(new OOModel::ReferenceExpression(token.value())));
+	auto identifier = token.toString(typeTokens);
+	auto nextToken = typeTokens.last()->next();
+
+	while (nextToken.isWhitespace() || nextToken.isEmpty()) nextToken = nextToken.next();
+
+	if (nextToken.value() == "*") // TODO: this won't work with multipointers
+		arg->setTypeExpression(
+					new OOModel::PointerTypeExpression(new OOModel::ReferenceExpression(identifier)));
+	else if (nextToken.value() == "&")
+		arg->setTypeExpression(
+					new OOModel::ReferenceTypeExpression(new OOModel::ReferenceExpression(identifier)));
 	else
-		arg->setTypeExpression(new OOModel::ReferenceExpression(token.value()));
+		arg->setTypeExpression(new OOModel::ReferenceExpression(identifier));
 }
 
-OOModel::FormalResult* ExpansionManager::correctFormalResultType(clang::FunctionDecl* method)
+OOModel::FormalResult* ExpansionManager::correctFormalResultType(clang::FunctionDecl* method,
+																					  OOModel::FormalResult* current)
 {
-	if (!clang()->isMacroRange(method->getReturnTypeSourceRange())) return nullptr;
+	if (!clang()->isMacroRange(method->getReturnTypeSourceRange())) return current;
 
-	auto token = getUnexpToken(method->getReturnTypeSourceRange().getBegin());
+	if (auto ooRefType = DCast<OOModel::ReferenceTypeExpression>(current->typeExpression()))
+		if (auto ooRef = DCast<OOModel::ReferenceExpression>(ooRefType->typeExpression()))
+			if (ooRef->typeArguments()->size() > 0) return current;
 
 	OOModel::FormalResult* correctedResult = new OOModel::FormalResult();
 
-	if (token.next().value() == "*")
+	auto token = getUnexpToken(method->getReturnTypeSourceRange().getBegin());
+	auto typeTokens = token.type();
+
+	auto identifier = token.toString(typeTokens);
+	auto nextToken = typeTokens.last()->next();
+
+	while (nextToken.isWhitespace() || nextToken.isEmpty()) nextToken = nextToken.next();
+
+	if (nextToken.value() == "*")
 		correctedResult->setTypeExpression(new OOModel::PointerTypeExpression(
-													  new OOModel::ReferenceExpression(token.value())));
+													  new OOModel::ReferenceExpression(identifier)));
+	else if (nextToken.value() == "&")
+		correctedResult->setTypeExpression(new OOModel::ReferenceTypeExpression(
+													  new OOModel::ReferenceExpression(identifier)));
 	else
-		correctedResult->setTypeExpression(new OOModel::ReferenceExpression(token.value()));
+	{
+		if (identifier == "void" || identifier == "bool" || identifier == "int")
+			return current;
+
+		correctedResult->setTypeExpression(new OOModel::ReferenceExpression(identifier));
+	}
 
 	return correctedResult;
 }
@@ -404,7 +491,34 @@ void ExpansionManager::correctMethodCall(clang::Expr* expr, OOModel::MethodCallE
 	auto ref = DCast<OOModel::ReferenceExpression>(methodCall->callee());
 	if (!ref) return;
 
-	auto qString = ref->name() == "QString";
+	auto token = getUnexpToken(expr->getSourceRange().getBegin());
+
+	/*
+	 * these conditions intend to skip all implict type initializations.
+	 * the locations don't map to the actual call in those situations because they don't exist in the source (implicit)
+	 * we therefore have to skip them.
+	 */
+	if (!getUnexpandedSpelling(expr->getSourceRange()).contains("(") && methodCall->arguments()->size() == 0) return;
+	if (token.value() == "{") return;
+
+	/*
+	 * an exception to the above are implicit QString initializations.
+	 * since those might contain vital information we have to handle those.
+	 */
+	if (ref->name() == "QString" && methodCall->arguments()->size() == 1)
+	{
+		if (auto sLit = DCast<OOModel::StringLiteral>(methodCall->arguments()->first()))
+		{
+			auto newLit = new OOModel::ReferenceExpression(getUnexpandedSpelling(expr->getSourceRange()));
+			methodCall->arguments()->replaceChild(sLit, newLit);
+			if (astMapping()->astMapping_.contains(sLit))
+			{
+				astMapping()->astMapping_.insert(newLit, astMapping()->astMapping_[sLit]);
+				astMapping()->astMapping_.remove(sLit);
+			}
+			return;
+		}
+	}
 
 	QStack<OOModel::ReferenceExpression*> refs;
 	while (true)
@@ -413,65 +527,62 @@ void ExpansionManager::correctMethodCall(clang::Expr* expr, OOModel::MethodCallE
 			if (auto r = DCast<OOModel::ReferenceExpression>(ref->typeArguments()->at(i)))
 				refs.push(r);
 			else
-			{
-				qDebug() << "could not correct methodcall" << methodCall;
 				return;
-			}
 
 		refs.push(ref);
-
 
 		if (ref->prefix())
 		{
 			ref = DCast<OOModel::ReferenceExpression>(ref->prefix());
-			if (!ref)
-			{
-				qDebug() << "could not correct methodcall" << methodCall;
-				return;
-			}
+			if (!ref) return;
 		}
 		else
 			break;
 	}
 
-	auto token = getUnexpToken(expr->getExprLoc());
+	auto identTokens = token.identifier();
 
-	if (nameSeparator(token.value()))
+	if (!identTokens.empty())
+	{
+		token = token.identifier().last()->next();
+		refs.pop()->setName(token.toString(identTokens));
+	}
+	else
+	{
+		// TODO: maybe examine this deeper (only intended to happen for global scope)
+		refs.pop();
 		token = token.next();
-
-	refs.pop()->setName(token.value());
+	}
 
 	while (!refs.empty())
 	{
-		do
+		while (nameSeparator(token.value()))
 			token = token.next();
-		while (nameSeparator(token.value()));
 
-		refs.pop()->setName(token.value());
-	}
+		identTokens = token.identifier();
 
-	if (qString && ref->name().startsWith("#"))
-	{
-		Q_ASSERT(methodCall->arguments()->size() == 1);
-		auto sLit = DCast<OOModel::StringLiteral>(methodCall->arguments()->first());
-		Q_ASSERT(sLit);
-		sLit->setValue(ref->name());
-		auto newLit = new OOModel::ReferenceExpression(ref->name());
-		methodCall->arguments()->replaceChild(sLit,
-														  newLit);
-		if (astMapping()->astMapping_.contains(sLit))
+		if (!identTokens.empty())
 		{
-			astMapping()->astMapping_.insert(newLit, astMapping()->astMapping_[sLit]);
-			astMapping()->astMapping_.remove(sLit);
+			refs.pop()->setName(token.toString(identTokens));
+			token = identTokens.last()->next();
 		}
-		ref->setName("QString");
+		else
+		{
+			// TODO: why?
+			refs.pop();
+			token = token.next();
+		}
 	}
 }
 
 void ExpansionManager::correctReferenceExpression(clang::SourceLocation loc, OOModel::ReferenceExpression* reference)
 {
 	if (loc.isMacroID())
-		reference->setName(getUnexpToken(loc).value());
+		if (isExpansionception(loc))
+		{
+			auto token = getUnexpToken(loc);
+			reference->setName(token.toString(token.identifier()));
+		}
 }
 
 void ExpansionManager::correctExplicitTemplateInst(clang::ClassTemplateSpecializationDecl* specializationDecl,
@@ -508,10 +619,12 @@ OOModel::Expression* ExpansionManager::correctStringLiteral(clang::StringLiteral
 {
 	if (strLit->getLocStart().isMacroID())
 	{
-		auto token = getUnexpToken(strLit->getLocStart());
+		auto rawValue = getUnexpandedSpelling(strLit->getSourceRange());
 
-		if (token.value() == "__FILE__")
-			return new OOModel::MetaCallExpression(token.value());
+		if (rawValue == "__FILE__")
+			return new OOModel::MetaCallExpression(rawValue);
+
+		return new OOModel::StringLiteral(rawValue);
 	}
 
 	return new OOModel::StringLiteral(QString::fromStdString(strLit->getBytes().str()));
@@ -561,7 +674,10 @@ void ExpansionManager::correctNamedDecl(clang::Decl* decl, Model::Node* node)
 	if (auto ooDecl = DCast<OOModel::Declaration>(node))
 	{
 		if (auto namedDecl = clang::dyn_cast<clang::NamedDecl>(decl))
-			ooDecl->setName(getUnexpToken(namedDecl->getLocation()).value());
+		{
+			auto token = getUnexpToken(namedDecl->getLocation());
+			ooDecl->setName(token.toString(token.qualifiedIdentifier()));
+		}
 		else
 			Q_ASSERT(false && "not implemented");
 	}

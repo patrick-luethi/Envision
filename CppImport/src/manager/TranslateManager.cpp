@@ -53,7 +53,10 @@ OOModel::Module *TranslateManager::insertNamespace(clang::NamespaceDecl* namespa
 {
 	const QString hash = nh_->hashNameSpace(namespaceDecl);
 	if (nameSpaceMap_.contains(hash))
+	{
+		//mapAst(namespaceDecl, nameSpaceMap_.value(hash)); // TODO: cleanup
 		return nameSpaceMap_.value(hash);
+	}
 	OOModel::Module* ooModule = new OOModel::Module(QString::fromStdString(namespaceDecl->getNameAsString()));
 	nameSpaceMap_.insert(hash, ooModule);
 
@@ -310,16 +313,9 @@ OOModel::Method* TranslateManager::addNewMethod(clang::CXXMethodDecl* mDecl, OOM
 		OOModel::Expression* restype = utils_->translateQualifiedType(mDecl->getReturnType(), mDecl->getLocStart());
 		if (restype)
 		{
-			if (auto correctedResult = macroImportHelper_->expansionManager_.correctFormalResultType(mDecl))
-			{
-				method->results()->append(correctedResult);
-			}
-			else
-			{
-				OOModel::FormalResult* methodResult = new OOModel::FormalResult();
-				methodResult->setTypeExpression(restype);
-				method->results()->append(methodResult);
-			}
+			OOModel::FormalResult* methodResult = new OOModel::FormalResult();
+			methodResult->setTypeExpression(restype);
+			method->results()->append(macroImportHelper_->expansionManager_.correctFormalResultType(mDecl, methodResult));
 		}
 	}
 	// process arguments
@@ -360,16 +356,11 @@ OOModel::Method* TranslateManager::addNewFunction(clang::FunctionDecl* functionD
 																					  functionDecl->getLocStart());
 	if (restype)
 	{
-		if (auto correctedResult = macroImportHelper_->expansionManager_.correctFormalResultType(functionDecl))
-		{
-			ooFunction->results()->append(correctedResult);
-		}
-		else
-		{
-			OOModel::FormalResult* methodResult = new OOModel::FormalResult();
-			methodResult->setTypeExpression(restype);
-			ooFunction->results()->append(methodResult);
-		}
+		OOModel::FormalResult* methodResult = new OOModel::FormalResult();
+		methodResult->setTypeExpression(restype);
+
+		ooFunction->results()->append(macroImportHelper_->expansionManager_.correctFormalResultType(functionDecl,
+																																  methodResult));
 	}
 	// process arguments
 	clang::FunctionDecl::param_const_iterator it = functionDecl->param_begin();
