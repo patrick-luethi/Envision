@@ -388,7 +388,23 @@ void MacroImportHelper::macroGeneration()
 		}
 
 		for (auto node : topLevelNodes)
+		{
+			if (expansionManager_.astMapping()->astMapping_.contains(mapping.original(node)))
+			{
+				bool found = false;
+				for (auto range : expansionManager_.astMapping()->astMapping_[mapping.original(node)])
+					if (!expansionManager_.clang()->isMacroRange(range))
+					{
+						qDebug() << "real occurence found of" << node->typeName();
+						found = true;
+						break;
+					}
+
+				if (found) continue;
+			}
+
 			finalizationInfo.nodes.insert(mapping.original(node));
+		}
 
 		for (auto argument : allArguments)
 		{
@@ -464,7 +480,6 @@ void MacroImportHelper::removeNode(Model::Node* node)
 	else
 	{
 		qDebug() << "not removed" << node->typeName() << "in" << node->parent()->typeName();
-		qDebug() << 1;
 	}
 }
 
