@@ -38,22 +38,6 @@ void MacroImportHelper::setPreprocessor(const clang::Preprocessor* preprocessor)
 	expansionManager_.clang()->setPreprocessor(preprocessor);
 }
 
-void MacroImportHelper::calculateMetaCallArguments()
-{
-	/*for (auto expansion : expansions_)
-		for (auto i = 0; i < expansion->argumentLocs.size(); i++)
-			if (auto ooReference = DCast<OOModel::ReferenceExpression>(expansion->metaCall->arguments()->at(i)))
-			{
-				continue;
-				QString unexpandedCode;
-				if (getUnexpandedCode(expansion->argumentLocs[i], &unexpandedCode))
-				{
-					//qDebug() << unexpandedCode << ooReference;
-					//ooReference->setName(unexpandedCode);
-				}
-			}*/
-}
-
 void MacroImportHelper::getChildrenNotBelongingToExpansion(Model::Node* node,
 																				MacroExpansion* expansion,
 																				NodeMapping* mapping,
@@ -349,8 +333,6 @@ void MacroImportHelper::setProject(OOModel::Project* project)
 
 void MacroImportHelper::macroGeneration()
 {
-	calculateMetaCallArguments();
-
 	QHash<MacroExpansion*, Model::Node*> splices;
 
 	for (auto expansion : expansionManager_.getTopLevelExpansions())

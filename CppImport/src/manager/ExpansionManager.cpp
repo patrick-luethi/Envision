@@ -320,33 +320,15 @@ OOModel::Declaration* ExpansionManager::getActualContext(MacroExpansion* expansi
 	return result;
 }
 
-bool ExpansionManager::getUnexpandedCode(clang::SourceLocation loc, QString* result,
-														clang::SourceLocation* outEnd)
-{
-	return getUnexpandedCode(loc, loc, result, outEnd);
-}
-
-bool ExpansionManager::getUnexpandedCode(clang::SourceRange range, QString* result,
-														clang::SourceLocation* outEnd)
-{
-	return getUnexpandedCode(range.getEnd(), range.getBegin(), result, outEnd);
-}
-
 bool ExpansionManager::getUnexpandedNameWithQualifiers(clang::SourceLocation loc, QString* result)
 {
-	clang::SourceLocation current;
-	if (!getUnexpandedCode(loc, result, &current))
-	{
-		*result = clang()->getSpelling(loc);
-		current = clang()->getLocForEndOfToken(loc);
-	}
-	else if (result->startsWith("#"))
-	{
-		return true;
-	}
+	auto token = getUnexpToken(loc);
+
+	*result = token.value();
+	if (result->startsWith("#")) return true; // TODO: wth?
 
 	QRegularExpression regularExpression("^(\\w|##)*$");
-	auto match = regularExpression.match(*result);
+	auto match = regularExpression.match(token.value());
 	if (!match.hasMatch())
 	{
 		*result = "";
@@ -355,17 +337,16 @@ bool ExpansionManager::getUnexpandedNameWithQualifiers(clang::SourceLocation loc
 
 	while (true)
 	{
-		auto sepa = clang()->getSpelling(current);
-		if (!nameSeparator(sepa))
-			break;
-		current = clang()->getLocForEndOfToken(current);
-
-		auto identifier = clang()->getSpelling(current);
-		if (identifier == ",")
+		auto sepa = token.next();
+		if (!nameSeparator(sepa.value()))
 			break;
 
-		*result += sepa + identifier;
-		current = clang()->getLocForEndOfToken(current);
+		auto identifier = sepa.next();
+		if (identifier.value() == ",")
+			break;
+
+		*result += sepa.value() + identifier.value();
+		token = identifier.next();
 	}
 
 	return true;
@@ -376,65 +357,44 @@ bool ExpansionManager::nameSeparator(QString candidate)
 	return candidate == "::" || candidate == "." || candidate == "<" || candidate == ">";
 }
 
-bool ExpansionManager::getUnexpandedCode(clang::SourceLocation start, clang::SourceLocation end, QString* result,
-														clang::SourceLocation* outEnd)
+ClangHelper::Token ExpansionManager::getUnexpToken(clang::SourceLocation start)
 {
 	auto s = clang()->sourceManager()->getImmediateExpansionRange(start).first;
 	auto immediateExpansion = getImmediateExpansion(start);
 
-	if (immediateExpansion &&
-		 s != immediateExpansion->range.getBegin())
-	{
-		auto e = clang()->sourceManager()->getImmediateExpansionRange(end).second;
+	if (immediateExpansion && s != immediateExpansion->range.getBegin())
+		start = s;
 
-		*result = clang()->getSpelling(s, e);
-
-		if (outEnd) *outEnd = clang()->getLocForEndOfToken(
-					clang()->sourceManager()->getSpellingLoc(e));
-
-		return true;
-	}
-
-	return false;
+	return ClangHelper::Token(&clang_, clang()->sourceManager()->getSpellingLoc(start));
 }
-
 
 void ExpansionManager::correctFormalArgType(clang::NamedDecl* namedDecl, OOModel::FormalArgument* arg)
 {
-	QString unexpandedCode;
-	clang::SourceLocation e;
+	if (!clang()->isMacroRange(namedDecl->getSourceRange())) return;
 
-	if (getUnexpandedCode(namedDecl->getSourceRange().getBegin(), &unexpandedCode, &e))
-	{
-		auto nextToken = clang()->getSpelling(e, e);
+	auto token = getUnexpToken(namedDecl->getSourceRange().getBegin());
 
-		if (nextToken == "*")
-			arg->setTypeExpression(new OOModel::PointerTypeExpression(new OOModel::ReferenceExpression(unexpandedCode)));
-		else
-			arg->setTypeExpression(new OOModel::ReferenceExpression(unexpandedCode));
-	}
+	if (token.next().value() == "*")
+		arg->setTypeExpression(new OOModel::PointerTypeExpression(new OOModel::ReferenceExpression(token.value())));
+	else
+		arg->setTypeExpression(new OOModel::ReferenceExpression(token.value()));
 }
 
-void ExpansionManager::correctFormalResultType(clang::FunctionDecl* method, OOModel::Method* ooMethod)
+OOModel::FormalResult* ExpansionManager::correctFormalResultType(clang::FunctionDecl* method)
 {
-	QString unexpandedCode;
-	clang::SourceLocation e;
-	if (getUnexpandedCode(method->getReturnTypeSourceRange().getBegin(), &unexpandedCode, &e))
-	{
-		ooMethod->results()->clear();
+	if (!clang()->isMacroRange(method->getReturnTypeSourceRange())) return nullptr;
 
-		OOModel::FormalResult* methodResult = new OOModel::FormalResult();
+	auto token = getUnexpToken(method->getReturnTypeSourceRange().getBegin());
 
-		auto nextToken = clang()->getSpelling(e, e);
+	OOModel::FormalResult* correctedResult = new OOModel::FormalResult();
 
-		if (nextToken == "*")
-			methodResult->setTypeExpression(new OOModel::PointerTypeExpression(
-														  new OOModel::ReferenceExpression(unexpandedCode)));
-		else
-			methodResult->setTypeExpression(new OOModel::ReferenceExpression(unexpandedCode));
+	if (token.next().value() == "*")
+		correctedResult->setTypeExpression(new OOModel::PointerTypeExpression(
+													  new OOModel::ReferenceExpression(token.value())));
+	else
+		correctedResult->setTypeExpression(new OOModel::ReferenceExpression(token.value()));
 
-		ooMethod->results()->append(methodResult);
-	}
+	return correctedResult;
 }
 
 void ExpansionManager::correctMethodCall(clang::Expr* expr, OOModel::MethodCallExpression* methodCall)
@@ -450,17 +410,13 @@ void ExpansionManager::correctMethodCall(clang::Expr* expr, OOModel::MethodCallE
 	while (true)
 	{
 		for (auto i = ref->typeArguments()->size() - 1; i >= 0; i--)
-		{
 			if (auto r = DCast<OOModel::ReferenceExpression>(ref->typeArguments()->at(i)))
-			{
 				refs.push(r);
-			}
 			else
 			{
 				qDebug() << "could not correct methodcall" << methodCall;
 				return;
 			}
-		}
 
 		refs.push(ref);
 
@@ -478,36 +434,20 @@ void ExpansionManager::correctMethodCall(clang::Expr* expr, OOModel::MethodCallE
 			break;
 	}
 
-	QString unexpandedCode;
-	clang::SourceLocation e;
-	if (!getUnexpandedCode(expr->getExprLoc(), &unexpandedCode, &e))
-	{
-		e = clang()->sourceManager()->getSpellingLoc(expr->getExprLoc());
-		unexpandedCode = clang()->getSpelling(e, e);
-		e = clang()->getLocForEndOfToken(clang()->sourceManager()->getSpellingLoc(e));
-	}
+	auto token = getUnexpToken(expr->getExprLoc());
 
-	if (nameSeparator(unexpandedCode))
-	{
-		unexpandedCode = clang()->getSpelling(e, e);
-		e = clang()->getLocForEndOfToken(
-					clang()->sourceManager()->getSpellingLoc(e)); // next separator
-	}
+	if (nameSeparator(token.value()))
+		token = token.next();
 
-	refs.pop()->setName(unexpandedCode);
+	refs.pop()->setName(token.value());
 
 	while (!refs.empty())
 	{
-		QString next;
 		do
-		{
-			e = clang()->getLocForEndOfToken(
-						clang()->sourceManager()->getSpellingLoc(e)); // skip separator
-			next = clang()->getSpelling(e, e);
-		}
-		while (nameSeparator(next));
+			token = token.next();
+		while (nameSeparator(token.value()));
 
-		refs.pop()->setName(next);
+		refs.pop()->setName(token.value());
 	}
 
 	if (qString && ref->name().startsWith("#"))
@@ -530,19 +470,14 @@ void ExpansionManager::correctMethodCall(clang::Expr* expr, OOModel::MethodCallE
 
 void ExpansionManager::correctReferenceExpression(clang::SourceLocation loc, OOModel::ReferenceExpression* reference)
 {
-	QString unexpandedCode;
-	if (getUnexpandedCode(loc, &unexpandedCode))
-	{
-		reference->setName(unexpandedCode);
-	}
+	if (loc.isMacroID())
+		reference->setName(getUnexpToken(loc).value());
 }
 
 void ExpansionManager::correctExplicitTemplateInst(clang::ClassTemplateSpecializationDecl* specializationDecl,
 																	 OOModel::ReferenceExpression* ref)
 {
-	if (!specializationDecl->getSourceRange().getBegin().isMacroID() ||
-		 !specializationDecl->getSourceRange().getEnd().isMacroID())
-		return;
+	if (!clang()->isMacroRange(specializationDecl->getSourceRange()))	return;
 
 	auto spelling = clang()->getSpelling(specializationDecl->getLocation(),
 														  specializationDecl->getSourceRange().getEnd());
@@ -573,10 +508,10 @@ OOModel::Expression* ExpansionManager::correctStringLiteral(clang::StringLiteral
 {
 	if (strLit->getLocStart().isMacroID())
 	{
-		QString unexpandedCode;
-		if (getUnexpandedCode(strLit->getSourceRange(), &unexpandedCode))
-			if (unexpandedCode == "__FILE__")
-				return new OOModel::MetaCallExpression(unexpandedCode);
+		auto token = getUnexpToken(strLit->getLocStart());
+
+		if (token.value() == "__FILE__")
+			return new OOModel::MetaCallExpression(token.value());
 	}
 
 	return new OOModel::StringLiteral(QString::fromStdString(strLit->getBytes().str()));
@@ -586,10 +521,10 @@ OOModel::Expression* ExpansionManager::correctIntegerLiteral(clang::IntegerLiter
 {
 	if (intLit->getLocation().isMacroID())
 	{
-		QString unexpandedCode;
-		if (getUnexpandedCode(intLit->getLocation(), &unexpandedCode))
-			if (unexpandedCode == "__LINE__")
-				return new OOModel::MetaCallExpression(unexpandedCode);
+		auto token = getUnexpToken(intLit->getLocStart());
+
+		if (token.value() == "__LINE__")
+			return new OOModel::MetaCallExpression(token.value());
 	}
 
 	return new OOModel::IntegerLiteral(intLit->getValue().getLimitedValue());
@@ -597,8 +532,7 @@ OOModel::Expression* ExpansionManager::correctIntegerLiteral(clang::IntegerLiter
 
 void ExpansionManager::correctCastType(clang::Expr* expr, OOModel::CastExpression* cast)
 {
-	if (!expr->getSourceRange().getBegin().isMacroID() ||
-		 !expr->getSourceRange().getEnd().isMacroID()) return;
+	if (!clang()->isMacroRange(expr->getSourceRange())) return;
 
 	auto spelling = clang()->getSpelling(expr->getSourceRange());
 
@@ -622,17 +556,12 @@ void ExpansionManager::correctCastType(clang::Expr* expr, OOModel::CastExpressio
 
 void ExpansionManager::correctNamedDecl(clang::Decl* decl, Model::Node* node)
 {
-	if (!decl->getSourceRange().getBegin().isMacroID() ||
-		 !decl->getSourceRange().getEnd().isMacroID()) return;
+	if (!clang()->isMacroRange(decl->getSourceRange())) return;
 
 	if (auto ooDecl = DCast<OOModel::Declaration>(node))
 	{
 		if (auto namedDecl = clang::dyn_cast<clang::NamedDecl>(decl))
-		{
-			QString unexpandedCode;
-			if (getUnexpandedCode(namedDecl->getLocation(), &unexpandedCode))
-				ooDecl->setName(unexpandedCode);
-		}
+			ooDecl->setName(getUnexpToken(namedDecl->getLocation()).value());
 		else
 			Q_ASSERT(false && "not implemented");
 	}

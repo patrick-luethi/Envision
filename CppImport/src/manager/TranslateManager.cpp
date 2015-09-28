@@ -310,11 +310,16 @@ OOModel::Method* TranslateManager::addNewMethod(clang::CXXMethodDecl* mDecl, OOM
 		OOModel::Expression* restype = utils_->translateQualifiedType(mDecl->getReturnType(), mDecl->getLocStart());
 		if (restype)
 		{
-			OOModel::FormalResult* methodResult = new OOModel::FormalResult();
-			methodResult->setTypeExpression(restype);
-			method->results()->append(methodResult);
-
-			macroImportHelper_->expansionManager_.correctFormalResultType(mDecl, method);
+			if (auto correctedResult = macroImportHelper_->expansionManager_.correctFormalResultType(mDecl))
+			{
+				method->results()->append(correctedResult);
+			}
+			else
+			{
+				OOModel::FormalResult* methodResult = new OOModel::FormalResult();
+				methodResult->setTypeExpression(restype);
+				method->results()->append(methodResult);
+			}
 		}
 	}
 	// process arguments
@@ -355,11 +360,16 @@ OOModel::Method* TranslateManager::addNewFunction(clang::FunctionDecl* functionD
 																					  functionDecl->getLocStart());
 	if (restype)
 	{
-		OOModel::FormalResult* methodResult = new OOModel::FormalResult();
-		methodResult->setTypeExpression(restype);
-		ooFunction->results()->append(methodResult);
-
-		macroImportHelper_->expansionManager_.correctFormalResultType(functionDecl, ooFunction);
+		if (auto correctedResult = macroImportHelper_->expansionManager_.correctFormalResultType(functionDecl))
+		{
+			ooFunction->results()->append(correctedResult);
+		}
+		else
+		{
+			OOModel::FormalResult* methodResult = new OOModel::FormalResult();
+			methodResult->setTypeExpression(restype);
+			ooFunction->results()->append(methodResult);
+		}
 	}
 	// process arguments
 	clang::FunctionDecl::param_const_iterator it = functionDecl->param_begin();
