@@ -81,34 +81,12 @@ void ExpansionManager::addMacroExpansion(clang::SourceRange sr, const clang::Mac
 	{
 		QRegularExpression regex ("\\((.*)\\)", QRegularExpression::DotMatchesEverythingOption);
 		auto match = regex.match(getUnexpandedSpelling(sr));
-
 		auto arguments = match.captured(1).split(",");
-
-		if (getDefinitionName(entry->definition) == "DEFINE_TYPE_ID_DERIVED")
-		{
-			qDebug() << "fifo" << getUnexpandedSpelling(sr) << arguments[1];
-		}
 
 		for (auto i = 0; i < clang()->getArgumentNames(entry->definition).size(); i++)
 		{
 			auto actualArg = args->getUnexpArgument((unsigned int)i);
-
 			entry->metaCall->arguments()->append(new OOModel::ReferenceExpression(arguments[i]));
-
-			/*QString unexpandedName;
-			if (getUnexpandedNameWithQualifiers(actualArg->getLocation(), &unexpandedName))
-			{
-				entry->metaCall->arguments()->append(new OOModel::ReferenceExpression(unexpandedName));
-			}
-			else if (actualArg->getIdentifierInfo())
-			{
-				auto argText = QString::fromStdString(actualArg->getIdentifierInfo()->getName().str());
-				entry->metaCall->arguments()->append(new OOModel::ReferenceExpression(argText));
-				qDebug() << "using identifier info to build meta call argument (this should not happen ideally)";
-			}
-			else
-				entry->metaCall->arguments()->append(new OOModel::EmptyExpression());*/
-
 			entry->argumentLocs.append(actualArg->getLocation());
 		}
 	}
