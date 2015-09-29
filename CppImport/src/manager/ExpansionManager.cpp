@@ -62,6 +62,17 @@ void ExpansionManager::mapAst(clang::Decl* clangAstNode, Model::Node* envisionAs
 		astMapping()->astMapping_[envisionAstNode].append(clangAstNode->getSourceRange());
 }
 
+void ExpansionManager::removeIncompleteExpansions()
+{
+	QVector<MacroExpansion*> tbrs;
+	for (auto expansion : expansions_)
+		if (getDefinitionName(expansion->definition).startsWith("END_"))
+			tbrs.append(expansion);
+
+	for (auto tbr : tbrs)
+		expansions_.remove(expansions_.indexOf(tbr));
+}
+
 void ExpansionManager::addMacroDefinition(QString name, const clang::MacroDirective* md)
 {
 	definitions_[md] = name;
@@ -70,12 +81,26 @@ void ExpansionManager::addMacroDefinition(QString name, const clang::MacroDirect
 void ExpansionManager::addMacroExpansion(clang::SourceRange sr, const clang::MacroDirective* md,
 													const clang::MacroArgs* args)
 {
+	if (getDefinitionName(md).startsWith("END_"))
+	{
+		currentXMacroParent = nullptr;
+		return;
+	}
+
 	auto entry = new MacroExpansion();
 	entry->range = sr;
 	entry->definition = md;
 	entry->parent = getExpansion(sr.getBegin());
 	if (entry->parent) entry->parent->children.append(entry);
-	entry->metaCall = new OOModel::MetaCallExpression(getDefinitionName(entry->definition));
+	entry->metaCall = new OOModel::MetaCallExpression(hashDefinition(entry->definition));
+
+	if (getDefinitionName(md).startsWith("BEGIN_") && !currentXMacroParent)
+		currentXMacroParent = entry;
+	else if (currentXMacroParent && !entry->parent)
+	{
+		entry->xMacroParent = currentXMacroParent;
+		currentXMacroParent->xMacroChildren.append(entry);
+	}
 
 	if (!md->getMacroInfo()->isObjectLike())
 	{
@@ -207,11 +232,22 @@ QString ExpansionManager::hashExpansion(MacroExpansion* expansion)
 
 	QString hash = QDir(presumedLoc.getFilename()).absolutePath()
 			+ QString("|")
-			+ getDefinitionName(expansion->definition)
+			+ hashDefinition(expansion->definition)
 			+ QString("|")
 			+ QString::number(presumedLoc.getLine())
 			+ QString("|")
 			+ QString::number(presumedLoc.getColumn());
+
+	return hash;
+}
+
+QString ExpansionManager::hashDefinition(const clang::MacroDirective* md)
+{
+	auto presumedLoc = clang()->sourceManager()->getPresumedLoc(md->getMacroInfo()->getDefinitionLoc());
+
+	auto suffix = QDir(presumedLoc.getFilename()).absolutePath().right(1) == "h" ? "_H" : "_CPP";
+
+	QString hash = getDefinitionName(md) + suffix;
 
 	return hash;
 }

@@ -43,6 +43,8 @@ namespace CppImport {
 class CPPIMPORT_API ExpansionManager
 {
 	public:
+		void removeIncompleteExpansions();
+
 		QVector<MacroExpansion*> expansions_;
 
 		QHash<const clang::MacroDirective*, QString> definitions_;
@@ -99,7 +101,10 @@ class CPPIMPORT_API ExpansionManager
 
 		ClangHelper::Token getUnexpToken(clang::SourceLocation start);
 		void orderNodes(QVector<Model::Node*>& input);
+		QString hashDefinition(const clang::MacroDirective* md);
 	private:
+
+		MacroExpansion* currentXMacroParent {};
 		ClangHelper clang_;
 		AstMapping astMapping_;
 
