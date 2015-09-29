@@ -41,6 +41,8 @@ class CPPIMPORT_API MacroExpansion
 		QVector<clang::SourceLocation> argumentLocs;
 		QVector<MacroExpansion*> children;
 		OOModel::MetaCallExpression* metaCall;
+		MacroExpansion* xMacroParent;
+		QVector<MacroExpansion*> xMacroChildren;
 
 		bool isChildOf(MacroExpansion* entry)
 		{

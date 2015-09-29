@@ -87,6 +87,10 @@ class CPPIMPORT_API MacroImportHelper
 										NodeMapping* mapping, QHash<MacroExpansion*, Model::Node*>* splices);
 		void addChildMetaCalls(OOModel::MetaDefinition* metaDef, MacroExpansion* expansion,
 									  NodeMapping* childMapping, QHash<MacroExpansion*, Model::Node*>* splices);
+		OOModel::MetaCallExpression* containsMetaCall(Model::Node* node);
+		QString hashMetaCall(OOModel::MetaCallExpression* metaCall);
+		QString hashTypedListOfExpression(Model::TypedList<OOModel::Expression>* typeListOfExpression);
+		MacroExpansion*getMatchingXMacroExpansion(Model::Node* node);
 };
 
 }
