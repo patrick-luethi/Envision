@@ -26,6 +26,107 @@
 
 #include "MacroExpansion.h"
 
+#include "MiscHelper.h"
+
 namespace CppImport {
+
+MacroExpansion::MacroExpansion(RawMacroInfo* rawMacroInfo, RawMacroInfo::RawExpansion* rawExpansion,
+										 LexicalHelper* lexicalHelper)
+	: rawMacroInfo_(rawMacroInfo), rawExpansion_(rawExpansion)
+{
+	metaCall_ = new OOModel::MetaCallExpression(rawMacroInfo_->hashDefinition(definition()));
+
+	if (!definition()->getMacroInfo()->isObjectLike())
+	{
+		QRegularExpression regex ("\\((.*)\\)", QRegularExpression::DotMatchesEverythingOption);
+		auto match = regex.match(lexicalHelper->getUnexpandedSpelling(range()));
+		auto arguments = match.captured(1).split(",");
+
+		for (auto i = 0; i < rawMacroInfo_->clang()->getArgumentNames(definition()).size(); i++)
+		{
+			auto actualArg = rawExpansion_->args()->getUnexpArgument((unsigned int)i);
+			metaCall()->arguments()->append(new OOModel::ReferenceExpression(arguments[i]));
+			argumentLocs().append(actualArg->getLocation());
+		}
+	}
+}
+
+bool MacroExpansion::isChildOf(MacroExpansion* entry)
+{
+	auto current = this;
+	while (current && current != entry)
+		current = current->parent;
+	return current;
+}
+
+QString MacroExpansion::hash()
+{
+	auto presumedLoc = rawMacroInfo_->clang()->sourceManager()->getPresumedLoc(range().getBegin());
+
+	QString hash = QDir(presumedLoc.getFilename()).absolutePath()
+			+ QString("|")
+			+ rawMacroInfo_->hashDefinition(definition())
+			+ QString("|")
+			+ QString::number(presumedLoc.getLine())
+			+ QString("|")
+			+ QString::number(presumedLoc.getColumn());
+
+	return hash;
+}
+
+QVector<Model::Node*> MacroExpansion::getTopLevelNodes()
+{
+	QVector<Model::Node*> allNodesForExpansion;
+	QSet<Model::Node*> topLevel;
+	for (auto node : rawMacroInfo_->astMapping()->astMapping_.keys())
+	{
+		for (auto range : rawMacroInfo_->astMapping()->astMapping_[node])
+			if (rawMacroInfo_->clang()->sourceManager()->getExpansionLoc(range.getBegin()) == range.getBegin())
+			{
+				allNodesForExpansion.append(node);
+				topLevel.insert(node);
+				break;
+			}
+	}
+
+	for (auto node : allNodesForExpansion)
+		for (auto other : allNodesForExpansion)
+			if (node != other)
+				if (node->isAncestorOf(other))
+					topLevel.remove(other);
+
+	QVector<Model::Node*> result;
+	for (auto node : topLevel)
+		result.append(node);
+
+	return result;
+}
+
+OOModel::Declaration* MacroExpansion::getActualContext()
+{
+	Q_ASSERT(!parent);
+
+	QVector<OOModel::Declaration*> candidates;
+	for (auto i = rawMacroInfo_->astMapping()->astMapping_.begin();
+		  i != rawMacroInfo_->astMapping()->astMapping_.end(); i++)
+		for (auto r : i.value())
+			if (rawMacroInfo_->clang()->contains(r, range()))
+				if (MiscHelper::validContext(i.key()))
+				{
+					candidates.append(DCast<OOModel::Declaration>(i.key()));
+					break;
+				}
+
+	if (candidates.empty())
+		return nullptr;
+
+	auto result = candidates.first();
+
+	for (auto candidate : candidates)
+		if (result->isAncestorOf(candidate))
+			result = candidate;
+
+	return result;
+}
 
 }

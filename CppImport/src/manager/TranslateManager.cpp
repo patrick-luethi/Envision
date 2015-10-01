@@ -290,12 +290,12 @@ OOModel::TypeAlias* TranslateManager::insertTypeAliasTemplate(clang::TypeAliasTe
 
 void TranslateManager::mapAst(clang::Stmt* clangAstNode, Model::Node* envisionAstNode)
 {
-	macroImportHelper_->expansionManager_.mapAst(clangAstNode, envisionAstNode);
+	macroImportHelper_->mapAst(clangAstNode, envisionAstNode);
 }
 
 void TranslateManager::mapAst(clang::Decl* clangAstNode, Model::Node* envisionAstNode)
 {
-	macroImportHelper_->expansionManager_.mapAst(clangAstNode, envisionAstNode);
+	macroImportHelper_->mapAst(clangAstNode, envisionAstNode);
 }
 
 OOModel::Method* TranslateManager::addNewMethod(clang::CXXMethodDecl* mDecl, OOModel::Method::MethodKind kind)
@@ -315,7 +315,7 @@ OOModel::Method* TranslateManager::addNewMethod(clang::CXXMethodDecl* mDecl, OOM
 		{
 			OOModel::FormalResult* methodResult = new OOModel::FormalResult();
 			methodResult->setTypeExpression(restype);
-			method->results()->append(macroImportHelper_->expansionManager_.correctFormalResultType(mDecl, methodResult));
+			method->results()->append(macroImportHelper_->lexicalHelper_.correctFormalResultType(mDecl, methodResult));
 		}
 	}
 	// process arguments
@@ -328,7 +328,7 @@ OOModel::Method* TranslateManager::addNewMethod(clang::CXXMethodDecl* mDecl, OOM
 		if (type) arg->setTypeExpression(type);
 		method->arguments()->append(arg);
 
-		macroImportHelper_->expansionManager_.correctFormalArgType(*it, arg);
+		macroImportHelper_->lexicalHelper_.correctFormalArgType(*it, arg);
 	}
 	// find the correct class to add the method
 	if (classMap_.contains(nh_->hashRecord(mDecl->getParent())))
@@ -359,7 +359,7 @@ OOModel::Method* TranslateManager::addNewFunction(clang::FunctionDecl* functionD
 		OOModel::FormalResult* methodResult = new OOModel::FormalResult();
 		methodResult->setTypeExpression(restype);
 
-		ooFunction->results()->append(macroImportHelper_->expansionManager_.correctFormalResultType(functionDecl,
+		ooFunction->results()->append(macroImportHelper_->lexicalHelper_.correctFormalResultType(functionDecl,
 																																  methodResult));
 	}
 	// process arguments

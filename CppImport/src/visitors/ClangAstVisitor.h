@@ -122,7 +122,7 @@ class CPPIMPORT_API ClangAstVisitor : public clang::RecursiveASTVisitor <ClangAs
 
 		clang::Preprocessor* preprocessor_{};
 
-		MacroImportHelper macroImportHelper_{};
+		MacroImportHelper macroImportHelper_;
 
 		TranslateManager* trMngr_{};
 

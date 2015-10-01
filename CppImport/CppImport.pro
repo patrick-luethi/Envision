@@ -62,7 +62,10 @@ HEADERS += src/precompiled.h \
     src/manager/AstMapping.h \
     src/manager/NodeMapping.h \
     src/manager/MacroArgumentLocation.h \
-    src/manager/MacroArgumentInfo.h
+    src/manager/MacroArgumentInfo.h \
+    src/manager/RawMacroInfo.h \
+    src/manager/LexicalHelper.h \
+    src/manager/MiscHelper.h
 SOURCES += src/CppImportException.cpp \
 	test/SimpleTest.cpp \
     src/ClangAstConsumer.cpp \
@@ -86,4 +89,7 @@ SOURCES += src/CppImportException.cpp \
     src/manager/AstMapping.cpp \
     src/manager/NodeMapping.cpp \
     src/manager/MacroArgumentLocation.cpp \
-    src/manager/MacroArgumentInfo.cpp
+    src/manager/MacroArgumentInfo.cpp \
+    src/manager/RawMacroInfo.cpp \
+    src/manager/LexicalHelper.cpp \
+    src/manager/MiscHelper.cpp

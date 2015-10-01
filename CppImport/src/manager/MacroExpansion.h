@@ -26,31 +26,50 @@
 
 #pragma once
 
+#include "ClangHelper.h"
+#include "LexicalHelper.h"
+#include "NodeMapping.h"
+#include "RawMacroInfo.h"
 #include "cppimport_api.h"
 
-#include <OOModel/src/expressions/MetaCallExpression.h>
+#include "OOModel/src/expressions/MetaCallExpression.h"
+#include "clang/Lex/MacroArgs.h"
 
 namespace CppImport {
 
 class CPPIMPORT_API MacroExpansion
 {
 	public:
-		clang::SourceRange range;
-		const clang::MacroDirective* definition;
-		MacroExpansion* parent;
-		QVector<clang::SourceLocation> argumentLocs;
-		QVector<MacroExpansion*> children;
-		OOModel::MetaCallExpression* metaCall;
-		MacroExpansion* xMacroParent;
-		QVector<MacroExpansion*> xMacroChildren;
+		MacroExpansion(RawMacroInfo* rawMacroInfo, RawMacroInfo::RawExpansion* rawExpansion, LexicalHelper* lexicalHelper);
 
-		bool isChildOf(MacroExpansion* entry)
-		{
-			auto current = this;
-			while (current && current != entry)
-				current = current->parent;
-			return current;
-		}
+		MacroExpansion* parent;
+		MacroExpansion* xMacroParent;
+
+		bool isChildOf(MacroExpansion* entry);
+
+		QString getDefinitionName() {	return rawMacroInfo_->getDefinitionName(definition()); }
+		QString hash();
+		QVector<Model::Node*> getTopLevelNodes();
+		OOModel::Declaration* getActualContext();
+
+		const clang::MacroDirective* definition() { return rawExpansion_->definition(); }
+		const clang::SourceRange range() { return rawExpansion_->range(); }
+
+
+		OOModel::MetaCallExpression* metaCall() { return metaCall_; }
+		QVector<clang::SourceLocation> argumentLocs() { return argumentLocs_; }
+		QVector<MacroExpansion*> xMacroChildren() { return xMacroChildren_; }
+		QVector<MacroExpansion*> children() { return children_; }
+		RawMacroInfo::RawExpansion* rawExpansion() { return rawExpansion_; }
+
+	private:
+		RawMacroInfo* rawMacroInfo_;
+		RawMacroInfo::RawExpansion* rawExpansion_;
+
+		OOModel::MetaCallExpression* metaCall_;
+		QVector<clang::SourceLocation> argumentLocs_;
+		QVector<MacroExpansion*> children_;
+		QVector<MacroExpansion*> xMacroChildren_;
 };
 
 }

@@ -40,57 +40,47 @@ namespace CppImport {
 class CPPIMPORT_API MacroImportHelper
 {
 	public:
-		void setProject(OOModel::Project* project);
+		MacroImportHelper(OOModel::Project* root) : lexicalHelper_(&rawMacroInfo_), root_(root) {}
+
+		void mapAst(clang::Stmt* clangAstNode, Model::Node* envisionAstNode);
+		void mapAst(clang::Decl* clangAstNode, Model::Node* envisionAstNode);
+
 		void setSourceManager(const clang::SourceManager* sourceManager);
 		void setPreprocessor(const clang::Preprocessor* preprocessor);
 
-		void macroGeneration();
+		void addMacroDefinition(QString name, const clang::MacroDirective* md);
+		void addMacroExpansion(clang::SourceRange sr, const clang::MacroDirective* md, const clang::MacroArgs* args);
 
+		void macroGeneration();
 		void finalize();
 
-		ExpansionManager expansionManager_;
+		LexicalHelper lexicalHelper_;
 
 	private:
+		OOModel::Project* root_;
+		RawMacroInfo rawMacroInfo_;
+
 		struct {
 				QSet<Model::Node*> nodes;
 				QHash<Model::Node*, MacroExpansion*> metaCalls;
 		} finalizationInfo;
 
 		QHash<QString, OOModel::MetaDefinition*> metaDefinitions_;
+		QSet<QString> metaCallDuplicationPrevention_;
 
-		void clear();
-
-		void handleMacroExpansion(QVector<Model::Node*> nodes, MacroExpansion* expansion, NodeMapping* mapping,
+		void handleMacroExpansion(ExpansionManager* expansionManager_, QVector<Model::Node*> nodes,
+										  MacroExpansion* expansion, NodeMapping* mapping,
 										  QVector<MacroArgumentInfo>& arguments, QHash<MacroExpansion*, Model::Node*>* splices);
 
-		OOModel::Declaration* getActualContext(Model::Node* node);
-		void createMetaDef(QVector<Model::Node*> nodes, MacroExpansion* expansion, NodeMapping* mapping,
+		void createMetaDef(ExpansionManager* expansionManager_, QVector<Model::Node*> nodes, MacroExpansion* expansion,
+								 NodeMapping* mapping,
 								 QVector<MacroArgumentInfo>& arguments, QHash<MacroExpansion*, Model::Node*>* splices);
-
-
-		Model::Node* cloneWithMapping(Model::Node* node, NodeMapping* mapping);
-		void buildMappingInfo(Model::Node* node, QList<Model::Node*>* info);
-		void useMappingInfo(Model::Node* node, QList<Model::Node*>* info, NodeMapping* mapping);
-
-		OOModel::Declaration* createContext(OOModel::Declaration* actualContext);
-
-		void removeNode(Model::Node* node);
-		void getChildrenNotBelongingToExpansion(Model::Node* node, MacroExpansion* expansion,
-															 NodeMapping* mapping, QVector<Model::Node*>* result,
-															 QHash<MacroExpansion*, Model::Node*>* splices);
-
-		void buildMappingInfo(Model::Node* node, QList<Model::Node*>* info, NodeMapping* master);
-
-		void addNodeToMetaDef(Model::Node* cloned, OOModel::MetaDefinition* metaDef);
-		void insertArgumentSplices(NodeMapping* mapping, NodeMapping* childMapping, QVector<MacroArgumentInfo>& arguments);
-		bool removeUnownedNodes(Model::Node* cloned, MacroExpansion* expansion,
-										NodeMapping* mapping, QHash<MacroExpansion*, Model::Node*>* splices);
 		void addChildMetaCalls(OOModel::MetaDefinition* metaDef, MacroExpansion* expansion,
 									  NodeMapping* childMapping, QHash<MacroExpansion*, Model::Node*>* splices);
-		OOModel::MetaCallExpression* containsMetaCall(Model::Node* node);
-		QString hashMetaCall(OOModel::MetaCallExpression* metaCall);
-		QString hashTypedListOfExpression(Model::TypedList<OOModel::Expression>* typeListOfExpression);
-		MacroExpansion*getMatchingXMacroExpansion(Model::Node* node);
+		void insertArgumentSplices(NodeMapping* mapping, NodeMapping* childMapping, QVector<MacroArgumentInfo>& arguments);
+		void addNodeToMetaDef(Model::Node* cloned, OOModel::MetaDefinition* metaDef);
+
+		bool shouldCreateMetaCall(MacroExpansion* expansion);
 };
 
 }

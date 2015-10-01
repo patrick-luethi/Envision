@@ -37,9 +37,8 @@
 namespace CppImport {
 
 ClangAstVisitor::ClangAstVisitor(OOModel::Project* project, CppImportLogger* logger)
-:  log_{logger}
+:  macroImportHelper_(project), log_{logger}
 {
-	macroImportHelper_.setProject(project);
 	trMngr_ = new TranslateManager(project, &macroImportHelper_);
 	exprVisitor_ = new ExpressionVisitor(this, log_);
 	utils_ = new CppImportUtilities(log_, exprVisitor_);
@@ -177,7 +176,7 @@ bool ClangAstVisitor::TraverseClassTemplateSpecializationDecl
 			ooRef->setPrefix(new OOModel::ReferenceExpression(QString::fromStdString(p->getNameAsString())));
 		ooExplicitTemplateInst->setInstantiatedClass(ooRef);
 
-		macroImportHelper_.expansionManager_.correctExplicitTemplateInst(specializationDecl, ooRef);
+		macroImportHelper_.lexicalHelper_.correctExplicitTemplateInst(specializationDecl, ooRef);
 
 		// add to tree
 		if (auto decl = DCast<OOModel::Declaration>(ooStack_.top()))

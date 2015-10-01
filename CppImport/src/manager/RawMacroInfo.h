@@ -26,23 +26,67 @@
 
 #pragma once
 
+#include "AstMapping.h"
+#include "ClangHelper.h"
 #include "cppimport_api.h"
 
-#include <ModelBase/src/nodes/Node.h>
+#include "OOModel/src/allOOModelNodes.h" // TODO: REMOVE AFTER REFACTORING
 
 namespace CppImport {
 
-class CPPIMPORT_API AstMapping
+class CPPIMPORT_API RawMacroInfo
 {
 	public:
-		void mapAst(clang::Stmt* clangAstNode, Model::Node* envisionAstNode);
-		void mapAst(clang::Decl* clangAstNode, Model::Node* envisionAstNode);
+		class RawExpansion
+		{
+			public:
+				RawExpansion(clang::SourceRange range, const clang::MacroDirective* definition,
+									  const clang::MacroArgs* args) :
+					range_(range), definition_(definition), args_(args) {}
 
-		Model::Node* closestParentWithAstMapping(Model::Node* node);
+				clang::SourceRange range() { return range_; }
+				const clang::MacroDirective* definition() { return definition_; }
+				const clang::MacroArgs* args() { return args_; }
 
-		void clear() { astMapping_.clear(); }
+			private:
+				clang::SourceRange range_;
+				const clang::MacroDirective* definition_;
+				const clang::MacroArgs* args_;
+		};
 
-		QHash<Model::Node*, QVector<clang::SourceRange>> astMapping_;
+		QHash<const clang::MacroDirective*, QString> definitions_;
+		QList<RawExpansion*> expansions_;
+
+		QString getDefinitionName(const clang::MacroDirective* md);
+		ClangHelper* clang() { return &clang_; }
+		AstMapping* astMapping() { return &astMapping_; }
+		QString hashDefinition(const clang::MacroDirective* md);
+
+		bool isExpansionception(clang::SourceLocation loc);
+
+		bool isIncompleteMacroBegin(const clang::MacroDirective* definition)
+		{
+			return getDefinitionName(definition).startsWith("BEGIN_");
+		}
+		bool isIncompleteMacroEnd(const clang::MacroDirective* definition)
+		{
+			return getDefinitionName(definition).startsWith("END_");
+		}
+		OOModel::MetaCallExpression* containsMetaCall(Model::Node* node);
+		void removeNode(Model::Node* node);
+
+		void clear()
+		{
+			definitions_.clear();
+			astMapping_.clear();
+		}
+
+		RawMacroInfo::RawExpansion* getImmediateExpansion(clang::SourceLocation loc);
+
+	private:
+		ClangHelper clang_;
+		AstMapping astMapping_;
+
 };
 
 }

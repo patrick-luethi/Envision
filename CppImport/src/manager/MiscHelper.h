@@ -28,21 +28,27 @@
 
 #include "cppimport_api.h"
 
-#include <ModelBase/src/nodes/Node.h>
+#include "ModelBase/src/nodes/Node.h"
+#include "OOModel/src/declarations/Declaration.h"
+#include "NodeMapping.h"
 
 namespace CppImport {
 
-class CPPIMPORT_API AstMapping
+class CPPIMPORT_API MiscHelper
 {
 	public:
-		void mapAst(clang::Stmt* clangAstNode, Model::Node* envisionAstNode);
-		void mapAst(clang::Decl* clangAstNode, Model::Node* envisionAstNode);
+		static bool validContext(Model::Node* node);
+		static void orderNodes(QVector<Model::Node*>& input);
 
-		Model::Node* closestParentWithAstMapping(Model::Node* node);
+		static Model::Node* cloneWithMapping(Model::Node* node, NodeMapping* mapping);
 
-		void clear() { astMapping_.clear(); }
+		static OOModel::Declaration* createContext(OOModel::Declaration* actualContext);
+		static OOModel::Declaration* getActualContext(Model::Node* node);
 
-		QHash<Model::Node*, QVector<clang::SourceRange>> astMapping_;
+	private:
+		static void buildMappingInfo(Model::Node* node, QList<Model::Node*>* info);
+		static void useMappingInfo(Model::Node* node, QList<Model::Node*>* info, NodeMapping* mapping);
+
 };
 
 }
