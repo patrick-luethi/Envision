@@ -75,6 +75,9 @@ void ExpansionManager::removeIncompleteExpansions()
 
 void ExpansionManager::addMacroDefinition(QString name, const clang::MacroDirective* md)
 {
+	if (name == "BEGIN_STANDARD_EXPRESSION_VISUALIZATION_ALL") name = "BEGIN_STANDARD_EXPRESSION_VISUALIZATION_BASE";
+	if (name == "BEGIN_STANDARD_EXPRESSION_VISUALIZATION_STYLE") name = "BEGIN_STANDARD_EXPRESSION_VISUALIZATION_BASE";
+
 	definitions_[md] = name;
 }
 
