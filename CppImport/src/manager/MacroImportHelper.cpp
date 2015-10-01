@@ -61,6 +61,46 @@ void MacroImportHelper::getChildrenNotBelongingToExpansion(Model::Node* node,
 	}
 }
 
+void MacroImportHelper::getChildrenBelongingToExpansion(MacroExpansion* expansion,
+																		QVector<Model::Node*>* result)
+{
+	Q_ASSERT(expansion);
+
+
+	QVector<Model::Node*> allNodesForExpansion;
+	QSet<Model::Node*> topLevel;
+	for (auto node : expansionManager_.astMapping()->astMapping_.keys())
+		if (expansionManager_.getExpansion(node).contains(expansion))
+		{
+			if (expansionManager_.getExpansion(node).size() == 1)
+			{
+				allNodesForExpansion.append(node);
+				topLevel.insert(node);
+			}
+		}
+
+	for (auto node : allNodesForExpansion)
+		for (auto other : allNodesForExpansion)
+			if (node != other)
+				if (node->isAncestorOf(other))
+					topLevel.remove(other);
+
+	for (auto node : topLevel)
+		result->append(node);
+
+	expansionManager_.orderNodes(*result);
+}
+
+
+MacroExpansion* MacroImportHelper::partialBeginMacroChild(MacroExpansion* expansion)
+{
+	for (auto child : expansion->children)
+		if (expansionManager_.getDefinitionName(child->definition).startsWith("BEGIN_"))
+			return child;
+
+	return nullptr;
+}
+
 void MacroImportHelper::createMetaDef(QVector<Model::Node*> nodes, MacroExpansion* expansion,
 												  NodeMapping* mapping, QVector<MacroArgumentInfo>& arguments,
 												  QHash<MacroExpansion*, Model::Node*>* splices)
@@ -76,31 +116,95 @@ void MacroImportHelper::createMetaDef(QVector<Model::Node*> nodes, MacroExpansio
 	for (auto argName : expansionManager_.clang()->getArgumentNames(expansion->definition))
 		metaDef->arguments()->append(new OOModel::FormalMetaArgument(argName));
 
-	if (nodes.size() > 0)
+	if (auto beginChild = partialBeginMacroChild(expansion))
 	{
-		auto actualContext = getActualContext(mapping->original(nodes.first()));
-		metaDef->setContext(createContext(actualContext));
+		auto list = new Model::List();
 
-		for (auto n : nodes)
+		QVector<Model::Node*> statements;
+		getChildrenBelongingToExpansion(expansion, &statements);
+
+		for (auto stmt : statements)
 		{
-			NodeMapping childMapping;
-			auto cloned = cloneWithMapping(mapping->original(n), &childMapping);
-
-			addChildMetaCalls(metaDef, expansion, &childMapping, splices);
-
-			if (removeUnownedNodes(cloned, expansion, &childMapping, splices))
-				continue;
-
-			insertArgumentSplices(mapping, &childMapping, arguments);
-
-			addNodeToMetaDef(cloned, metaDef);
+			list->append(stmt->clone());
 		}
+
+		Q_ASSERT(statements.empty() || expansion->children.size() == 1);
+		for (auto child : expansion->children)
+			if (child != beginChild)
+			{
+				list->append(child->metaCall);
+			}
+
+		if (!statements.empty() || expansion->children.size() > 1)
+		{
+			auto childDef = metaDefinitions_.value(expansionManager_.hashDefinition(beginChild->definition));
+
+			if (childDef->arguments()->size() == beginChild->metaCall->arguments()->size())
+			{
+				if (childDef->name().endsWith("_H"))
+				{
+					childDef->context()->metaCalls()->append(new OOModel::ReferenceExpression("specSplfice"));
+				}
+				else
+				{
+					auto classContext = DCast<OOModel::Class>(childDef->context());
+					Q_ASSERT(classContext);
+
+					if (classContext->methods()->size() > 0)
+					{
+						classContext->methods()->last()->items()->append(new OOModel::ExpressionStatement(
+									new OOModel::ReferenceExpression("specSplice")));
+					}
+					else
+					{
+						Q_ASSERT(childDef->context()->metaCalls()->size() == 1);
+
+						auto childDefInnerMetaCall =
+								DCast<OOModel::MetaCallExpression>(childDef->context()->metaCalls()->first());
+						Q_ASSERT(childDefInnerMetaCall);
+
+						auto innerList = DCast<Model::List>(childDefInnerMetaCall->arguments()->last());
+						Q_ASSERT(innerList);
+
+						innerList->append(new OOModel::ReferenceExpression("specSplice"));
+					}
+				}
+
+				childDef->arguments()->append(new OOModel::FormalMetaArgument("specSplice"));
+			}
+		}
+
+		beginChild->metaCall->arguments()->append(list);
+
+		metaDef->context()->metaCalls()->append(beginChild->metaCall);
 	}
+	else
+	{
+		if (nodes.size() > 0)
+		{
+			auto actualContext = getActualContext(mapping->original(nodes.first()));
+			metaDef->setContext(createContext(actualContext));
 
-	for (auto childExpansion : expansion->children)
-		if (!childExpansion->metaCall->parent())
-			metaDef->context()->metaCalls()->append(childExpansion->metaCall);
+			for (auto n : nodes)
+			{
+				NodeMapping childMapping;
+				auto cloned = cloneWithMapping(mapping->original(n), &childMapping);
 
+				addChildMetaCalls(metaDef, expansion, &childMapping, splices);
+
+				if (removeUnownedNodes(cloned, expansion, &childMapping, splices))
+					continue;
+
+				insertArgumentSplices(mapping, &childMapping, arguments);
+
+				addNodeToMetaDef(cloned, metaDef);
+			}
+		}
+
+		for (auto childExpansion : expansion->children)
+			if (!childExpansion->metaCall->parent())
+				metaDef->context()->metaCalls()->append(childExpansion->metaCall);
+	}
 
 	metaDefParent->subDeclarations()->append(metaDef);
 }
@@ -445,20 +549,12 @@ void MacroImportHelper::macroGeneration()
 		}
 	}
 
-	/*for (auto expansion : expansionManager_.expansions_)
-		for (auto app : expansion->xMacroChildren)
-			expansion->metaCall->arguments()->append(app->metaCall);*/
-
 	for (auto expansion : expansionManager_.expansions_)
 		if (!expansion->xMacroChildren.empty())
 		{
 			for (auto node : expansionManager_.getTopLevelNodes(expansion))
 				if (auto other = getMatchingXMacroExpansion(node))
 				{
-					qDebug() << "found match";
-					qDebug() << expansionManager_.hashDefinition(expansion->definition);
-					qDebug() << expansionManager_.hashDefinition(other->definition);
-
 					if (auto list = DCast<Model::List>(other->metaCall->parent()))
 						 list->remove(list->indexOf(other->metaCall));
 
@@ -468,7 +564,7 @@ void MacroImportHelper::macroGeneration()
 					for (auto i = 0; i < expansion->metaCall->arguments()->size(); i++)
 						merged->arguments()->append(expansion->metaCall->arguments()->at(i)->clone());
 
-					auto list = new OOModel::ArrayInitializer();
+					auto list = new Model::List();
 					for (auto xMacroChild : expansion->xMacroChildren)
 					{
 						auto unbound = new OOModel::MetaCallExpression(
@@ -476,18 +572,137 @@ void MacroImportHelper::macroGeneration()
 						for (auto i = 0; i < xMacroChild->metaCall->arguments()->size(); i++)
 							unbound->arguments()->append(xMacroChild->metaCall->arguments()->at(i)->clone());
 
-						list->values()->append(unbound);
+						list->append(unbound);
 					}
 
 					merged->arguments()->append(list);
 
 					expansion->metaCall->parent()->replaceChild(expansion->metaCall, merged);
 
+					auto metaDef = createXMacroMetaDef(expansion, other);
+
+					for (auto i = 0; i < expansion->xMacroChildren.size(); i++)
+					{
+						auto xMacroChildH = expansion->xMacroChildren[i];
+						auto xMacroChildCpp = other->xMacroChildren[i];
+
+						auto unbound = expansionManager_.getDefinitionName(xMacroChildH->definition);
+
+						auto binding1 = metaDef->metaBindings()->at(0);
+						auto binding2 = metaDef->metaBindings()->at(1);
+
+						bool alreadyHasUnbound = false;
+						for (auto j = 0; j < binding1->mappings()->size(); j++)
+							if (binding1->mappings()->at(j)->name() == unbound)
+							{
+								alreadyHasUnbound = true;
+								break;
+							}
+						if (alreadyHasUnbound) continue;
+
+						auto mapping1 = new OOModel::MetaCallMapping(unbound);
+						mapping1->setValue(new OOModel::ReferenceExpression(
+													 expansionManager_.hashDefinition(xMacroChildH->definition)));
+						binding1->mappings()->append(mapping1);
+
+						auto mapping2 = new OOModel::MetaCallMapping(unbound);
+						mapping2->setValue(new OOModel::ReferenceExpression(
+													 expansionManager_.hashDefinition(xMacroChildCpp->definition)));
+						binding2->mappings()->append(mapping2);
+					}
+
 					break;
 				}
 		}
 
 	clear();
+}
+
+OOModel::MetaDefinition* MacroImportHelper::createXMacroMetaDef(MacroExpansion* xMacroExpansionH_input,
+														  MacroExpansion* xMacroExpansionCpp_input)
+{
+	auto xMacroExpansionH = xMacroExpansionH_input;
+	auto xMacroExpansionCpp = xMacroExpansionCpp_input;
+	while (!xMacroExpansionH->children.empty())
+	{
+		bool found = false;
+
+		for (auto child : xMacroExpansionH->children)
+			if (expansionManager_.getDefinitionName(child->definition).startsWith("BEGIN_"))
+			{
+				xMacroExpansionH = child;
+				found = true;
+			}
+
+		if (!found) break;
+	}
+
+	while (!xMacroExpansionCpp->children.empty())
+	{
+		bool found = false;
+
+		for (auto child : xMacroExpansionCpp->children)
+			if (expansionManager_.getDefinitionName(child->definition).startsWith("BEGIN_"))
+			{
+				xMacroExpansionCpp = child;
+				found = true;
+			}
+
+		if (!found) break;
+	}
+
+	auto metaDefName = expansionManager_.getDefinitionName(xMacroExpansionH->definition);
+	if (metaDefinitions_.contains(metaDefName)) return metaDefinitions_[metaDefName];
+
+	auto xMacroDefH = metaDefinitions_.value(expansionManager_.hashDefinition(xMacroExpansionH->definition));
+	auto xMacroDefCpp = metaDefinitions_.value(expansionManager_.hashDefinition(xMacroExpansionCpp->definition));
+
+	auto metaDef = xMacroDefH->clone();
+	metaDefinitions_[metaDefName] = metaDef;
+
+	metaDef->setName(metaDefName);
+
+	if (auto moduleContextH = DCast<OOModel::Module>(metaDef->context()))
+	if (auto classH = DCast<OOModel::Class>(moduleContextH->classes()->first()))
+	if (auto classCpp = DCast<OOModel::Class>(xMacroDefCpp->context()))
+	{
+		for (auto k = 0; k < classCpp->metaCalls()->size(); k++)
+			classH->metaCalls()->append(classCpp->metaCalls()->at(k)->clone());
+
+		for (auto i = 0; i < classH->methods()->size(); i++)
+		for (auto j = 0; j < classCpp->methods()->size(); j++)
+		{
+			auto methodH = classH->methods()->at(i);
+			auto methodCpp = classCpp->methods()->at(j);
+
+			if (methodH->name() == methodCpp->name())
+			{
+				for (auto k = 0; k < methodCpp->items()->size(); k++)
+					methodH->items()->append(methodCpp->items()->at(k)->clone());
+
+				methodH->memberInitializers()->clear();
+				for (auto k = 0; k < methodCpp->memberInitializers()->size(); k++)
+					methodH->memberInitializers()->append(methodCpp->memberInitializers()->at(k)->clone());
+			}
+		}
+
+		classH->metaCalls()->append(new OOModel::ReferenceExpression("list1"));
+		classH->methods()->last()->items()->append(new OOModel::ExpressionStatement(
+																 new OOModel::ReferenceExpression("list2")));
+	}
+
+	auto binding1 = new OOModel::MetaBinding("list1");
+	binding1->setInput(new OOModel::ReferenceExpression("metaBindingInput"));
+	metaDef->metaBindings()->append(binding1);
+	auto binding2 = new OOModel::MetaBinding("list2");
+	binding2->setInput(new OOModel::ReferenceExpression("metaBindingInput"));
+	metaDef->metaBindings()->append(binding2);
+
+	metaDef->arguments()->append(new OOModel::FormalMetaArgument("metaBindingInput"));
+
+	expansionManager_.root_->subDeclarations()->append(metaDef);
+
+	return metaDef;
 }
 
 MacroExpansion* MacroImportHelper::getMatchingXMacroExpansion(Model::Node* node)
@@ -509,6 +724,8 @@ MacroExpansion* MacroImportHelper::getMatchingXMacroExpansion(Model::Node* node)
 
 void MacroImportHelper::finalize()
 {
+	return;
+
 	for (auto i = finalizationInfo.metaCalls.begin(); i != finalizationInfo.metaCalls.end(); i++)
 		if (DCast<OOModel::Statement>(i.key()))
 			i.key()->parent()->replaceChild(i.key(), new OOModel::ExpressionStatement(i.value()->metaCall));
@@ -522,37 +739,6 @@ void MacroImportHelper::finalize()
 
 	for (auto tbr : finalizationInfo.nodes)
 		removeNode(tbr);
-}
-
-QString MacroImportHelper::hashMetaCall(OOModel::MetaCallExpression* metaCall)
-{
-	QString result = DCast<OOModel::ReferenceExpression>(metaCall->callee())->name();
-
-	if (result.endsWith("_H"))
-		result = result.left(result.length() - 2);
-	else if (result.endsWith("_CPP"))
-		result = result.left(result.length() - 4);
-
-	result += hashTypedListOfExpression(metaCall->arguments());
-
-	return result;
-}
-
-QString MacroImportHelper::hashTypedListOfExpression(Model::TypedList<OOModel::Expression>* typeListOfExpression)
-{
-	QString result = "";
-
-	for (auto i = 0; i < typeListOfExpression->size(); i++)
-	{
-		auto arg = typeListOfExpression->at(i);
-
-		if (auto r = DCast<OOModel::ReferenceExpression>(arg))
-			result += r->name();
-		else if (auto m = DCast<OOModel::MetaCallExpression>(arg))
-			result += hashMetaCall(m);
-	}
-
-	return result;
 }
 
 OOModel::MetaCallExpression* MacroImportHelper::containsMetaCall(Model::Node* node)
