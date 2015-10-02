@@ -50,6 +50,7 @@ class CPPIMPORT_API MacroImportHelper
 
 		ExpansionManager expansionManager_;
 
+		static Model::Node* cloneWithMapping(Model::Node* node, NodeMapping* mapping);
 	private:
 		struct {
 				QSet<Model::Node*> nodes;
@@ -68,9 +69,8 @@ class CPPIMPORT_API MacroImportHelper
 								 QVector<MacroArgumentInfo>& arguments, QHash<MacroExpansion*, Model::Node*>* splices);
 
 
-		Model::Node* cloneWithMapping(Model::Node* node, NodeMapping* mapping);
-		void buildMappingInfo(Model::Node* node, QList<Model::Node*>* info);
-		void useMappingInfo(Model::Node* node, QList<Model::Node*>* info, NodeMapping* mapping);
+		static void buildMappingInfo(Model::Node* node, QList<Model::Node*>* info);
+		static void useMappingInfo(Model::Node* node, QList<Model::Node*>* info, NodeMapping* mapping);
 
 		OOModel::Declaration* createContext(OOModel::Declaration* actualContext);
 

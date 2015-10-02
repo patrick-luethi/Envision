@@ -315,7 +315,9 @@ OOModel::Method* TranslateManager::addNewMethod(clang::CXXMethodDecl* mDecl, OOM
 		{
 			OOModel::FormalResult* methodResult = new OOModel::FormalResult();
 			methodResult->setTypeExpression(restype);
-			method->results()->append(macroImportHelper_->expansionManager_.correctFormalResultType(mDecl, methodResult));
+			method->results()->append(methodResult);
+
+			macroImportHelper_->expansionManager_.correctFormalResultType(mDecl, methodResult);
 		}
 	}
 	// process arguments
@@ -358,10 +360,11 @@ OOModel::Method* TranslateManager::addNewFunction(clang::FunctionDecl* functionD
 	{
 		OOModel::FormalResult* methodResult = new OOModel::FormalResult();
 		methodResult->setTypeExpression(restype);
+		ooFunction->results()->append(methodResult);
 
-		ooFunction->results()->append(macroImportHelper_->expansionManager_.correctFormalResultType(functionDecl,
-																																  methodResult));
+		macroImportHelper_->expansionManager_.correctFormalResultType(functionDecl, methodResult);
 	}
+
 	// process arguments
 	clang::FunctionDecl::param_const_iterator it = functionDecl->param_begin();
 	for (;it != functionDecl->param_end();++it)

@@ -82,13 +82,13 @@ class CPPIMPORT_API ExpansionManager
 
 		void correctFormalArgType(clang::NamedDecl* namedDecl, OOModel::FormalArgument* arg);
 		void correctCastType(clang::Expr* expr, OOModel::CastExpression* cast);
-		OOModel::FormalResult* correctFormalResultType(clang::FunctionDecl* method, OOModel::FormalResult* current);
+		void correctFormalResultType(clang::FunctionDecl* method, OOModel::FormalResult* current);
 		void correctMethodCall(clang::Expr* expr, OOModel::MethodCallExpression* methodCall);
 		void correctReferenceExpression(clang::SourceLocation loc, OOModel::ReferenceExpression* reference);
 		void correctExplicitTemplateInst(clang::ClassTemplateSpecializationDecl* specializationDecl,
 													OOModel::ReferenceExpression* reference);
-		OOModel::Expression* correctIntegerLiteral(clang::IntegerLiteral* intLit);
-		OOModel::Expression* correctStringLiteral(clang::StringLiteral* strLit);
+		void correctIntegerLiteral(clang::IntegerLiteral* intLit, OOModel::IntegerLiteral* original);
+		void correctStringLiteral(clang::StringLiteral* strLit, OOModel::StringLiteral* original);
 		void correctNamedDecl(clang::Decl* decl, Model::Node* node);
 
 		QVector<MacroArgumentLocation> getArgumentHistory(clang::SourceRange range);
@@ -102,13 +102,17 @@ class CPPIMPORT_API ExpansionManager
 		ClangHelper::Token getUnexpToken(clang::SourceLocation start);
 		void orderNodes(QVector<Model::Node*>& input);
 		QString hashDefinition(const clang::MacroDirective* md);
-	private:
 
+		void applyLexicalTransformations(Model::Node* node, NodeMapping* mapping);
+
+	private:
 		MacroExpansion* currentXMacroParent {};
 		ClangHelper clang_;
 		AstMapping astMapping_;
 
 		QSet<QString> metaCallDuplicationPrevention_;
+
+		QHash<Model::Node*, QString> lexicalTransform_;
 
 		bool isExpansionception(clang::SourceLocation loc);
 		QString getUnexpandedSpelling(clang::SourceRange range);
