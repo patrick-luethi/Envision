@@ -145,6 +145,8 @@ bool ExpressionVisitor::TraverseDeclRefExpr(clang::DeclRefExpr* declRefExpr)
 
 	ooExprStack_.push(ooReference);
 	baseVisitor_->trMngr_->mapAst(declRefExpr, ooReference);
+	baseVisitor_->macroImportHelper_.expansionManager_.correctReferenceExpression(declRefExpr->getLocStart(),
+																											ooReference);
 
 	return true;
 }
@@ -310,8 +312,6 @@ bool ExpressionVisitor::TraverseCXXNewExpr(clang::CXXNewExpr* newExpr)
 {
 	OOModel::NewExpression* ooNewExpr = new OOModel::NewExpression();
 
-	baseVisitor_->trMngr_->mapAst(newExpr, ooNewExpr);
-
 	TraverseStmt(newExpr->getInitializer());
 	if (!ooExprStack_.empty())
 		ooNewExpr->setNewType(ooExprStack_.pop());
@@ -322,6 +322,7 @@ bool ExpressionVisitor::TraverseCXXNewExpr(clang::CXXNewExpr* newExpr)
 			ooNewExpr->dimensions()->append(ooExprStack_.pop());
 	}
 
+	baseVisitor_->trMngr_->mapAst(newExpr, ooNewExpr);
 	ooExprStack_.push(ooNewExpr);
 	return true;
 }
@@ -341,7 +342,9 @@ bool ExpressionVisitor::TraverseCXXDeleteExpr(clang::CXXDeleteExpr* deleteExpr)
 
 bool ExpressionVisitor::TraverseIntegerLiteral(clang::IntegerLiteral* intLit)
 {
-	auto ooIntegerLiteral = baseVisitor_->macroImportHelper_.expansionManager_.correctIntegerLiteral(intLit);
+	auto ooIntegerLiteral = new OOModel::IntegerLiteral(intLit->getValue().getLimitedValue());
+
+	baseVisitor_->macroImportHelper_.expansionManager_.correctIntegerLiteral(intLit, ooIntegerLiteral);
 
 	baseVisitor_->trMngr_->mapAst(intLit, ooIntegerLiteral);
 
@@ -391,8 +394,9 @@ bool ExpressionVisitor::TraverseCharacterLiteral(clang::CharacterLiteral* charLi
 
 bool ExpressionVisitor::TraverseStringLiteral(clang::StringLiteral* stringLiteral)
 {
-	auto ooStringLiteral = baseVisitor_->macroImportHelper_.expansionManager_.correctStringLiteral(stringLiteral);
+	auto ooStringLiteral = new OOModel::StringLiteral(QString::fromStdString(stringLiteral->getBytes().str()));
 
+	baseVisitor_->macroImportHelper_.expansionManager_.correctStringLiteral(stringLiteral, ooStringLiteral);
 	baseVisitor_->trMngr_->mapAst(stringLiteral, ooStringLiteral);
 
 	ooExprStack_.push(ooStringLiteral);

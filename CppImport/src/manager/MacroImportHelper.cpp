@@ -190,6 +190,8 @@ void MacroImportHelper::createMetaDef(QVector<Model::Node*> nodes, MacroExpansio
 				NodeMapping childMapping;
 				auto cloned = cloneWithMapping(mapping->original(n), &childMapping);
 
+				//expansionManager_.applyLexicalTransformations(cloned, &childMapping);
+
 				addChildMetaCalls(metaDef, expansion, &childMapping, splices);
 
 				if (removeUnownedNodes(cloned, expansion, &childMapping, splices))
@@ -724,8 +726,6 @@ MacroExpansion* MacroImportHelper::getMatchingXMacroExpansion(Model::Node* node)
 
 void MacroImportHelper::finalize()
 {
-	return;
-
 	for (auto i = finalizationInfo.metaCalls.begin(); i != finalizationInfo.metaCalls.end(); i++)
 		if (DCast<OOModel::Statement>(i.key()))
 			i.key()->parent()->replaceChild(i.key(), new OOModel::ExpressionStatement(i.value()->metaCall));

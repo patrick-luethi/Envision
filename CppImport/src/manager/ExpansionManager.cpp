@@ -26,6 +26,8 @@
 
 #include "ExpansionManager.h"
 
+#include "MacroImportHelper.h"
+
 namespace CppImport {
 
 ClangHelper* ExpansionManager::clang()
@@ -40,10 +42,6 @@ AstMapping* ExpansionManager::astMapping()
 
 void ExpansionManager::mapAst(clang::Stmt* clangAstNode, Model::Node* envisionAstNode)
 {
-	if (auto de = DCast<OOModel::ReferenceExpression>(envisionAstNode))
-		if (!de->prefix() && de->typeArguments()->size() == 0)
-			de->setName(getUnexpandedSpelling(clangAstNode->getSourceRange()));
-
 	if (auto bop = clang::dyn_cast<clang::BinaryOperator>(clangAstNode))
 		astMapping()->astMapping_[envisionAstNode]
 				.append(clang::SourceRange(bop->getOperatorLoc(), bop->getOperatorLoc()));
@@ -255,6 +253,26 @@ QString ExpansionManager::hashDefinition(const clang::MacroDirective* md)
 	return hash;
 }
 
+void ExpansionManager::applyLexicalTransformations(Model::Node* node, NodeMapping* mapping)
+{
+	if (lexicalTransform_.contains(mapping->original(node)))
+	{
+		auto transformed = lexicalTransform_.value(mapping->original(node));
+
+		if (auto ref = DCast<OOModel::ReferenceExpression>(node))
+			ref->setName(transformed);
+		else if (auto decl = DCast<OOModel::Declaration>(node))
+			decl->setName(transformed);
+		else if (auto strLit = DCast<OOModel::StringLiteral>(node))
+			strLit->setValue(transformed);
+		else
+			qDebug() << "Unhandled transformed node type" << node->typeName();
+	}
+
+	for (auto child : node->children())
+		applyLexicalTransformations(child, mapping);
+}
+
 bool ExpansionManager::shouldCreateMetaCall(MacroExpansion* expansion)
 {
 	auto hash = hashExpansion(expansion);
@@ -443,7 +461,7 @@ QString ExpansionManager::getUnexpandedSpelling(clang::SourceRange range)
 	return clang()->getSpelling(start, end);
 }
 
-void ExpansionManager::correctFormalArgType(clang::NamedDecl* namedDecl, OOModel::FormalArgument* arg)
+void ExpansionManager::correctFormalArgType(clang::NamedDecl* namedDecl, OOModel::FormalArgument* original)
 {
 	if (!clang()->isMacroRange(namedDecl->getSourceRange())) return;
 
@@ -456,25 +474,25 @@ void ExpansionManager::correctFormalArgType(clang::NamedDecl* namedDecl, OOModel
 	while (nextToken.isWhitespace() || nextToken.isEmpty()) nextToken = nextToken.next();
 
 	if (nextToken.value() == "*") // TODO: this won't work with multipointers
-		arg->setTypeExpression(
-					new OOModel::PointerTypeExpression(new OOModel::ReferenceExpression(identifier)));
+	{
+		if (auto ptrExpr = DCast<OOModel::PointerTypeExpression>(original->typeExpression()))
+		if (auto refExpr = DCast<OOModel::ReferenceExpression>(ptrExpr->typeExpression()))
+			lexicalTransform_.insert(refExpr, identifier);
+	}
 	else if (nextToken.value() == "&")
-		arg->setTypeExpression(
-					new OOModel::ReferenceTypeExpression(new OOModel::ReferenceExpression(identifier)));
+	{
+		if (auto ptrExpr = DCast<OOModel::ReferenceTypeExpression>(original->typeExpression()))
+		if (auto refExpr = DCast<OOModel::ReferenceExpression>(ptrExpr->typeExpression()))
+			lexicalTransform_.insert(refExpr, identifier);
+	}
 	else
-		arg->setTypeExpression(new OOModel::ReferenceExpression(identifier));
+		lexicalTransform_.insert(original->typeExpression(), identifier);
 }
 
-OOModel::FormalResult* ExpansionManager::correctFormalResultType(clang::FunctionDecl* method,
-																					  OOModel::FormalResult* current)
+void ExpansionManager::correctFormalResultType(clang::FunctionDecl* method,
+																OOModel::FormalResult* original)
 {
-	if (!clang()->isMacroRange(method->getReturnTypeSourceRange())) return current;
-
-	if (auto ooRefType = DCast<OOModel::ReferenceTypeExpression>(current->typeExpression()))
-		if (auto ooRef = DCast<OOModel::ReferenceExpression>(ooRefType->typeExpression()))
-			if (ooRef->typeArguments()->size() > 0) return current;
-
-	OOModel::FormalResult* correctedResult = new OOModel::FormalResult();
+	if (!clang()->isMacroRange(method->getReturnTypeSourceRange())) return;
 
 	auto token = getUnexpToken(method->getReturnTypeSourceRange().getBegin());
 	auto typeTokens = token.type();
@@ -485,20 +503,19 @@ OOModel::FormalResult* ExpansionManager::correctFormalResultType(clang::Function
 	while (nextToken.isWhitespace() || nextToken.isEmpty()) nextToken = nextToken.next();
 
 	if (nextToken.value() == "*")
-		correctedResult->setTypeExpression(new OOModel::PointerTypeExpression(
-													  new OOModel::ReferenceExpression(identifier)));
-	else if (nextToken.value() == "&")
-		correctedResult->setTypeExpression(new OOModel::ReferenceTypeExpression(
-													  new OOModel::ReferenceExpression(identifier)));
-	else
 	{
-		if (identifier == "void" || identifier == "bool" || identifier == "int")
-			return current;
-
-		correctedResult->setTypeExpression(new OOModel::ReferenceExpression(identifier));
+		if (auto ptrExpr = DCast<OOModel::PointerTypeExpression>(original->typeExpression()))
+		if (auto refExpr = DCast<OOModel::ReferenceExpression>(ptrExpr->typeExpression()))
+			lexicalTransform_.insert(refExpr, identifier);
 	}
-
-	return correctedResult;
+	else if (nextToken.value() == "&")
+	{
+		if (auto ptrExpr = DCast<OOModel::ReferenceTypeExpression>(original->typeExpression()))
+		if (auto refExpr = DCast<OOModel::ReferenceExpression>(ptrExpr->typeExpression()))
+			lexicalTransform_.insert(refExpr, identifier);
+	}
+	else
+		lexicalTransform_.insert(original->typeExpression(), identifier);
 }
 
 void ExpansionManager::correctMethodCall(clang::Expr* expr, OOModel::MethodCallExpression* methodCall)
@@ -526,13 +543,7 @@ void ExpansionManager::correctMethodCall(clang::Expr* expr, OOModel::MethodCallE
 	{
 		if (auto sLit = DCast<OOModel::StringLiteral>(methodCall->arguments()->first()))
 		{
-			auto newLit = new OOModel::ReferenceExpression(getUnexpandedSpelling(expr->getSourceRange()));
-			methodCall->arguments()->replaceChild(sLit, newLit);
-			if (astMapping()->astMapping_.contains(sLit))
-			{
-				astMapping()->astMapping_.insert(newLit, astMapping()->astMapping_[sLit]);
-				astMapping()->astMapping_.remove(sLit);
-			}
+			lexicalTransform_.insert(sLit, getUnexpandedSpelling(expr->getSourceRange()));
 			return;
 		}
 	}
@@ -562,7 +573,7 @@ void ExpansionManager::correctMethodCall(clang::Expr* expr, OOModel::MethodCallE
 	if (!identTokens.empty())
 	{
 		token = token.identifier().last()->next();
-		refs.pop()->setName(token.toString(identTokens));
+		lexicalTransform_.insert(refs.pop(), token.toString(identTokens));
 	}
 	else
 	{
@@ -580,7 +591,7 @@ void ExpansionManager::correctMethodCall(clang::Expr* expr, OOModel::MethodCallE
 
 		if (!identTokens.empty())
 		{
-			refs.pop()->setName(token.toString(identTokens));
+			lexicalTransform_.insert(refs.pop(), token.toString(identTokens));
 			token = identTokens.last()->next();
 		}
 		else
@@ -592,18 +603,18 @@ void ExpansionManager::correctMethodCall(clang::Expr* expr, OOModel::MethodCallE
 	}
 }
 
-void ExpansionManager::correctReferenceExpression(clang::SourceLocation loc, OOModel::ReferenceExpression* reference)
+void ExpansionManager::correctReferenceExpression(clang::SourceLocation loc, OOModel::ReferenceExpression* original)
 {
 	if (loc.isMacroID())
 		if (isExpansionception(loc))
 		{
 			auto token = getUnexpToken(loc);
-			reference->setName(token.toString(token.identifier()));
+			lexicalTransform_.insert(original, token.toString(token.identifier()));
 		}
 }
 
 void ExpansionManager::correctExplicitTemplateInst(clang::ClassTemplateSpecializationDecl* specializationDecl,
-																	 OOModel::ReferenceExpression* ref)
+																	 OOModel::ReferenceExpression* original)
 {
 	if (!clang()->isMacroRange(specializationDecl->getSourceRange()))	return;
 
@@ -611,20 +622,20 @@ void ExpansionManager::correctExplicitTemplateInst(clang::ClassTemplateSpecializ
 														  specializationDecl->getSourceRange().getEnd());
 
 	// TODO: improve parsing to handle more complicated cases.
-	QString ident = "(\\w+)";
-	QRegularExpression regularExpression("^" + ident + "<" + ident + "::" + ident + ">$");
+	QRegularExpression regularExpression("^(\\w+)<(\\w+::\\w+)>$");
 
 	auto match = regularExpression.match(spelling);
 	if (match.hasMatch())
 	{
-		ref->setName(match.captured(1));
+		lexicalTransform_.insert(original, match.captured(1));
 
-		auto typeArgPrefix = new OOModel::ReferenceExpression(match.captured(2));
-		auto typeArg = new OOModel::ReferenceExpression(match.captured(3));
-		typeArg->setPrefix(typeArgPrefix);
+		Q_ASSERT(original->typeArguments()->size() == 1);
 
-		ref->typeArguments()->clear();
-		ref->typeArguments()->append(typeArg);
+		auto typeArg = DCast<OOModel::ReferenceExpression>(original->typeArguments()->first());
+		Q_ASSERT(typeArg);
+		Q_ASSERT(!typeArg->prefix());
+		qDebug() << match.captured(2);
+		lexicalTransform_.insert(typeArg, match.captured(2));
 	}
 	else
 	{
@@ -632,35 +643,25 @@ void ExpansionManager::correctExplicitTemplateInst(clang::ClassTemplateSpecializ
 	}
 }
 
-OOModel::Expression* ExpansionManager::correctStringLiteral(clang::StringLiteral* strLit)
+void ExpansionManager::correctStringLiteral(clang::StringLiteral* strLit, OOModel::StringLiteral* original)
 {
-	if (strLit->getLocStart().isMacroID())
-	{
-		auto rawValue = getUnexpandedSpelling(strLit->getSourceRange());
+	if (!strLit->getLocStart().isMacroID()) return;
 
-		if (rawValue == "__FILE__")
-			return new OOModel::MetaCallExpression(rawValue);
+	auto rawValue = getUnexpandedSpelling(strLit->getSourceRange());
 
-		return new OOModel::StringLiteral(rawValue);
-	}
-
-	return new OOModel::StringLiteral(QString::fromStdString(strLit->getBytes().str()));
+	lexicalTransform_.insert(original, rawValue);
 }
 
-OOModel::Expression* ExpansionManager::correctIntegerLiteral(clang::IntegerLiteral* intLit)
+void ExpansionManager::correctIntegerLiteral(clang::IntegerLiteral* intLit, OOModel::IntegerLiteral* original)
 {
-	if (intLit->getLocation().isMacroID())
-	{
-		auto token = getUnexpToken(intLit->getLocStart());
+	if (!intLit->getLocation().isMacroID()) return;
 
-		if (token.value() == "__LINE__")
-			return new OOModel::MetaCallExpression(token.value());
-	}
+	auto token = getUnexpToken(intLit->getLocStart());
 
-	return new OOModel::IntegerLiteral(intLit->getValue().getLimitedValue());
+	lexicalTransform_.insert(original, token.value());
 }
 
-void ExpansionManager::correctCastType(clang::Expr* expr, OOModel::CastExpression* cast)
+void ExpansionManager::correctCastType(clang::Expr* expr, OOModel::CastExpression* original)
 {
 	if (!clang()->isMacroRange(expr->getSourceRange())) return;
 
@@ -675,12 +676,12 @@ void ExpansionManager::correctCastType(clang::Expr* expr, OOModel::CastExpressio
 
 		if (typeExpression.endsWith("*"))
 		{
-			typeExpression.replace(typeExpression.length() - 1, 1, "");
-			Q_ASSERT(!typeExpression.contains("*"));
-			cast->setType(new OOModel::PointerTypeExpression(new OOModel::ReferenceExpression(typeExpression)));
+			if (auto ptrExpr = DCast<OOModel::PointerTypeExpression>(original->castType()))
+			if (auto refExpr = DCast<OOModel::ReferenceExpression>(ptrExpr->typeExpression()))
+				lexicalTransform_.insert(refExpr, typeExpression);
 		}
 		else
-			cast->setType(new OOModel::ReferenceExpression(typeExpression));
+			lexicalTransform_.insert(original->castType(), typeExpression);
 	}
 }
 
@@ -693,7 +694,8 @@ void ExpansionManager::correctNamedDecl(clang::Decl* decl, Model::Node* node)
 		if (auto namedDecl = clang::dyn_cast<clang::NamedDecl>(decl))
 		{
 			auto token = getUnexpToken(namedDecl->getLocation());
-			ooDecl->setName(token.toString(token.qualifiedIdentifier()));
+
+			lexicalTransform_.insert(ooDecl, token.toString(token.qualifiedIdentifier()));
 		}
 		else
 			Q_ASSERT(false && "not implemented");
