@@ -51,7 +51,6 @@ class CPPIMPORT_API MacroImportHelper
 
 		void finalize();
 
-		static Model::Node* cloneWithMapping(Model::Node* node, NodeMapping* mapping);
 		void removeIncompleteExpansions();
 
 		QVector<MacroExpansion*> expansions_;
@@ -83,7 +82,6 @@ class CPPIMPORT_API MacroImportHelper
 
 		QVector<Model::Node*> getNodes(MacroExpansion* expansion, NodeMapping* mapping);
 
-		bool validContext(Model::Node* node);
 		OOModel::Declaration* getActualContext(MacroExpansion* expansion);
 
 		bool getUnexpandedNameWithQualifiers(clang::SourceLocation loc, QString* result);
@@ -109,12 +107,126 @@ class CPPIMPORT_API MacroImportHelper
 		OOModel::Project* root_{};
 
 		ClangHelper::Token getUnexpToken(clang::SourceLocation start);
-		void orderNodes(QVector<Model::Node*>& input);
 		QString hashDefinition(const clang::MacroDirective* md);
 
 		void applyLexicalTransformations(Model::Node* node, NodeMapping* mapping);
 
 	private:
+		class StaticStuff
+		{
+			public:
+				static void orderNodes(QVector<Model::Node*>& input)
+				{
+					qSort(input.begin(), input.end(),
+							[](Model::Node* e1, Model::Node* e2)
+							{
+								if (auto commonAncestor = e1->lowestCommonAncestor(e2))
+									if (auto list = DCast<Model::List>(commonAncestor))
+									{
+										int index1 = -1;
+										for (auto c : list->children())
+											if (c == e1 || c->isAncestorOf(e1))
+											{
+												index1 = list->indexOf(c);
+												break;
+											}
+
+										int index2 = -1;
+										for (auto c : list->children())
+											if (c == e2 || c->isAncestorOf(e2))
+											{
+												index2 = list->indexOf(c);
+												break;
+											}
+
+										return index1 < index2;
+									}
+
+								return true;
+							});
+				}
+
+				static bool validContext(Model::Node* node)
+				{
+					if (DCast<OOModel::Project>(node))
+						return true;
+					else if (DCast<OOModel::Module>(node))
+						return true;
+					else if (DCast<OOModel::Class>(node))
+						return true;
+					else if (DCast<OOModel::Method>(node))
+						return true;
+					else
+						return false;
+				}
+
+				static OOModel::Declaration* getActualContext(Model::Node* node)
+				{
+					auto current = node->parent();
+
+					while (current)
+					{
+						if (auto result = DCast<OOModel::Project>(current))
+							return result;
+						else if (auto result = DCast<OOModel::Module>(current))
+							return result;
+						else if (auto result = DCast<OOModel::Class>(current))
+							return result;
+						else if (auto result = DCast<OOModel::Method>(current))
+							return result;
+						else
+							current = current->parent();
+					}
+
+					Q_ASSERT(false);
+				}
+
+				static OOModel::Declaration* createContext(OOModel::Declaration* actualContext)
+				{
+					if (DCast<OOModel::Project>(actualContext))
+						return new OOModel::Project("Context");
+					else if (DCast<OOModel::Module>(actualContext))
+						return new OOModel::Module("Context");
+					else if (DCast<OOModel::Class>(actualContext))
+						return new OOModel::Class("Context");
+					else if (DCast<OOModel::Method>(actualContext))
+						return new OOModel::Method("Context");
+
+					Q_ASSERT(false);
+				}
+
+				static Model::Node* cloneWithMapping(Model::Node* node, NodeMapping* mapping)
+				{
+					auto clone = node->clone();
+
+					QList<Model::Node*> info;
+					buildMappingInfo(node, &info);
+					useMappingInfo(clone, &info, mapping);
+
+					return clone;
+				}
+
+			private:
+				static void buildMappingInfo(Model::Node* node, QList<Model::Node*>* info)
+				{
+					info->push_back(node);
+
+					for (auto child : node->children())
+						buildMappingInfo(child, info);
+				}
+
+				static void useMappingInfo(Model::Node* node,
+																	  QList<Model::Node*>* info,
+																	  NodeMapping* mapping)
+				{
+					mapping->add(info->front(), node);
+					info->pop_front();
+
+					for (auto child : node->children())
+						useMappingInfo(child, info, mapping);
+				}
+		};
+
 		MacroExpansion* currentXMacroParent {};
 		ClangHelper clang_;
 		AstMapping astMapping_;
@@ -138,22 +250,13 @@ class CPPIMPORT_API MacroImportHelper
 		void handleMacroExpansion(QVector<Model::Node*> nodes, MacroExpansion* expansion, NodeMapping* mapping,
 										  QVector<MacroArgumentInfo>& arguments, QHash<MacroExpansion*, Model::Node*>* splices);
 
-		OOModel::Declaration* getActualContext(Model::Node* node);
 		void createMetaDef(QVector<Model::Node*> nodes, MacroExpansion* expansion, NodeMapping* mapping,
 								 QVector<MacroArgumentInfo>& arguments, QHash<MacroExpansion*, Model::Node*>* splices);
-
-
-		static void buildMappingInfo(Model::Node* node, QList<Model::Node*>* info);
-		static void useMappingInfo(Model::Node* node, QList<Model::Node*>* info, NodeMapping* mapping);
-
-		OOModel::Declaration* createContext(OOModel::Declaration* actualContext);
 
 		void removeNode(Model::Node* node);
 		void getChildrenNotBelongingToExpansion(Model::Node* node, MacroExpansion* expansion,
 															 NodeMapping* mapping, QVector<Model::Node*>* result,
 															 QHash<MacroExpansion*, Model::Node*>* splices);
-
-		void buildMappingInfo(Model::Node* node, QList<Model::Node*>* info, NodeMapping* master);
 
 		void addNodeToMetaDef(Model::Node* cloned, OOModel::MetaDefinition* metaDef);
 		void insertArgumentSplices(NodeMapping* mapping, NodeMapping* childMapping, QVector<MacroArgumentInfo>& arguments);
