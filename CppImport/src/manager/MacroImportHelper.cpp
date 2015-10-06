@@ -48,7 +48,7 @@ void MacroImportHelper::getChildrenNotBelongingToExpansion(Model::Node* node,
 
 	if (DCast<OOModel::MetaCallExpression>(node)) return;
 
-	if (getExpansion(mapping->original(node)).contains(expansion))
+	if (expansionManager_.getExpansion(mapping->original(node)).contains(expansion))
 	{
 		for (auto child : node->children())
 		{
@@ -70,9 +70,9 @@ void MacroImportHelper::getChildrenBelongingToExpansion(MacroExpansion* expansio
 	QVector<Model::Node*> allNodesForExpansion;
 	QSet<Model::Node*> topLevel;
 	for (auto node : astMapping()->astMapping_.keys())
-		if (getExpansion(node).contains(expansion))
+		if (expansionManager_.getExpansion(node).contains(expansion))
 		{
-			if (getExpansion(node).size() == 1)
+			if (expansionManager_.getExpansion(node).size() == 1)
 			{
 				allNodesForExpansion.append(node);
 				topLevel.insert(node);
@@ -90,7 +90,6 @@ void MacroImportHelper::getChildrenBelongingToExpansion(MacroExpansion* expansio
 
 	StaticStuff::orderNodes(*result);
 }
-
 
 MacroExpansion* MacroImportHelper::partialBeginMacroChild(MacroExpansion* expansion)
 {
@@ -368,7 +367,6 @@ void MacroImportHelper::addNodeToMetaDef(Model::Node* cloned, OOModel::MetaDefin
 void MacroImportHelper::clear()
 {
 	astMapping()->astMapping_.clear();
-	expansionCache_.clear();
 	definitionManager_.clear();
 	expansionManager_.clear();
 }
@@ -376,12 +374,12 @@ void MacroImportHelper::clear()
 void MacroImportHelper::macroGeneration()
 {
 	QHash<MacroExpansion*, Model::Node*> splices;
-	for (auto expansion : getTopLevelExpansions())
+	for (auto expansion : expansionManager_.getTopLevelExpansions())
 	{
 		NodeMapping mapping;
 		QVector<Model::Node*> generatedNodes;
 		QVector<MacroArgumentInfo> allArguments;
-		for (auto node : getTopLevelNodes(expansion))
+		for (auto node : expansionManager_.getTopLevelNodes(expansion))
 		{
 			auto generatedNode = StaticStuff::cloneWithMapping(node, &mapping);
 
@@ -474,7 +472,7 @@ void MacroImportHelper::macroGeneration()
 	for (auto expansion : expansionManager_.expansions_)
 		if (!expansion->xMacroChildren.empty())
 		{
-			for (auto node : getTopLevelNodes(expansion))
+			for (auto node : expansionManager_.getTopLevelNodes(expansion))
 			{
 				if (auto other = getMatchingXMacroExpansion(node))
 				{
@@ -755,124 +753,9 @@ void MacroImportHelper::mapAst(clang::Decl* clangAstNode, Model::Node* envisionA
 		astMapping()->astMapping_[envisionAstNode].append(clangAstNode->getSourceRange());
 }
 
-QVector<MacroExpansion*> MacroImportHelper::getTopLevelExpansions()
-{
-	QVector<MacroExpansion*> result;
-	for (auto expansion : expansionManager_.expansions_)
-		if (!expansion->parent)
-			result.append(expansion);
-
-	return result;
-}
-
-MacroExpansion* MacroImportHelper::getExpansion(clang::SourceLocation loc)
-{
-	MacroExpansion* expansion = getImmediateExpansion(loc);
-	MacroExpansion* last = expansion;
-
-	if (expansion)
-	{
-		do
-		{
-			last = expansion;
-			loc = clang()->sourceManager()->getImmediateExpansionRange(loc).first;
-			expansion = getImmediateExpansion(loc);
-		} while (expansion && expansion->isChildOf(last));
-	}
-
-	return last;
-}
-
-MacroExpansion* MacroImportHelper::getExpansion(OOModel::MetaCallExpression* metaCall)
-{
-	for (auto expansion : expansionManager_.expansions_)
-		if (expansion->metaCall == metaCall)
-			return expansion;
-
-	return nullptr;
-}
-
-MacroExpansion* MacroImportHelper::getImmediateExpansion(clang::SourceLocation loc)
-{
-	auto expansion = clang_.getImmediateMacroLoc(loc);
-	for (auto i = 0; i < expansionManager_.expansions_.size(); i++)
-		if (expansionManager_.expansions_[i]->range.getBegin() == expansion) return expansionManager_.expansions_[i];
-
-	expansion = clang_.getImmediateMacroLoc(expansion);
-	for (auto i = 0; i < expansionManager_.expansions_.size(); i++)
-		if (expansionManager_.expansions_[i]->range.getBegin() == expansion) return expansionManager_.expansions_[i];
-
-	return nullptr;
-}
-
-QSet<MacroExpansion*> MacroImportHelper::getExpansion(Model::Node* node)
-{
-	if (!node) return {}; //TODO: necessary?
-
-	//if (!expansionCache_.contains(node))
-	{
-		expansionCache_[node] = {};
-
-		if (auto n = astMapping()->closestParentWithAstMapping(node))
-			if (astMapping()->astMapping_.contains(n))
-				for (auto range : astMapping()->astMapping_[n])
-				{
-					auto expansion = getExpansion(range.getBegin());
-					if (expansion)	expansionCache_[node].insert(expansion);
-				}
-	}
-
-	return expansionCache_[node];
-}
-
-QVector<Model::Node*> MacroImportHelper::getTopLevelNodes(MacroExpansion* expansion)
-{
-	Q_ASSERT(!expansion->parent);
-
-	QVector<Model::Node*> allNodesForExpansion;
-	QSet<Model::Node*> topLevel;
-	for (auto node : astMapping()->astMapping_.keys())
-	{
-		for (auto range : astMapping()->astMapping_[node])
-			if (clang()->sourceManager()->getExpansionLoc(range.getBegin()) == expansion->range.getBegin())
-			{
-				allNodesForExpansion.append(node);
-				topLevel.insert(node);
-				break;
-			}
-	}
-
-	for (auto node : allNodesForExpansion)
-		for (auto other : allNodesForExpansion)
-			if (node != other)
-				if (node->isAncestorOf(other))
-					topLevel.remove(other);
-
-	QVector<Model::Node*> result;
-	for (auto node : topLevel)
-		result.append(node);
-
-	return result;
-}
-
-QString MacroImportHelper::hashExpansion(MacroExpansion* expansion)
-{
-	auto presumedLoc = clang()->sourceManager()->getPresumedLoc(expansion->range.getBegin());
-
-	QString hash = QDir(presumedLoc.getFilename()).absolutePath()
-			+ QString("|")
-			+ definitionManager_.hashDefinition(expansion->definition)
-			+ QString("|")
-			+ QString::number(presumedLoc.getLine())
-			+ QString("|")
-			+ QString::number(presumedLoc.getColumn());
-
-	return hash;
-}
-
 bool MacroImportHelper::shouldCreateMetaCall(MacroExpansion* expansion)
 {
-	auto hash = hashExpansion(expansion);
+	auto hash = expansionManager_.hashExpansion(expansion);
 
 	if (!metaCallDuplicationPrevention_.contains(hash))
 	{
@@ -893,7 +776,7 @@ QVector<Model::Node*> MacroImportHelper::getNodes(MacroExpansion* expansion,
 	QVector<Model::Node*> allNodesForExpansion;
 	QSet<Model::Node*> topLevel;
 	for (auto node : astMapping()->astMapping_.keys())
-		if (getExpansion(node).contains(expansion))
+		if (expansionManager_.getExpansion(node).contains(expansion))
 		{
 			allNodesForExpansion.append(node);
 			topLevel.insert(node);
