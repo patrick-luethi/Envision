@@ -95,7 +95,7 @@ void MacroImportHelper::getChildrenBelongingToExpansion(MacroExpansion* expansio
 MacroExpansion* MacroImportHelper::partialBeginMacroChild(MacroExpansion* expansion)
 {
 	for (auto child : expansion->children)
-		if (expansionManager_.getDefinitionName(child->definition).startsWith("BEGIN_"))
+		if (definitionManager_.getDefinitionName(child->definition).startsWith("BEGIN_"))
 			return child;
 
 	return nullptr;
@@ -105,7 +105,7 @@ void MacroImportHelper::createMetaDef(QVector<Model::Node*> nodes, MacroExpansio
 												  NodeMapping* mapping, QVector<MacroArgumentInfo>& arguments,
 												  QHash<MacroExpansion*, Model::Node*>* splices)
 {
-	auto metaDefName = hashDefinition(expansion->definition);
+	auto metaDefName = definitionManager_.hashDefinition(expansion->definition);
 	if (metaDefinitions_.contains(metaDefName)) return;
 
 	auto metaDef = new OOModel::MetaDefinition(metaDefName);
@@ -137,7 +137,7 @@ void MacroImportHelper::createMetaDef(QVector<Model::Node*> nodes, MacroExpansio
 
 		if (!statements.empty() || expansion->children.size() > 1)
 		{
-			auto childDef = metaDefinitions_.value(hashDefinition(beginChild->definition));
+			auto childDef = metaDefinitions_.value(definitionManager_.hashDefinition(beginChild->definition));
 
 			if (childDef->arguments()->size() == beginChild->metaCall->arguments()->size())
 			{
@@ -369,6 +369,7 @@ void MacroImportHelper::clear()
 {
 	astMapping()->astMapping_.clear();
 	expansionCache_.clear();
+	definitionManager_.clear();
 	expansionManager_.clear();
 }
 
@@ -481,7 +482,7 @@ void MacroImportHelper::macroGeneration()
 						 list->remove(list->indexOf(other->metaCall));
 
 					auto merged = new OOModel::MetaCallExpression(
-								expansionManager_.getDefinitionName(expansion->definition));
+								definitionManager_.getDefinitionName(expansion->definition));
 
 					for (auto i = 0; i < expansion->metaCall->arguments()->size(); i++)
 						merged->arguments()->append(expansion->metaCall->arguments()->at(i)->clone());
@@ -490,7 +491,7 @@ void MacroImportHelper::macroGeneration()
 					for (auto xMacroChild : expansion->xMacroChildren)
 					{
 						auto unbound = new OOModel::MetaCallExpression(
-									expansionManager_.getDefinitionName(xMacroChild->definition));
+									definitionManager_.getDefinitionName(xMacroChild->definition));
 						for (auto i = 0; i < xMacroChild->metaCall->arguments()->size(); i++)
 							unbound->arguments()->append(xMacroChild->metaCall->arguments()->at(i)->clone());
 
@@ -508,7 +509,7 @@ void MacroImportHelper::macroGeneration()
 						auto xMacroChildH = expansion->xMacroChildren[i];
 						auto xMacroChildCpp = other->xMacroChildren[i];
 
-						auto unbound = expansionManager_.getDefinitionName(xMacroChildH->definition);
+						auto unbound = definitionManager_.getDefinitionName(xMacroChildH->definition);
 
 						auto binding1 = metaDef->metaBindings()->at(0);
 						auto binding2 = metaDef->metaBindings()->at(1);
@@ -524,12 +525,12 @@ void MacroImportHelper::macroGeneration()
 
 						auto mapping1 = new OOModel::MetaCallMapping(unbound);
 						mapping1->setValue(new OOModel::ReferenceExpression(
-													 hashDefinition(xMacroChildH->definition)));
+													 definitionManager_.hashDefinition(xMacroChildH->definition)));
 						binding1->mappings()->append(mapping1);
 
 						auto mapping2 = new OOModel::MetaCallMapping(unbound);
 						mapping2->setValue(new OOModel::ReferenceExpression(
-													 hashDefinition(xMacroChildCpp->definition)));
+													 definitionManager_.hashDefinition(xMacroChildCpp->definition)));
 						binding2->mappings()->append(mapping2);
 					}
 
@@ -551,7 +552,7 @@ OOModel::MetaDefinition* MacroImportHelper::createXMacroMetaDef(MacroExpansion* 
 		bool found = false;
 
 		for (auto child : xMacroExpansionH->children)
-			if (expansionManager_.getDefinitionName(child->definition).startsWith("BEGIN_"))
+			if (definitionManager_.getDefinitionName(child->definition).startsWith("BEGIN_"))
 			{
 				xMacroExpansionH = child;
 				found = true;
@@ -565,7 +566,7 @@ OOModel::MetaDefinition* MacroImportHelper::createXMacroMetaDef(MacroExpansion* 
 		bool found = false;
 
 		for (auto child : xMacroExpansionCpp->children)
-			if (expansionManager_.getDefinitionName(child->definition).startsWith("BEGIN_"))
+			if (definitionManager_.getDefinitionName(child->definition).startsWith("BEGIN_"))
 			{
 				xMacroExpansionCpp = child;
 				found = true;
@@ -574,11 +575,11 @@ OOModel::MetaDefinition* MacroImportHelper::createXMacroMetaDef(MacroExpansion* 
 		if (!found) break;
 	}
 
-	auto metaDefName = expansionManager_.getDefinitionName(xMacroExpansionH->definition);
+	auto metaDefName = definitionManager_.getDefinitionName(xMacroExpansionH->definition);
 	if (metaDefinitions_.contains(metaDefName)) return metaDefinitions_[metaDefName];
 
-	auto xMacroDefH = metaDefinitions_.value(hashDefinition(xMacroExpansionH->definition));
-	auto xMacroDefCpp = metaDefinitions_.value(hashDefinition(xMacroExpansionCpp->definition));
+	auto xMacroDefH = metaDefinitions_.value(definitionManager_.hashDefinition(xMacroExpansionH->definition));
+	auto xMacroDefCpp = metaDefinitions_.value(definitionManager_.hashDefinition(xMacroExpansionCpp->definition));
 
 	auto metaDef = xMacroDefH->clone();
 	metaDefinitions_[metaDefName] = metaDef;
@@ -860,22 +861,11 @@ QString MacroImportHelper::hashExpansion(MacroExpansion* expansion)
 
 	QString hash = QDir(presumedLoc.getFilename()).absolutePath()
 			+ QString("|")
-			+ hashDefinition(expansion->definition)
+			+ definitionManager_.hashDefinition(expansion->definition)
 			+ QString("|")
 			+ QString::number(presumedLoc.getLine())
 			+ QString("|")
 			+ QString::number(presumedLoc.getColumn());
-
-	return hash;
-}
-
-QString MacroImportHelper::hashDefinition(const clang::MacroDirective* md)
-{
-	auto presumedLoc = clang()->sourceManager()->getPresumedLoc(md->getMacroInfo()->getDefinitionLoc());
-
-	auto suffix = QDir(presumedLoc.getFilename()).absolutePath().right(1) == "h" ? "_H" : "_CPP";
-
-	QString hash = expansionManager_.getDefinitionName(md) + suffix;
 
 	return hash;
 }

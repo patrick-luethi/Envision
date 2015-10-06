@@ -43,7 +43,8 @@ namespace CppImport {
 class CPPIMPORT_API MacroImportHelper
 {
 	public:
-		MacroImportHelper(OOModel::Project* project) : root_(project), lexicalHelper_(this), expansionManager_(this) {}
+		MacroImportHelper(OOModel::Project* project)
+			: root_(project), lexicalHelper_(this), definitionManager_(this), expansionManager_(this) {}
 
 		void setSourceManager(const clang::SourceManager* sourceManager);
 		void setPreprocessor(const clang::Preprocessor* preprocessor);
@@ -81,8 +82,6 @@ class CPPIMPORT_API MacroImportHelper
 		QHash<Model::Node*, QSet<MacroExpansion*>> expansionCache_;
 
 		OOModel::Project* root_;
-
-		QString hashDefinition(const clang::MacroDirective* md);
 
 		class LexicalHelper
 		{
@@ -428,10 +427,10 @@ class CPPIMPORT_API MacroImportHelper
 				QHash<Model::Node*, QString> lexicalTransform_;
 		} lexicalHelper_;
 
-		class ExpansionManager
+		class DefinitionManager
 		{
 			public:
-				ExpansionManager(MacroImportHelper* mih) : mih_(mih) {}
+				DefinitionManager(MacroImportHelper* mih) : mih_(mih) {}
 
 				void addMacroDefinition(QString name, const clang::MacroDirective* md)
 				{
@@ -443,10 +442,43 @@ class CPPIMPORT_API MacroImportHelper
 					definitions_[md] = name;
 				}
 
+				QString getDefinitionName(const clang::MacroDirective* md)
+				{
+					if (!definitions_.contains(md)) return nullptr;
+
+					return definitions_[md];
+				}
+
+				QString hashDefinition(const clang::MacroDirective* md)
+				{
+					auto presumedLoc = mih_->clang()->sourceManager()->getPresumedLoc(md->getMacroInfo()->getDefinitionLoc());
+
+					auto suffix = QDir(presumedLoc.getFilename()).absolutePath().right(1) == "h" ? "_H" : "_CPP";
+
+					QString hash = getDefinitionName(md) + suffix;
+
+					return hash;
+				}
+
+				void clear()
+				{
+					definitions_.clear();
+				}
+
+			private:
+				MacroImportHelper* mih_;
+				QHash<const clang::MacroDirective*, QString> definitions_;
+		} definitionManager_;
+
+		class ExpansionManager
+		{
+			public:
+				ExpansionManager(MacroImportHelper* mih) : mih_(mih) {}
+
 				void addMacroExpansion(clang::SourceRange sr, const clang::MacroDirective* md,
 																	const clang::MacroArgs* args)
 				{
-					if (getDefinitionName(md).startsWith("END_"))
+					if (mih_->definitionManager_.getDefinitionName(md).startsWith("END_"))
 					{
 						currentXMacroParent = nullptr;
 						return;
@@ -457,9 +489,10 @@ class CPPIMPORT_API MacroImportHelper
 					entry->definition = md;
 					entry->parent = mih_->getExpansion(sr.getBegin());
 					if (entry->parent) entry->parent->children.append(entry);
-					entry->metaCall = new OOModel::MetaCallExpression(mih_->hashDefinition(entry->definition));
+					entry->metaCall =
+							new OOModel::MetaCallExpression(mih_->definitionManager_.hashDefinition(entry->definition));
 
-					if (getDefinitionName(md).startsWith("BEGIN_") && !currentXMacroParent)
+					if (mih_->definitionManager_.getDefinitionName(md).startsWith("BEGIN_") && !currentXMacroParent)
 						currentXMacroParent = entry;
 					else if (currentXMacroParent && !entry->parent)
 					{
@@ -486,22 +519,13 @@ class CPPIMPORT_API MacroImportHelper
 
 				QVector<MacroExpansion*> expansions_;
 
-				QString getDefinitionName(const clang::MacroDirective* md)
-				{
-					if (!definitions_.contains(md)) return nullptr;
-
-					return definitions_[md];
-				}
-
 				void clear()
 				{
 					expansions_.clear();
-					definitions_.clear();
 				}
 
 			private:
 				MacroImportHelper* mih_;
-				QHash<const clang::MacroDirective*, QString> definitions_;
 				MacroExpansion* currentXMacroParent {};
 
 		} expansionManager_;
