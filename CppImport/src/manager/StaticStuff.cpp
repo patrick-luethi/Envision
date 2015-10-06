@@ -119,6 +119,115 @@ Model::Node*StaticStuff::cloneWithMapping(Model::Node* node, NodeMapping* mappin
 	return clone;
 }
 
+void StaticStuff::removeNode(Model::Node* node)
+{
+	if (!node || !node->parent()) return;
+
+	while (auto metaCall = containsMetaCall(node))
+	{
+		return;
+
+		if (auto declaration = DCast<OOModel::Declaration>(metaCall->parent()->parent()))
+		{
+			auto newDeclaration = node->firstAncestorOfType<OOModel::Declaration>();
+
+			declaration->metaCalls()->remove(declaration->metaCalls()->indexOf(metaCall));
+			newDeclaration->metaCalls()->append(metaCall);
+		}
+	}
+
+	if (auto ooList = DCast<Model::List>(node->parent()))
+		ooList->remove(ooList->indexOf(node));
+	else if (auto ooVarDecl = DCast<OOModel::VariableDeclaration>(node->parent()))
+	{
+		if (ooVarDecl->initialValue() == node)
+			ooVarDecl->setInitialValue(nullptr);
+	}
+	else if (auto skip = DCast<OOModel::VariableDeclarationExpression>(node->parent()))
+		removeNode(skip);
+	else if (auto skip = DCast<OOModel::ExpressionStatement>(node->parent()))
+		removeNode(skip);
+	else
+		qDebug() << "not removed" << node->typeName() << "in" << node->parent()->typeName();
+}
+
+void StaticStuff::addNodeToDeclaration(Model::Node* node, OOModel::Declaration* declaration)
+{
+	if (auto ooExpression = DCast<OOModel::Expression>(node))
+	{
+		if (auto context = DCast<OOModel::Method>(declaration))
+			context->items()->append(new OOModel::ExpressionStatement(ooExpression));
+		else
+			Q_ASSERT(false);
+	}
+	else if (auto ooStatement = DCast<OOModel::Statement>(node))
+	{
+		if (auto context = DCast<OOModel::Method>(declaration))
+			context->items()->append(ooStatement);
+		else
+			Q_ASSERT(false);
+	}
+	else if (auto ooDeclaration = DCast<OOModel::Declaration>(node))
+	{
+		if (auto ooClass = DCast<OOModel::Class>(node))
+		{
+			if (auto context = DCast<OOModel::Project>(declaration))
+				context->classes()->append(ooClass);
+			else if (auto context = DCast<OOModel::Module>(declaration))
+				context->classes()->append(ooClass);
+			else if (auto context = DCast<OOModel::Class>(declaration))
+				context->classes()->append(ooClass);
+			else
+				Q_ASSERT(false);
+		}
+		else if (auto ooField = DCast<OOModel::Field>(node))
+		{
+			if (auto context = DCast<OOModel::Project>(declaration))
+				context->fields()->append(ooField);
+			else if (auto context = DCast<OOModel::Module>(declaration))
+				context->fields()->append(ooField);
+			else if (auto context = DCast<OOModel::Class>(declaration))
+				context->fields()->append(ooField);
+			else
+				Q_ASSERT(false);
+		}
+		else if (auto ooVarDecl = DCast<OOModel::VariableDeclaration>(node))
+		{
+			if (auto context = DCast<OOModel::Method>(declaration))
+				context->items()->append(new OOModel::ExpressionStatement(
+													 new OOModel::VariableDeclarationExpression(ooVarDecl)));
+			else
+				Q_ASSERT(false);
+		}
+		else if (auto ooMethod = DCast<OOModel::Method>(node))
+		{
+			if (auto context = DCast<OOModel::Project>(declaration))
+				context->methods()->append(ooMethod);
+			else if (auto context = DCast<OOModel::Module>(declaration))
+				context->methods()->append(ooMethod);
+			else if (auto context = DCast<OOModel::Class>(declaration))
+				context->methods()->append(ooMethod);
+			else
+				Q_ASSERT(false);
+		}
+		else
+		{
+			if (auto context = DCast<OOModel::Project>(declaration))
+				context->subDeclarations()->append(ooDeclaration);
+			else if (auto context = DCast<OOModel::Module>(declaration))
+				context->subDeclarations()->append(ooDeclaration);
+			else if (auto context = DCast<OOModel::Class>(declaration))
+				context->subDeclarations()->append(ooDeclaration);
+			else if (auto context = DCast<OOModel::Method>(declaration))
+				context->subDeclarations()->append(ooDeclaration);
+			else
+				Q_ASSERT(false);
+		}
+	}
+	else
+		Q_ASSERT(false && "not implemented");
+}
+
 QVector<Model::Node*> StaticStuff::topLevelNodes(QVector<Model::Node*> input)
 {
 	QSet<Model::Node*> topLevel;
@@ -150,6 +259,18 @@ void StaticStuff::useMappingInfo(Model::Node* node, QList<Model::Node*>* info, N
 
 	for (auto child : node->children())
 		useMappingInfo(child, info, mapping);
+}
+
+OOModel::MetaCallExpression*StaticStuff::containsMetaCall(Model::Node* node)
+{
+	if (auto metaCall = DCast<OOModel::MetaCallExpression>(node))
+		return metaCall;
+
+	for (auto child : node->children())
+		if (auto metaCall = containsMetaCall(child))
+			return metaCall;
+
+	return nullptr;
 }
 
 }

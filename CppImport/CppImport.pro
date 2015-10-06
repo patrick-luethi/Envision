@@ -65,7 +65,8 @@ HEADERS += src/precompiled.h \
     src/manager/ExpansionManager.h \
     src/manager/DefinitionManager.h \
     src/manager/StaticStuff.h \
-    src/manager/LexicalHelper.h
+    src/manager/LexicalHelper.h \
+    src/manager/MetaDefinitionManager.h
 SOURCES += src/CppImportException.cpp \
 	test/SimpleTest.cpp \
     src/ClangAstConsumer.cpp \
@@ -92,4 +93,5 @@ SOURCES += src/CppImportException.cpp \
     src/manager/ExpansionManager.cpp \
     src/manager/DefinitionManager.cpp \
     src/manager/StaticStuff.cpp \
-    src/manager/LexicalHelper.cpp
+    src/manager/LexicalHelper.cpp \
+    src/manager/MetaDefinitionManager.cpp
