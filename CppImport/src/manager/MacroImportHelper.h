@@ -319,7 +319,6 @@ class CPPIMPORT_API MacroImportHelper
 						auto typeArg = DCast<OOModel::ReferenceExpression>(original->typeArguments()->first());
 						Q_ASSERT(typeArg);
 						Q_ASSERT(!typeArg->prefix());
-						qDebug() << match.captured(2);
 						lexicalTransform_.insert(typeArg, match.captured(2));
 					}
 					else
@@ -601,7 +600,6 @@ class CPPIMPORT_API MacroImportHelper
 					Q_ASSERT(!expansion->parent);
 
 					QVector<Model::Node*> allNodesForExpansion;
-					QSet<Model::Node*> topLevel;
 					for (auto node : mih_->astMapping()->astMapping_.keys())
 					{
 						for (auto range : mih_->astMapping()->astMapping_[node])
@@ -609,21 +607,12 @@ class CPPIMPORT_API MacroImportHelper
 								 expansion->range.getBegin())
 							{
 								allNodesForExpansion.append(node);
-								topLevel.insert(node);
 								break;
 							}
 					}
 
-					for (auto node : allNodesForExpansion)
-						for (auto other : allNodesForExpansion)
-							if (node != other)
-								if (node->isAncestorOf(other))
-									topLevel.remove(other);
-
-					QVector<Model::Node*> result;
-					for (auto node : topLevel)
-						result.append(node);
-
+					QVector<Model::Node*> result = StaticStuff::topLevelNodes(allNodesForExpansion);
+					StaticStuff::orderNodes(result);
 					return result;
 				}
 
@@ -632,29 +621,16 @@ class CPPIMPORT_API MacroImportHelper
 					Q_ASSERT(expansion);
 
 					QVector<Model::Node*> allNodesForExpansion;
-					QSet<Model::Node*> topLevel;
 					for (auto node : mih_->astMapping()->astMapping_.keys())
 						if (getExpansion(node).contains(expansion))
-						{
 							allNodesForExpansion.append(node);
-							topLevel.insert(node);
-						}
 
-					for (auto node : allNodesForExpansion)
-						for (auto other : allNodesForExpansion)
-							if (node != other)
-								if (node->isAncestorOf(other))
-									topLevel.remove(other);
-
-					QVector<Model::Node*> unorderedOriginalResult;
-					for (auto node : topLevel)
-						unorderedOriginalResult.append(node);
-
+					QVector<Model::Node*> unorderedOriginalResult = StaticStuff::topLevelNodes(allNodesForExpansion);
 					StaticStuff::orderNodes(unorderedOriginalResult);
 
 					QVector<Model::Node*> orderedClonedResult;
 					for (auto node : unorderedOriginalResult)
-						orderedClonedResult.append(mapping->clone(node));
+						orderedClonedResult.append(mapping ? mapping->clone(node) : node);
 
 					return orderedClonedResult;
 				}
@@ -757,6 +733,22 @@ class CPPIMPORT_API MacroImportHelper
 					useMappingInfo(clone, &info, mapping);
 
 					return clone;
+				}
+
+				static QVector<Model::Node*> topLevelNodes(QVector<Model::Node*> input)
+				{
+					QSet<Model::Node*> topLevel;
+					for (auto node : input) topLevel.insert(node);
+
+					for (auto node : input)
+						for (auto other : input)
+							if (node != other)
+								if (node->isAncestorOf(other))
+									topLevel.remove(other);
+
+					QVector<Model::Node*> result;
+					for (auto node : topLevel) result.append(node);
+					return result;
 				}
 
 			private:

@@ -68,26 +68,16 @@ void MacroImportHelper::getChildrenBelongingToExpansion(MacroExpansion* expansio
 
 
 	QVector<Model::Node*> allNodesForExpansion;
-	QSet<Model::Node*> topLevel;
 	for (auto node : astMapping()->astMapping_.keys())
 		if (expansionManager_.getExpansion(node).contains(expansion))
 		{
 			if (expansionManager_.getExpansion(node).size() == 1)
 			{
 				allNodesForExpansion.append(node);
-				topLevel.insert(node);
 			}
 		}
 
-	for (auto node : allNodesForExpansion)
-		for (auto other : allNodesForExpansion)
-			if (node != other)
-				if (node->isAncestorOf(other))
-					topLevel.remove(other);
-
-	for (auto node : topLevel)
-		result->append(node);
-
+	*result = StaticStuff::topLevelNodes(allNodesForExpansion);
 	StaticStuff::orderNodes(*result);
 }
 
@@ -251,16 +241,7 @@ bool MacroImportHelper::removeUnownedNodes(Model::Node* cloned,
 
 	if (tbrs.contains(cloned)) return true;
 
-	QSet<Model::Node*> topLevel;
-	for (auto entry : tbrs) topLevel.insert(entry);
-
-	for (Model::Node* entry : tbrs)
-		for (auto other : tbrs)
-			if (entry != other)
-				if (entry->isAncestorOf(other))
-					topLevel.remove(other);
-
-	for (auto tbr : topLevel)
+	for (auto tbr : StaticStuff::topLevelNodes(tbrs))
 		removeNode(tbr);
 
 	return false;
@@ -388,21 +369,14 @@ void MacroImportHelper::macroGeneration()
 			generatedNodes.append(generatedNode);
 		}
 
-		StaticStuff::orderNodes(generatedNodes);
-
 		handleMacroExpansion(generatedNodes, expansion, &mapping, allArguments, &splices);
-
-		QVector<Model::Node*> topLevelNodes;
-		for (auto node : generatedNodes)
-			if (!node->parent())
-				topLevelNodes.append(node);
 
 		if (shouldCreateMetaCall(expansion))
 		{
 			OOModel::Declaration* actualContext;
 
-			if (topLevelNodes.size() > 0)
-				actualContext = StaticStuff::getActualContext(mapping.original(topLevelNodes.first()));
+			if (generatedNodes.size() > 0)
+				actualContext = StaticStuff::getActualContext(mapping.original(generatedNodes.first()));
 			else
 				actualContext = getActualContext(expansion);
 
@@ -420,7 +394,7 @@ void MacroImportHelper::macroGeneration()
 			}
 		}
 
-		for (auto node : topLevelNodes)
+		for (auto node : generatedNodes)
 		{
 			if (astMapping()->astMapping_.contains(mapping.original(node)))
 			{
