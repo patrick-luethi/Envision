@@ -118,7 +118,6 @@ class CPPIMPORT_API ClangAstVisitor : public clang::RecursiveASTVisitor <ClangAs
 		bool shouldUseDataRecursionfor (clang::Stmt* S);
 
 		const clang::SourceManager* sourceManager_{};
-		clang::PreprocessingRecord* record_{};
 
 		clang::Preprocessor* preprocessor_{};
 

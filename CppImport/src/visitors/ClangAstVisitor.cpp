@@ -55,7 +55,6 @@ ClangAstVisitor::~ClangAstVisitor()
 	SAFE_DELETE(utils_);
 	SAFE_DELETE(exprVisitor_);
 	SAFE_DELETE(trMngr_);
-
 	SAFE_DELETE(commentParser_);
 }
 
@@ -64,19 +63,16 @@ void ClangAstVisitor::setSourceManager(const clang::SourceManager* sourceManager
 	Q_ASSERT(sourceManager);
 	sourceManager_ = sourceManager;
 	trMngr_->setSourceManager(sourceManager);
-	macroImportHelper_.setSourceManager(sourceManager);
+	macroImportHelper_.clang()->setSourceManager(sourceManager);
 }
 
 void ClangAstVisitor::setPreprocessor(const clang::Preprocessor* preprocessor)
 {
 	Q_ASSERT(preprocessor);
 	preprocessor_ = const_cast<clang::Preprocessor*>(preprocessor);
-	macroImportHelper_.setPreprocessor(preprocessor);
-	record_ = new clang::PreprocessingRecord(const_cast<clang::SourceManager&>(*sourceManager_));
-	preprocessor_->addPPCallbacks(std::unique_ptr<clang::PPCallbacks>(record_));
-	preprocessor_->addPPCallbacks(std::make_unique<CppImportPPCallback>(
-												preprocessor_,
-												sourceManager_, macroImportHelper_));
+	macroImportHelper_.clang()->setPreprocessor(preprocessor);
+	preprocessor_->addPPCallbacks(std::make_unique<CppImportPPCallback>(preprocessor_,
+																							  sourceManager_, macroImportHelper_));
 }
 
 Model::Node*ClangAstVisitor::ooStackTop()
