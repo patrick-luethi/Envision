@@ -220,7 +220,7 @@ MacroExpansion* MacroImportHelper::getMatchingXMacroExpansion(Model::Node* node)
 
 void MacroImportHelper::finalize()
 {
-	return;
+	metaDefManager_.finalize();
 
 	for (auto i = finalizationInfo.metaCalls.begin(); i != finalizationInfo.metaCalls.end(); i++)
 		if (DCast<OOModel::Statement>(i.key()))
@@ -243,7 +243,7 @@ void MacroImportHelper::handleMacroExpansion(QVector<Model::Node*> nodes,
 {
 	for (auto childExpansion : expansion->children)
 	{
-		auto tlNodes = expansionManager_.getExpansionTLNodes(childExpansion);
+		auto tlNodes = expansionManager_.getNTLExpansionTLNodes(childExpansion);
 		handleMacroExpansion(mapping->clone(tlNodes), childExpansion, mapping, arguments, splices);
 	}
 

@@ -52,18 +52,12 @@ class CPPIMPORT_API ExpansionManager
 		QVector<MacroExpansion*> getTopLevelExpansions();
 
 		MacroExpansion* getExpansion(clang::SourceLocation loc);
-
 		MacroExpansion* getExpansion(OOModel::MetaCallExpression* metaCall);
-
 		MacroExpansion* getImmediateExpansion(clang::SourceLocation loc);
-
 		QSet<MacroExpansion*> getExpansion(Model::Node* node);
 
 		QVector<Model::Node*> getTLExpansionTLNodes(MacroExpansion* expansion);
-
 		QVector<Model::Node*> getNTLExpansionTLNodes(MacroExpansion* expansion);
-
-		QVector<Model::Node*> getExpansionTLNodes(MacroExpansion* expansion);
 
 	private:
 		MacroImportHelper* mih_;

@@ -41,13 +41,14 @@ void MetaDefinitionManager::createMetaDef(QVector<Model::Node*> nodes, MacroExpa
 
 	auto metaDef = new OOModel::MetaDefinition(metaDefName);
 	metaDefinitions_[metaDefName] = metaDef;
+	metaDefinitionHashes_[mih_->definitionManager_.getDefinitionName(expansion->definition)].insert(metaDefName);
 
 	auto metaDefParent = mih_->root_;
 
 	for (auto argName : mih_->clang()->getArgumentNames(expansion->definition))
 		metaDef->arguments()->append(new OOModel::FormalMetaArgument(argName));
 
-	if (auto beginChild = partialBeginMacroChild(expansion))
+	if (auto beginChild = partialBeginChild(expansion))
 	{
 		auto list = new Model::List();
 
@@ -148,7 +149,7 @@ OOModel::MetaDefinition*MetaDefinitionManager::createXMacroMetaDef(MacroExpansio
 		bool found = false;
 
 		for (auto child : xMacroExpansionH->children)
-			if (mih_->definitionManager_.getDefinitionName(child->definition).startsWith("BEGIN_"))
+			if (mih_->definitionManager_.isPartialBegin(child->definition))
 			{
 				xMacroExpansionH = child;
 				found = true;
@@ -162,7 +163,7 @@ OOModel::MetaDefinition*MetaDefinitionManager::createXMacroMetaDef(MacroExpansio
 		bool found = false;
 
 		for (auto child : xMacroExpansionCpp->children)
-			if (mih_->definitionManager_.getDefinitionName(child->definition).startsWith("BEGIN_"))
+			if (mih_->definitionManager_.isPartialBegin(child->definition))
 			{
 				xMacroExpansionCpp = child;
 				found = true;
@@ -225,6 +226,35 @@ OOModel::MetaDefinition*MetaDefinitionManager::createXMacroMetaDef(MacroExpansio
 	mih_->root_->subDeclarations()->append(metaDef);
 
 	return metaDef;
+}
+
+void MetaDefinitionManager::finalize()
+{
+	for (auto it = metaDefinitions_.begin(); it != metaDefinitions_.end(); it++)
+	{
+		auto hashedName = it.key();
+		auto name = hashedName.endsWith("_H") ? hashedName.left(hashedName.length() - 2) :
+															 hashedName.left(hashedName.length() - 4);
+
+		if (metaDefinitionHashes_[name].size() == 1)
+		{
+			it.value()->setName(name);
+			renameMetaCalls(mih_->root_, hashedName, name);
+		}
+	}
+}
+
+void MetaDefinitionManager::renameMetaCalls(Model::Node* node, QString current, QString replace)
+{
+	if (auto metaCall = DCast<OOModel::MetaCallExpression>(node))
+	{
+		if (auto ref = DCast<OOModel::ReferenceExpression>(metaCall->callee()))
+			if (ref->name() == current)
+				ref->setName(replace);
+	}
+	else
+		for (auto child : node->children())
+			renameMetaCalls(child, current, replace);
 }
 
 void MetaDefinitionManager::addChildMetaCalls(OOModel::MetaDefinition* metaDef, MacroExpansion* expansion,
@@ -309,10 +339,10 @@ void MetaDefinitionManager::insertArgumentSplices(NodeMapping* mapping, NodeMapp
 	}
 }
 
-MacroExpansion*MetaDefinitionManager::partialBeginMacroChild(MacroExpansion* expansion)
+MacroExpansion* MetaDefinitionManager::partialBeginChild(MacroExpansion* expansion)
 {
 	for (auto child : expansion->children)
-		if (mih_->definitionManager_.getDefinitionName(child->definition).startsWith("BEGIN_"))
+		if (mih_->definitionManager_.isPartialBegin(child->definition))
 			return child;
 
 	return nullptr;

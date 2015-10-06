@@ -124,10 +124,14 @@ OOModel::Method* TranslateManager::insertMethodDecl(clang::CXXMethodDecl* mDecl,
 	{
 		const QString hash = nh_->hashMethod(mDecl);
 		if (!methodMap_.contains(hash))
+		{
 			method = addNewMethod(mDecl, kind);
+			mapAst(mDecl, method);
+		}
 		else
 		{
 			method = methodMap_.value(hash);
+			mapAst(mDecl, method);
 			// If the method in the map is just a declaration and the method we currently have is a definition
 			// there might be some argument names in the definition which are not yet considered.
 			// Therefore we look at them now.
@@ -150,10 +154,15 @@ OOModel::Method* TranslateManager::insertFunctionDecl(clang::FunctionDecl* funct
 	OOModel::Method* ooFunction = nullptr;
 	const QString hash = nh_->hashFunction(functionDecl);
 	if (!functionMap_.contains(hash))
+	{
 		ooFunction = addNewFunction(functionDecl);
+		mapAst(functionDecl, ooFunction);
+	}
 	else
 	{
 		ooFunction = functionMap_.value(hash);
+		mapAst(functionDecl, ooFunction);
+
 		if (ooFunction->items()->size())
 			return ooFunction;
 		// the method which is in the map is just a declaration
@@ -345,8 +354,6 @@ OOModel::Method* TranslateManager::addNewMethod(clang::CXXMethodDecl* mDecl, OOM
 
 	methodMap_.insert(hash, method);
 
-	mapAst(mDecl, method);
-
 	return method;
 }
 
@@ -379,8 +386,6 @@ OOModel::Method* TranslateManager::addNewFunction(clang::FunctionDecl* functionD
 	}
 
 	functionMap_.insert(nh_->hashFunction(functionDecl), ooFunction);
-
-	mapAst(functionDecl, ooFunction);
 
 	return ooFunction;
 }

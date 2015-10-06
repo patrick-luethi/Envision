@@ -36,7 +36,7 @@ ExpansionManager::ExpansionManager(CppImport::MacroImportHelper* mih) : mih_(mih
 void ExpansionManager::addMacroExpansion(clang::SourceRange sr,
 													  const clang::MacroDirective* md, const clang::MacroArgs* args)
 {
-	if (mih_->definitionManager_.getDefinitionName(md).startsWith("END_"))
+	if (mih_->definitionManager_.isPartialEnd(md))
 	{
 		currentXMacroParent = nullptr;
 		return;
@@ -47,16 +47,17 @@ void ExpansionManager::addMacroExpansion(clang::SourceRange sr,
 	entry->definition = md;
 	entry->parent = getExpansion(sr.getBegin());
 	if (entry->parent) entry->parent->children.append(entry);
-	entry->metaCall =
-			new OOModel::MetaCallExpression(mih_->definitionManager_.hashDefinition(entry->definition));
 
-	if (mih_->definitionManager_.getDefinitionName(md).startsWith("BEGIN_") && !currentXMacroParent)
+	if (mih_->definitionManager_.isPartialBegin(md) && !currentXMacroParent)
 		currentXMacroParent = entry;
 	else if (currentXMacroParent && !entry->parent)
 	{
 		entry->xMacroParent = currentXMacroParent;
 		currentXMacroParent->xMacroChildren.append(entry);
 	}
+
+	entry->metaCall =
+			new OOModel::MetaCallExpression(mih_->definitionManager_.hashDefinition(entry->definition));
 
 	if (!md->getMacroInfo()->isObjectLike())
 	{
@@ -209,15 +210,6 @@ QVector<Model::Node*> ExpansionManager::getNTLExpansionTLNodes(MacroExpansion* e
 	QVector<Model::Node*> result = StaticStuff::topLevelNodes(allNTLExpansionNodes);
 	StaticStuff::orderNodes(result);
 	return result;
-}
-
-
-QVector<Model::Node*> ExpansionManager::getExpansionTLNodes(MacroExpansion* expansion)
-{
-	if (expansion->parent)
-		return getNTLExpansionTLNodes(expansion);
-	else
-		return getTLExpansionTLNodes(expansion);
 }
 
 }
