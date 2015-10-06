@@ -52,12 +52,9 @@ QString DefinitionManager::getDefinitionName(const clang::MacroDirective* md)
 QString DefinitionManager::hashDefinition(const clang::MacroDirective* md)
 {
 	auto presumedLoc = mih_->clang()->sourceManager()->getPresumedLoc(md->getMacroInfo()->getDefinitionLoc());
-
 	auto suffix = QDir(presumedLoc.getFilename()).absolutePath().right(1) == "h" ? "_H" : "_CPP";
 
-	QString hash = getDefinitionName(md) + suffix;
-
-	return hash;
+	return getDefinitionName(md) + suffix;
 }
 
 void DefinitionManager::clear()
