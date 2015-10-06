@@ -375,8 +375,6 @@ void MacroImportHelper::clear()
 
 void MacroImportHelper::macroGeneration()
 {
-	removeIncompleteExpansions();
-
 	QHash<MacroExpansion*, Model::Node*> splices;
 	for (auto expansion : getTopLevelExpansions())
 	{
@@ -751,21 +749,10 @@ void MacroImportHelper::mapAst(clang::Stmt* clangAstNode, Model::Node* envisionA
 
 void MacroImportHelper::mapAst(clang::Decl* clangAstNode, Model::Node* envisionAstNode)
 {
-	correctNamedDecl(clangAstNode, envisionAstNode);
+	lexicalHelper_.correctNamedDecl(clangAstNode, envisionAstNode);
 
 	if (!astMapping()->astMapping_[envisionAstNode].contains(clangAstNode->getSourceRange()))
 		astMapping()->astMapping_[envisionAstNode].append(clangAstNode->getSourceRange());
-}
-
-void MacroImportHelper::removeIncompleteExpansions()
-{
-	QVector<MacroExpansion*> tbrs;
-	for (auto expansion : expansions_)
-		if (getDefinitionName(expansion->definition).startsWith("END_"))
-			tbrs.append(expansion);
-
-	for (auto tbr : tbrs)
-		expansions_.remove(expansions_.indexOf(tbr));
 }
 
 void MacroImportHelper::addMacroDefinition(QString name, const clang::MacroDirective* md)
@@ -803,7 +790,7 @@ void MacroImportHelper::addMacroExpansion(clang::SourceRange sr, const clang::Ma
 	if (!md->getMacroInfo()->isObjectLike())
 	{
 		QRegularExpression regex ("\\((.*)\\)", QRegularExpression::DotMatchesEverythingOption);
-		auto match = regex.match(getUnexpandedSpelling(sr));
+		auto match = regex.match(lexicalHelper_.getUnexpandedSpelling(sr));
 		auto arguments = match.captured(1).split(",");
 
 		for (auto i = 0; i < clang()->getArgumentNames(entry->definition).size(); i++)
@@ -950,26 +937,6 @@ QString MacroImportHelper::hashDefinition(const clang::MacroDirective* md)
 	return hash;
 }
 
-void MacroImportHelper::applyLexicalTransformations(Model::Node* node, NodeMapping* mapping)
-{
-	if (lexicalTransform_.contains(mapping->original(node)))
-	{
-		auto transformed = lexicalTransform_.value(mapping->original(node));
-
-		if (auto ref = DCast<OOModel::ReferenceExpression>(node))
-			ref->setName(transformed);
-		else if (auto decl = DCast<OOModel::Declaration>(node))
-			decl->setName(transformed);
-		else if (auto strLit = DCast<OOModel::StringLiteral>(node))
-			strLit->setValue(transformed);
-		else
-			qDebug() << "Unhandled transformed node type" << node->typeName();
-	}
-
-	for (auto child : node->children())
-		applyLexicalTransformations(child, mapping);
-}
-
 bool MacroImportHelper::shouldCreateMetaCall(MacroExpansion* expansion)
 {
 	auto hash = hashExpansion(expansion);
@@ -1043,319 +1010,6 @@ OOModel::Declaration* MacroImportHelper::getActualContext(MacroExpansion* expans
 			result = candidate;
 
 	return result;
-}
-
-bool MacroImportHelper::getUnexpandedNameWithQualifiers(clang::SourceLocation loc, QString* result)
-{
-	auto token = getUnexpToken(loc);
-
-	*result = token.value();
-	if (result->startsWith("#")) return true; // TODO: wth?
-
-	QRegularExpression regularExpression("^(\\w|##)*$");
-	auto match = regularExpression.match(token.value());
-	if (!match.hasMatch())
-	{
-		*result = "";
-		return false;
-	}
-
-	while (true)
-	{
-		auto sepa = token.next();
-		if (!nameSeparator(sepa.value()))
-			break;
-
-		auto identifier = sepa.next();
-		if (identifier.value() == ",")
-			break;
-
-		*result += sepa.value() + identifier.value();
-		token = identifier.next();
-	}
-
-	return true;
-}
-
-bool MacroImportHelper::nameSeparator(QString candidate)
-{
-	return candidate == "::" || candidate == "." || candidate == "<" || candidate == ">" || candidate == "->";
-}
-
-bool MacroImportHelper::isExpansionception(clang::SourceLocation loc)
-{
-	if (loc.isMacroID())
-		if (auto immediateExpansion = getImmediateExpansion(loc))
-			return clang()->sourceManager()->getImmediateExpansionRange(loc).first != immediateExpansion->range.getBegin();
-
-	return false;
-}
-
-ClangHelper::Token MacroImportHelper::getUnexpToken(clang::SourceLocation start)
-{
-	auto loc = isExpansionception(start) ? clang()->sourceManager()->getImmediateExpansionRange(start).first : start;
-
-	return ClangHelper::Token(&clang_, clang()->sourceManager()->getSpellingLoc(loc));
-}
-
-QString MacroImportHelper::getUnexpandedSpelling(clang::SourceRange range)
-{
-	clang::SourceLocation start, end;
-
-	if (isExpansionception(range.getBegin()))
-		start = clang()->sourceManager()->getImmediateExpansionRange(range.getBegin()).first;
-	else
-		start = range.getBegin();
-
-	if (isExpansionception(range.getEnd()))
-		end = clang()->sourceManager()->getImmediateExpansionRange(range.getEnd()).second;
-	else
-		end = range.getEnd();
-
-	return clang()->getSpelling(start, end);
-}
-
-void MacroImportHelper::correctFormalArgType(clang::NamedDecl* namedDecl, OOModel::FormalArgument* original)
-{
-	if (!clang()->isMacroRange(namedDecl->getSourceRange())) return;
-
-	auto token = getUnexpToken(namedDecl->getSourceRange().getBegin());
-	auto typeTokens = token.type();
-
-	auto identifier = token.toString(typeTokens);
-	auto nextToken = typeTokens.last()->next();
-
-	while (nextToken.isWhitespace() || nextToken.isEmpty()) nextToken = nextToken.next();
-
-	if (nextToken.value() == "*") // TODO: this won't work with multipointers
-	{
-		if (auto ptrExpr = DCast<OOModel::PointerTypeExpression>(original->typeExpression()))
-		if (auto refExpr = DCast<OOModel::ReferenceExpression>(ptrExpr->typeExpression()))
-			lexicalTransform_.insert(refExpr, identifier);
-	}
-	else if (nextToken.value() == "&")
-	{
-		if (auto ptrExpr = DCast<OOModel::ReferenceTypeExpression>(original->typeExpression()))
-		if (auto refExpr = DCast<OOModel::ReferenceExpression>(ptrExpr->typeExpression()))
-			lexicalTransform_.insert(refExpr, identifier);
-	}
-	else
-		lexicalTransform_.insert(original->typeExpression(), identifier);
-}
-
-void MacroImportHelper::correctFormalResultType(clang::FunctionDecl* method,
-																OOModel::FormalResult* original)
-{
-	if (!clang()->isMacroRange(method->getReturnTypeSourceRange())) return;
-
-	auto token = getUnexpToken(method->getReturnTypeSourceRange().getBegin());
-	auto typeTokens = token.type();
-
-	auto identifier = token.toString(typeTokens);
-	auto nextToken = typeTokens.last()->next();
-
-	while (nextToken.isWhitespace() || nextToken.isEmpty()) nextToken = nextToken.next();
-
-	if (nextToken.value() == "*")
-	{
-		if (auto ptrExpr = DCast<OOModel::PointerTypeExpression>(original->typeExpression()))
-		if (auto refExpr = DCast<OOModel::ReferenceExpression>(ptrExpr->typeExpression()))
-			lexicalTransform_.insert(refExpr, identifier);
-	}
-	else if (nextToken.value() == "&")
-	{
-		if (auto ptrExpr = DCast<OOModel::ReferenceTypeExpression>(original->typeExpression()))
-		if (auto refExpr = DCast<OOModel::ReferenceExpression>(ptrExpr->typeExpression()))
-			lexicalTransform_.insert(refExpr, identifier);
-	}
-	else
-		lexicalTransform_.insert(original->typeExpression(), identifier);
-}
-
-void MacroImportHelper::correctMethodCall(clang::Expr* expr, OOModel::MethodCallExpression* methodCall)
-{
-	if (!expr->getExprLoc().isMacroID()) return;
-
-	auto ref = DCast<OOModel::ReferenceExpression>(methodCall->callee());
-	if (!ref) return;
-
-	auto token = getUnexpToken(expr->getSourceRange().getBegin());
-
-	/*
-	 * these conditions intend to skip all implict type initializations.
-	 * the locations don't map to the actual call in those situations because they don't exist in the source (implicit)
-	 * we therefore have to skip them.
-	 */
-	if (!getUnexpandedSpelling(expr->getSourceRange()).contains("(") && methodCall->arguments()->size() == 0) return;
-	if (token.value() == "{") return;
-
-	/*
-	 * an exception to the above are implicit QString initializations.
-	 * since those might contain vital information we have to handle those.
-	 */
-	if (ref->name() == "QString" && methodCall->arguments()->size() == 1)
-	{
-		if (auto sLit = DCast<OOModel::StringLiteral>(methodCall->arguments()->first()))
-		{
-			lexicalTransform_.insert(sLit, getUnexpandedSpelling(expr->getSourceRange()));
-			return;
-		}
-	}
-
-	QStack<OOModel::ReferenceExpression*> refs;
-	while (true)
-	{
-		for (auto i = ref->typeArguments()->size() - 1; i >= 0; i--)
-			if (auto r = DCast<OOModel::ReferenceExpression>(ref->typeArguments()->at(i)))
-				refs.push(r);
-			else
-				return;
-
-		refs.push(ref);
-
-		if (ref->prefix())
-		{
-			ref = DCast<OOModel::ReferenceExpression>(ref->prefix());
-			if (!ref) return;
-		}
-		else
-			break;
-	}
-
-	auto identTokens = token.identifier();
-
-	if (!identTokens.empty())
-	{
-		token = token.identifier().last()->next();
-		lexicalTransform_.insert(refs.pop(), token.toString(identTokens));
-	}
-	else
-	{
-		// TODO: maybe examine this deeper (only intended to happen for global scope)
-		refs.pop();
-		token = token.next();
-	}
-
-	while (!refs.empty())
-	{
-		while (nameSeparator(token.value()))
-			token = token.next();
-
-		identTokens = token.identifier();
-
-		if (!identTokens.empty())
-		{
-			lexicalTransform_.insert(refs.pop(), token.toString(identTokens));
-			token = identTokens.last()->next();
-		}
-		else
-		{
-			// TODO: why?
-			refs.pop();
-			token = token.next();
-		}
-	}
-}
-
-void MacroImportHelper::correctReferenceExpression(clang::SourceLocation loc, OOModel::ReferenceExpression* original)
-{
-	if (loc.isMacroID())
-		if (isExpansionception(loc))
-		{
-			auto token = getUnexpToken(loc);
-			lexicalTransform_.insert(original, token.toString(token.identifier()));
-		}
-}
-
-void MacroImportHelper::correctExplicitTemplateInst(clang::ClassTemplateSpecializationDecl* specializationDecl,
-																	 OOModel::ReferenceExpression* original)
-{
-	if (!clang()->isMacroRange(specializationDecl->getSourceRange()))	return;
-
-	auto spelling = clang()->getSpelling(specializationDecl->getLocation(),
-														  specializationDecl->getSourceRange().getEnd());
-
-	// TODO: improve parsing to handle more complicated cases.
-	QRegularExpression regularExpression("^(\\w+)<(\\w+::\\w+)>$");
-
-	auto match = regularExpression.match(spelling);
-	if (match.hasMatch())
-	{
-		lexicalTransform_.insert(original, match.captured(1));
-
-		Q_ASSERT(original->typeArguments()->size() == 1);
-
-		auto typeArg = DCast<OOModel::ReferenceExpression>(original->typeArguments()->first());
-		Q_ASSERT(typeArg);
-		Q_ASSERT(!typeArg->prefix());
-		qDebug() << match.captured(2);
-		lexicalTransform_.insert(typeArg, match.captured(2));
-	}
-	else
-	{
-		qDebug() << "could not correct explicit template instantiation: " << spelling;
-	}
-}
-
-void MacroImportHelper::correctStringLiteral(clang::StringLiteral* strLit, OOModel::StringLiteral* original)
-{
-	if (!strLit->getLocStart().isMacroID()) return;
-
-	auto rawValue = getUnexpandedSpelling(strLit->getSourceRange());
-
-	lexicalTransform_.insert(original, rawValue);
-}
-
-void MacroImportHelper::correctIntegerLiteral(clang::IntegerLiteral* intLit, OOModel::IntegerLiteral* original)
-{
-	if (!intLit->getLocation().isMacroID()) return;
-
-	auto token = getUnexpToken(intLit->getLocStart());
-
-	lexicalTransform_.insert(original, token.value());
-}
-
-void MacroImportHelper::correctCastType(clang::Expr* expr, OOModel::CastExpression* original)
-{
-	if (!clang()->isMacroRange(expr->getSourceRange())) return;
-
-	auto spelling = clang()->getSpelling(expr->getSourceRange());
-
-	QRegularExpression regularExpression("static_cast<\\s*((\\w|\\*|##)+)\\s*>");
-	auto match = regularExpression.match(spelling);
-
-	if (match.hasMatch())
-	{
-		auto typeExpression = match.captured(1);
-
-		if (typeExpression.endsWith("*"))
-		{
-			if (auto ptrExpr = DCast<OOModel::PointerTypeExpression>(original->castType()))
-			if (auto refExpr = DCast<OOModel::ReferenceExpression>(ptrExpr->typeExpression()))
-				lexicalTransform_.insert(refExpr, typeExpression);
-		}
-		else
-			lexicalTransform_.insert(original->castType(), typeExpression);
-	}
-}
-
-void MacroImportHelper::correctNamedDecl(clang::Decl* decl, Model::Node* node)
-{
-	if (!clang()->isMacroRange(decl->getSourceRange())) return;
-
-	if (auto ooDecl = DCast<OOModel::Declaration>(node))
-	{
-		if (auto namedDecl = clang::dyn_cast<clang::NamedDecl>(decl))
-		{
-			auto token = getUnexpToken(namedDecl->getLocation());
-
-			lexicalTransform_.insert(ooDecl, token.toString(token.qualifiedIdentifier()));
-		}
-		else
-			Q_ASSERT(false && "not implemented");
-	}
-	else
-		Q_ASSERT(false && "not implemented");
 }
 
 QVector<MacroArgumentLocation> MacroImportHelper::getArgumentHistory(clang::SourceRange range)

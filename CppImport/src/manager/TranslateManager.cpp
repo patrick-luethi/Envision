@@ -319,7 +319,7 @@ OOModel::Method* TranslateManager::addNewMethod(clang::CXXMethodDecl* mDecl, OOM
 			methodResult->setTypeExpression(restype);
 			method->results()->append(methodResult);
 
-			macroImportHelper_->correctFormalResultType(mDecl, methodResult);
+			macroImportHelper_->lexicalHelper_.correctFormalResultType(mDecl, methodResult);
 		}
 	}
 	// process arguments
@@ -332,7 +332,7 @@ OOModel::Method* TranslateManager::addNewMethod(clang::CXXMethodDecl* mDecl, OOM
 		if (type) arg->setTypeExpression(type);
 		method->arguments()->append(arg);
 
-		macroImportHelper_->correctFormalArgType(*it, arg);
+		macroImportHelper_->lexicalHelper_.correctFormalArgType(*it, arg);
 	}
 	// find the correct class to add the method
 	if (classMap_.contains(nh_->hashRecord(mDecl->getParent())))
@@ -364,7 +364,7 @@ OOModel::Method* TranslateManager::addNewFunction(clang::FunctionDecl* functionD
 		methodResult->setTypeExpression(restype);
 		ooFunction->results()->append(methodResult);
 
-		macroImportHelper_->correctFormalResultType(functionDecl, methodResult);
+		macroImportHelper_->lexicalHelper_.correctFormalResultType(functionDecl, methodResult);
 	}
 
 	// process arguments

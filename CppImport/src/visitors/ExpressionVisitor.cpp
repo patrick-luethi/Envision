@@ -145,7 +145,7 @@ bool ExpressionVisitor::TraverseDeclRefExpr(clang::DeclRefExpr* declRefExpr)
 
 	ooExprStack_.push(ooReference);
 	baseVisitor_->trMngr_->mapAst(declRefExpr, ooReference);
-	baseVisitor_->macroImportHelper_.correctReferenceExpression(declRefExpr->getLocStart(),
+	baseVisitor_->macroImportHelper_.lexicalHelper_.correctReferenceExpression(declRefExpr->getLocStart(),
 																											ooReference);
 
 	return true;
@@ -200,7 +200,7 @@ bool ExpressionVisitor::TraverseCallExpr(clang::CallExpr* callExpr)
 			log_->writeError(className_, *argIt, CppImportLogger::Reason::NOT_SUPPORTED);
 	}
 
-	baseVisitor_->macroImportHelper_.correctMethodCall(callExpr->getCallee(), ooMethodCall);
+	baseVisitor_->macroImportHelper_.lexicalHelper_.correctMethodCall(callExpr->getCallee(), ooMethodCall);
 	baseVisitor_->trMngr_->mapAst(callExpr, ooMethodCall);
 
 	ooExprStack_.push(ooMethodCall);
@@ -344,7 +344,7 @@ bool ExpressionVisitor::TraverseIntegerLiteral(clang::IntegerLiteral* intLit)
 {
 	auto ooIntegerLiteral = new OOModel::IntegerLiteral(intLit->getValue().getLimitedValue());
 
-	baseVisitor_->macroImportHelper_.correctIntegerLiteral(intLit, ooIntegerLiteral);
+	baseVisitor_->macroImportHelper_.lexicalHelper_.correctIntegerLiteral(intLit, ooIntegerLiteral);
 
 	baseVisitor_->trMngr_->mapAst(intLit, ooIntegerLiteral);
 
@@ -396,7 +396,7 @@ bool ExpressionVisitor::TraverseStringLiteral(clang::StringLiteral* stringLitera
 {
 	auto ooStringLiteral = new OOModel::StringLiteral(QString::fromStdString(stringLiteral->getBytes().str()));
 
-	baseVisitor_->macroImportHelper_.correctStringLiteral(stringLiteral, ooStringLiteral);
+	baseVisitor_->macroImportHelper_.lexicalHelper_.correctStringLiteral(stringLiteral, ooStringLiteral);
 	baseVisitor_->trMngr_->mapAst(stringLiteral, ooStringLiteral);
 
 	ooExprStack_.push(ooStringLiteral);
@@ -425,7 +425,7 @@ bool ExpressionVisitor::TraverseCXXConstructExpr(clang::CXXConstructExpr* constr
 				log_->writeError(className_, *argIt, CppImportLogger::Reason::NOT_SUPPORTED);
 		}
 
-		baseVisitor_->macroImportHelper_.correctMethodCall(constructExpr, ooMethodCall);
+		baseVisitor_->macroImportHelper_.lexicalHelper_.correctMethodCall(constructExpr, ooMethodCall);
 		baseVisitor_->trMngr_->mapAst(constructExpr, ooMethodCall);
 
 		ooExprStack_.push(ooMethodCall);
@@ -753,7 +753,7 @@ bool ExpressionVisitor::TraverseExplCastExpr(clang::ExplicitCastExpr* castExpr, 
 	TraverseStmt(castExpr->getSubExprAsWritten());
 	if (!ooExprStack_.empty()) ooCast->setExpr(ooExprStack_.pop());
 
-	baseVisitor_->macroImportHelper_.correctCastType(castExpr, ooCast);
+	baseVisitor_->macroImportHelper_.lexicalHelper_.correctCastType(castExpr, ooCast);
 
 	ooExprStack_.push(ooCast);
 	return true;
