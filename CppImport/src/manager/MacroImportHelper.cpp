@@ -88,7 +88,7 @@ void MacroImportHelper::getChildrenBelongingToExpansion(MacroExpansion* expansio
 	for (auto node : topLevel)
 		result->append(node);
 
-	orderNodes(*result);
+	StaticStuff::orderNodes(*result);
 }
 
 
@@ -182,13 +182,13 @@ void MacroImportHelper::createMetaDef(QVector<Model::Node*> nodes, MacroExpansio
 	{
 		if (nodes.size() > 0)
 		{
-			auto actualContext = getActualContext(mapping->original(nodes.first()));
-			metaDef->setContext(createContext(actualContext));
+			auto actualContext = StaticStuff::getActualContext(mapping->original(nodes.first()));
+			metaDef->setContext(StaticStuff::createContext(actualContext));
 
 			for (auto n : nodes)
 			{
 				NodeMapping childMapping;
-				auto cloned = cloneWithMapping(mapping->original(n), &childMapping);
+				auto cloned = StaticStuff::cloneWithMapping(mapping->original(n), &childMapping);
 
 				//applyLexicalTransformations(cloned, &childMapping);
 
@@ -365,79 +365,6 @@ void MacroImportHelper::addNodeToMetaDef(Model::Node* cloned, OOModel::MetaDefin
 		Q_ASSERT(false && "not implemented");
 }
 
-OOModel::Declaration* MacroImportHelper::getActualContext(Model::Node* node)
-{
-	auto current = node->parent();
-
-	while (current)
-	{
-		if (auto result = DCast<OOModel::Project>(current))
-			return result;
-		else if (auto result = DCast<OOModel::Module>(current))
-			return result;
-		else if (auto result = DCast<OOModel::Class>(current))
-			return result;
-		else if (auto result = DCast<OOModel::Method>(current))
-			return result;
-		else
-			current = current->parent();
-	}
-
-	Q_ASSERT(false);
-}
-
-OOModel::Declaration* MacroImportHelper::createContext(OOModel::Declaration* actualContext)
-{
-	if (DCast<OOModel::Project>(actualContext))
-		return new OOModel::Project("Context");
-	else if (DCast<OOModel::Module>(actualContext))
-		return new OOModel::Module("Context");
-	else if (DCast<OOModel::Class>(actualContext))
-		return new OOModel::Class("Context");
-	else if (DCast<OOModel::Method>(actualContext))
-		return new OOModel::Method("Context");
-
-	Q_ASSERT(false);
-}
-
-Model::Node* MacroImportHelper::cloneWithMapping(Model::Node* node, NodeMapping* mapping)
-{
-	auto clone = node->clone();
-
-	QList<Model::Node*> info;
-	buildMappingInfo(node, &info);
-	useMappingInfo(clone, &info, mapping);
-
-	return clone;
-}
-
-void MacroImportHelper::buildMappingInfo(Model::Node* node, QList<Model::Node*>* info, NodeMapping* master)
-{
-	info->push_back(master->original(node));
-
-	for (auto child : node->children())
-		buildMappingInfo(child, info);
-}
-
-void MacroImportHelper::buildMappingInfo(Model::Node* node, QList<Model::Node*>* info)
-{
-	info->push_back(node);
-
-	for (auto child : node->children())
-		buildMappingInfo(child, info);
-}
-
-void MacroImportHelper::useMappingInfo(Model::Node* node,
-													  QList<Model::Node*>* info,
-													  NodeMapping* mapping)
-{
-	mapping->add(info->front(), node);
-	info->pop_front();
-
-	for (auto child : node->children())
-		useMappingInfo(child, info, mapping);
-}
-
 void MacroImportHelper::clear()
 {
 	definitions_.clear();
@@ -463,14 +390,14 @@ void MacroImportHelper::macroGeneration()
 		QVector<MacroArgumentInfo> allArguments;
 		for (auto node : getTopLevelNodes(expansion))
 		{
-			auto generatedNode = cloneWithMapping(node, &mapping);
+			auto generatedNode = StaticStuff::cloneWithMapping(node, &mapping);
 
 			getAllArguments(generatedNode, &allArguments, &mapping);
 
 			generatedNodes.append(generatedNode);
 		}
 
-		orderNodes(generatedNodes);
+		StaticStuff::orderNodes(generatedNodes);
 
 		handleMacroExpansion(generatedNodes, expansion, &mapping, allArguments, &splices);
 
@@ -484,7 +411,7 @@ void MacroImportHelper::macroGeneration()
 			OOModel::Declaration* actualContext;
 
 			if (topLevelNodes.size() > 0)
-				actualContext = getActualContext(mapping.original(topLevelNodes.first()));
+				actualContext = StaticStuff::getActualContext(mapping.original(topLevelNodes.first()));
 			else
 				actualContext = getActualContext(expansion);
 
@@ -713,7 +640,6 @@ MacroExpansion* MacroImportHelper::getMatchingXMacroExpansion(Model::Node* node)
 {
 	if (auto metaCall = DCast<OOModel::MetaCallExpression>(node))
 	{
-		qDebug() << "candidate found";
 		for (auto expansion : expansions_)
 			if (!expansion->xMacroChildren.empty())
 				if (expansion->metaCall == metaCall)
@@ -1064,37 +990,6 @@ bool MacroImportHelper::shouldCreateMetaCall(MacroExpansion* expansion)
 	return false;
 }
 
-void MacroImportHelper::orderNodes(QVector<Model::Node*>& input)
-{
-	qSort(input.begin(), input.end(),
-			[](Model::Node* e1, Model::Node* e2)
-			{
-				if (auto commonAncestor = e1->lowestCommonAncestor(e2))
-					if (auto list = DCast<Model::List>(commonAncestor))
-					{
-						int index1 = -1;
-						for (auto c : list->children())
-							if (c == e1 || c->isAncestorOf(e1))
-							{
-								index1 = list->indexOf(c);
-								break;
-							}
-
-						int index2 = -1;
-						for (auto c : list->children())
-							if (c == e2 || c->isAncestorOf(e2))
-							{
-								index2 = list->indexOf(c);
-								break;
-							}
-
-						return index1 < index2;
-					}
-
-				return true;
-			});
-}
-
 QVector<Model::Node*> MacroImportHelper::getNodes(MacroExpansion* expansion,
 																  NodeMapping* mapping)
 {
@@ -1119,27 +1014,13 @@ QVector<Model::Node*> MacroImportHelper::getNodes(MacroExpansion* expansion,
 	for (auto node : topLevel)
 		unorderedOriginalResult.append(node);
 
-	orderNodes(unorderedOriginalResult);
+	StaticStuff::orderNodes(unorderedOriginalResult);
 
 	QVector<Model::Node*> orderedClonedResult;
 	for (auto node : unorderedOriginalResult)
 		orderedClonedResult.append(mapping->clone(node));
 
 	return orderedClonedResult;
-}
-
-bool MacroImportHelper::validContext(Model::Node* node)
-{
-	if (DCast<OOModel::Project>(node))
-		return true;
-	else if (DCast<OOModel::Module>(node))
-		return true;
-	else if (DCast<OOModel::Class>(node))
-		return true;
-	else if (DCast<OOModel::Method>(node))
-		return true;
-	else
-		return false;
 }
 
 OOModel::Declaration* MacroImportHelper::getActualContext(MacroExpansion* expansion)
@@ -1151,7 +1032,7 @@ OOModel::Declaration* MacroImportHelper::getActualContext(MacroExpansion* expans
 		  i != astMapping()->astMapping_.end(); i++)
 		for (auto range : i.value())
 			if (clang()->contains(range, expansion->range))
-				if (validContext(i.key()))
+				if (StaticStuff::validContext(i.key()))
 				{
 					candidates.append(DCast<OOModel::Declaration>(i.key()));
 					break;
