@@ -57,7 +57,6 @@ HEADERS += src/precompiled.h \
     src/CppImportPPCallback.h \
     src/manager/MacroImportHelper.h \
 	src/manager/ClangHelper.h \
-    src/manager/ExpansionManager.h \
     src/manager/MacroExpansion.h \
     src/manager/AstMapping.h \
     src/manager/NodeMapping.h \
@@ -81,7 +80,6 @@ SOURCES += src/CppImportException.cpp \
     src/CppImportPPCallback.cpp \
     src/manager/MacroImportHelper.cpp \
     src/manager/ClangHelper.cpp \
-    src/manager/ExpansionManager.cpp \
     src/manager/MacroExpansion.cpp \
     src/manager/AstMapping.cpp \
     src/manager/NodeMapping.cpp \

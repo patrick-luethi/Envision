@@ -26,14 +26,17 @@
 
 #pragma once
 
-#include "ExpansionManager.h"
-#include "MacroArgumentInfo.h"
-#include "MacroArgumentLocation.h"
-#include "MacroExpansion.h"
 #include "cppimport_api.h"
 
-#include "OOModel/src/allOOModelNodes.h"
 #include "ClangHelper.h"
+#include "AstMapping.h"
+#include "MacroExpansion.h"
+#include "NodeMapping.h"
+#include "MacroArgumentLocation.h"
+#include "MacroArgumentInfo.h"
+
+#include "OOModel/src/allOOModelNodes.h"
+#include "clang/Lex/MacroArgs.h"
 
 namespace CppImport {
 
@@ -48,10 +51,81 @@ class CPPIMPORT_API MacroImportHelper
 
 		void finalize();
 
-		ExpansionManager expansionManager_;
-
 		static Model::Node* cloneWithMapping(Model::Node* node, NodeMapping* mapping);
+		void removeIncompleteExpansions();
+
+		QVector<MacroExpansion*> expansions_;
+
+		QHash<const clang::MacroDirective*, QString> definitions_;
+
+		void addMacroDefinition(QString name, const clang::MacroDirective* md);
+		void addMacroExpansion(clang::SourceRange sr, const clang::MacroDirective* md, const clang::MacroArgs* args);
+
+		void mapAst(clang::Stmt* clangAstNode, Model::Node* envisionAstNode);
+		void mapAst(clang::Decl* clangAstNode, Model::Node* envisionAstNode);
+
+		ClangHelper* clang();
+		AstMapping* astMapping();
+
+		QString getDefinitionName(const clang::MacroDirective* md);
+
+		QVector<MacroExpansion*> getTopLevelExpansions();
+
+		MacroExpansion* getExpansion(clang::SourceLocation loc);
+		MacroExpansion* getExpansion(OOModel::MetaCallExpression* metaCall);
+		MacroExpansion* getImmediateExpansion(clang::SourceLocation loc);
+		QSet<MacroExpansion*> getExpansion(Model::Node* node);
+
+		QVector<Model::Node*> getTopLevelNodes(MacroExpansion* expansion);
+
+		QString hashExpansion(MacroExpansion* expansion);
+		bool shouldCreateMetaCall(MacroExpansion* expansion);
+
+		QVector<Model::Node*> getNodes(MacroExpansion* expansion, NodeMapping* mapping);
+
+		bool validContext(Model::Node* node);
+		OOModel::Declaration* getActualContext(MacroExpansion* expansion);
+
+		bool getUnexpandedNameWithQualifiers(clang::SourceLocation loc, QString* result);
+		bool nameSeparator(QString candidate);
+
+		void correctFormalArgType(clang::NamedDecl* namedDecl, OOModel::FormalArgument* arg);
+		void correctCastType(clang::Expr* expr, OOModel::CastExpression* cast);
+		void correctFormalResultType(clang::FunctionDecl* method, OOModel::FormalResult* current);
+		void correctMethodCall(clang::Expr* expr, OOModel::MethodCallExpression* methodCall);
+		void correctReferenceExpression(clang::SourceLocation loc, OOModel::ReferenceExpression* reference);
+		void correctExplicitTemplateInst(clang::ClassTemplateSpecializationDecl* specializationDecl,
+													OOModel::ReferenceExpression* reference);
+		void correctIntegerLiteral(clang::IntegerLiteral* intLit, OOModel::IntegerLiteral* original);
+		void correctStringLiteral(clang::StringLiteral* strLit, OOModel::StringLiteral* original);
+		void correctNamedDecl(clang::Decl* decl, Model::Node* node);
+
+		QVector<MacroArgumentLocation> getArgumentHistory(clang::SourceRange range);
+		QVector<MacroArgumentLocation> getArgumentHistory(Model::Node* node);
+		void getAllArguments(Model::Node* node, QVector<MacroArgumentInfo>* result, NodeMapping* mapping);
+
+		QHash<Model::Node*, QSet<MacroExpansion*>> expansionCache_;
+
+		OOModel::Project* root_{};
+
+		ClangHelper::Token getUnexpToken(clang::SourceLocation start);
+		void orderNodes(QVector<Model::Node*>& input);
+		QString hashDefinition(const clang::MacroDirective* md);
+
+		void applyLexicalTransformations(Model::Node* node, NodeMapping* mapping);
+
 	private:
+		MacroExpansion* currentXMacroParent {};
+		ClangHelper clang_;
+		AstMapping astMapping_;
+
+		QHash<QString, OOModel::MetaCallExpression*> metaCallDuplicationPrevention_;
+
+		QHash<Model::Node*, QString> lexicalTransform_;
+
+		bool isExpansionception(clang::SourceLocation loc);
+		QString getUnexpandedSpelling(clang::SourceRange range);
+
 		struct {
 				QSet<Model::Node*> nodes;
 				QHash<Model::Node*, MacroExpansion*> metaCalls;

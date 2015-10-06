@@ -292,12 +292,12 @@ OOModel::TypeAlias* TranslateManager::insertTypeAliasTemplate(clang::TypeAliasTe
 
 void TranslateManager::mapAst(clang::Stmt* clangAstNode, Model::Node* envisionAstNode)
 {
-	macroImportHelper_->expansionManager_.mapAst(clangAstNode, envisionAstNode);
+	macroImportHelper_->mapAst(clangAstNode, envisionAstNode);
 }
 
 void TranslateManager::mapAst(clang::Decl* clangAstNode, Model::Node* envisionAstNode)
 {
-	macroImportHelper_->expansionManager_.mapAst(clangAstNode, envisionAstNode);
+	macroImportHelper_->mapAst(clangAstNode, envisionAstNode);
 }
 
 OOModel::Method* TranslateManager::addNewMethod(clang::CXXMethodDecl* mDecl, OOModel::Method::MethodKind kind)
@@ -319,7 +319,7 @@ OOModel::Method* TranslateManager::addNewMethod(clang::CXXMethodDecl* mDecl, OOM
 			methodResult->setTypeExpression(restype);
 			method->results()->append(methodResult);
 
-			macroImportHelper_->expansionManager_.correctFormalResultType(mDecl, methodResult);
+			macroImportHelper_->correctFormalResultType(mDecl, methodResult);
 		}
 	}
 	// process arguments
@@ -332,7 +332,7 @@ OOModel::Method* TranslateManager::addNewMethod(clang::CXXMethodDecl* mDecl, OOM
 		if (type) arg->setTypeExpression(type);
 		method->arguments()->append(arg);
 
-		macroImportHelper_->expansionManager_.correctFormalArgType(*it, arg);
+		macroImportHelper_->correctFormalArgType(*it, arg);
 	}
 	// find the correct class to add the method
 	if (classMap_.contains(nh_->hashRecord(mDecl->getParent())))
@@ -364,7 +364,7 @@ OOModel::Method* TranslateManager::addNewFunction(clang::FunctionDecl* functionD
 		methodResult->setTypeExpression(restype);
 		ooFunction->results()->append(methodResult);
 
-		macroImportHelper_->expansionManager_.correctFormalResultType(functionDecl, methodResult);
+		macroImportHelper_->correctFormalResultType(functionDecl, methodResult);
 	}
 
 	// process arguments
