@@ -43,7 +43,8 @@ namespace CppImport {
 class CPPIMPORT_API MacroImportHelper
 {
 	public:
-		void setProject(OOModel::Project* project);
+		MacroImportHelper(OOModel::Project* project) : root_(project), lexicalHelper_(this) {}
+
 		void setSourceManager(const clang::SourceManager* sourceManager);
 		void setPreprocessor(const clang::Preprocessor* preprocessor);
 
@@ -110,6 +111,15 @@ class CPPIMPORT_API MacroImportHelper
 		QString hashDefinition(const clang::MacroDirective* md);
 
 		void applyLexicalTransformations(Model::Node* node, NodeMapping* mapping);
+
+		class LexicalHelper
+		{
+			public:
+				LexicalHelper(MacroImportHelper* mih) : mih_(mih) {}
+
+			private:
+				MacroImportHelper* mih_;
+		} lexicalHelper_;
 
 	private:
 		class StaticStuff
