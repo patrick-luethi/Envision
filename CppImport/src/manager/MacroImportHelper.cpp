@@ -555,6 +555,7 @@ void MacroImportHelper::macroGeneration()
 		if (!expansion->xMacroChildren.empty())
 		{
 			for (auto node : expansionManager_.getTopLevelNodes(expansion))
+			{
 				if (auto other = getMatchingXMacroExpansion(node))
 				{
 					if (auto list = DCast<Model::List>(other->metaCall->parent()))
@@ -615,6 +616,7 @@ void MacroImportHelper::macroGeneration()
 
 					break;
 				}
+			}
 		}
 
 	clear();
@@ -711,6 +713,7 @@ MacroExpansion* MacroImportHelper::getMatchingXMacroExpansion(Model::Node* node)
 {
 	if (auto metaCall = DCast<OOModel::MetaCallExpression>(node))
 	{
+		qDebug() << "candidate found";
 		for (auto expansion : expansionManager_.expansions_)
 			if (!expansion->xMacroChildren.empty())
 				if (expansion->metaCall == metaCall)
@@ -726,6 +729,8 @@ MacroExpansion* MacroImportHelper::getMatchingXMacroExpansion(Model::Node* node)
 
 void MacroImportHelper::finalize()
 {
+	return;
+
 	for (auto i = finalizationInfo.metaCalls.begin(); i != finalizationInfo.metaCalls.end(); i++)
 		if (DCast<OOModel::Statement>(i.key()))
 			i.key()->parent()->replaceChild(i.key(), new OOModel::ExpressionStatement(i.value()->metaCall));

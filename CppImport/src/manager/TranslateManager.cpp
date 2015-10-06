@@ -86,6 +86,8 @@ bool TranslateManager::insertClass(clang::CXXRecordDecl* rDecl, OOModel::Class* 
 		mapAst(rDecl, ooClass);
 		return true;
 	}
+
+	mapAst(rDecl, classMap_.value(hash));
 	return false;
 }
 

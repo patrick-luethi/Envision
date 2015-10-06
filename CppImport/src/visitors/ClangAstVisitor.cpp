@@ -1201,8 +1201,6 @@ OOModel::Class* ClangAstVisitor::createClass(clang::CXXRecordDecl* recordDecl)
 	else
 		log_->writeError(className_, recordDecl, CppImportLogger::Reason::NOT_SUPPORTED);
 
-	trMngr_->mapAst(recordDecl, ooClass);
-
 	return ooClass;
 }
 

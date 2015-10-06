@@ -279,10 +279,12 @@ bool ExpansionManager::shouldCreateMetaCall(MacroExpansion* expansion)
 
 	if (!metaCallDuplicationPrevention_.contains(hash))
 	{
-		metaCallDuplicationPrevention_.insert(hash);
+		metaCallDuplicationPrevention_.insert(hash, expansion->metaCall);
 		return true;
 	}
 
+	SAFE_DELETE(expansion->metaCall);
+	expansion->metaCall = metaCallDuplicationPrevention_.value(hash);
 	return false;
 }
 

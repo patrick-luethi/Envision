@@ -110,7 +110,7 @@ class CPPIMPORT_API ExpansionManager
 		ClangHelper clang_;
 		AstMapping astMapping_;
 
-		QSet<QString> metaCallDuplicationPrevention_;
+		QHash<QString, OOModel::MetaCallExpression*> metaCallDuplicationPrevention_;
 
 		QHash<Model::Node*, QString> lexicalTransform_;
 
