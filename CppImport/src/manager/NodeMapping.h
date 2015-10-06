@@ -46,10 +46,25 @@ class CPPIMPORT_API NodeMapping
 			return clones_[clone];
 		}
 
+		QVector<Model::Node*> original(QVector<Model::Node*> clones)
+		{
+			QVector<Model::Node*> result;
+			for (auto clone : clones)
+				result.append(original(clone));
+			return result;
+		}
 
 		Model::Node* clone(Model::Node* original)
 		{
 			return originals_[original];
+		}
+
+		QVector<Model::Node*> clone(QVector<Model::Node*> originals)
+		{
+			QVector<Model::Node*> result;
+			for (auto original : originals)
+				result.append(clone(original));
+			return result;
 		}
 
 		void replaceClone(Model::Node* clone, Model::Node* replacement)
