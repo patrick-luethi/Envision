@@ -27,6 +27,7 @@
 #include "ExpansionManager.h"
 
 #include "MacroImportHelper.h"
+#include "StaticStuff.h"
 
 namespace CppImport {
 
@@ -190,8 +191,8 @@ QVector<Model::Node*> ExpansionManager::getTLExpansionTLNodes(MacroExpansion* ex
 			}
 	}
 
-	QVector<Model::Node*> result = MacroImportHelper::StaticStuff::topLevelNodes(allTLExpansionNodes);
-	MacroImportHelper::StaticStuff::orderNodes(result);
+	QVector<Model::Node*> result = StaticStuff::topLevelNodes(allTLExpansionNodes);
+	StaticStuff::orderNodes(result);
 	return result;
 }
 
@@ -205,8 +206,8 @@ QVector<Model::Node*> ExpansionManager::getNTLExpansionTLNodes(MacroExpansion* e
 		if (getExpansion(node).contains(expansion))
 			allNTLExpansionNodes.append(node);
 
-	QVector<Model::Node*> result = MacroImportHelper::StaticStuff::topLevelNodes(allNTLExpansionNodes);
-	MacroImportHelper::StaticStuff::orderNodes(result);
+	QVector<Model::Node*> result = StaticStuff::topLevelNodes(allNTLExpansionNodes);
+	StaticStuff::orderNodes(result);
 	return result;
 }
 

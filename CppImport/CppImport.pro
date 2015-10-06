@@ -63,7 +63,8 @@ HEADERS += src/precompiled.h \
     src/manager/MacroArgumentLocation.h \
     src/manager/MacroArgumentInfo.h \
     src/manager/ExpansionManager.h \
-    src/manager/DefinitionManager.h
+    src/manager/DefinitionManager.h \
+    src/manager/StaticStuff.h
 SOURCES += src/CppImportException.cpp \
 	test/SimpleTest.cpp \
     src/ClangAstConsumer.cpp \
@@ -88,4 +89,5 @@ SOURCES += src/CppImportException.cpp \
     src/manager/MacroArgumentLocation.cpp \
     src/manager/MacroArgumentInfo.cpp \
     src/manager/ExpansionManager.cpp \
-    src/manager/DefinitionManager.cpp
+    src/manager/DefinitionManager.cpp \
+    src/manager/StaticStuff.cpp
