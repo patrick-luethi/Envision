@@ -61,8 +61,6 @@ class CPPIMPORT_API MacroImportHelper
 
 		bool shouldCreateMetaCall(MacroExpansion* expansion);
 
-		QVector<Model::Node*> getNodes(MacroExpansion* expansion, NodeMapping* mapping);
-
 		OOModel::Declaration* getActualContext(MacroExpansion* expansion);
 
 		QVector<MacroArgumentLocation> getArgumentHistory(clang::SourceRange range);
@@ -528,7 +526,6 @@ class CPPIMPORT_API MacroImportHelper
 					return hash;
 				}
 
-
 				QVector<MacroExpansion*> getTopLevelExpansions()
 				{
 					QVector<MacroExpansion*> result;
@@ -630,6 +627,37 @@ class CPPIMPORT_API MacroImportHelper
 					return result;
 				}
 
+				QVector<Model::Node*> getNodes(MacroExpansion* expansion, NodeMapping* mapping)
+				{
+					Q_ASSERT(expansion);
+
+					QVector<Model::Node*> allNodesForExpansion;
+					QSet<Model::Node*> topLevel;
+					for (auto node : mih_->astMapping()->astMapping_.keys())
+						if (getExpansion(node).contains(expansion))
+						{
+							allNodesForExpansion.append(node);
+							topLevel.insert(node);
+						}
+
+					for (auto node : allNodesForExpansion)
+						for (auto other : allNodesForExpansion)
+							if (node != other)
+								if (node->isAncestorOf(other))
+									topLevel.remove(other);
+
+					QVector<Model::Node*> unorderedOriginalResult;
+					for (auto node : topLevel)
+						unorderedOriginalResult.append(node);
+
+					StaticStuff::orderNodes(unorderedOriginalResult);
+
+					QVector<Model::Node*> orderedClonedResult;
+					for (auto node : unorderedOriginalResult)
+						orderedClonedResult.append(mapping->clone(node));
+
+					return orderedClonedResult;
+				}
 			private:
 				MacroImportHelper* mih_;
 				MacroExpansion* currentXMacroParent {};

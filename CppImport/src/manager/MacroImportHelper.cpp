@@ -713,7 +713,7 @@ void MacroImportHelper::handleMacroExpansion(QVector<Model::Node*> nodes,
 																		QHash<MacroExpansion*, Model::Node*>* splices)
 {
 	for (auto childExpansion : expansion->children)
-		handleMacroExpansion(getNodes(childExpansion, mapping),
+		handleMacroExpansion(expansionManager_.getNodes(childExpansion, mapping),
 									childExpansion, mapping, arguments, splices);
 
 	if (nodes.size() > 0)
@@ -766,39 +766,6 @@ bool MacroImportHelper::shouldCreateMetaCall(MacroExpansion* expansion)
 	SAFE_DELETE(expansion->metaCall);
 	expansion->metaCall = metaCallDuplicationPrevention_.value(hash);
 	return false;
-}
-
-QVector<Model::Node*> MacroImportHelper::getNodes(MacroExpansion* expansion,
-																  NodeMapping* mapping)
-{
-	Q_ASSERT(expansion);
-
-	QVector<Model::Node*> allNodesForExpansion;
-	QSet<Model::Node*> topLevel;
-	for (auto node : astMapping()->astMapping_.keys())
-		if (expansionManager_.getExpansion(node).contains(expansion))
-		{
-			allNodesForExpansion.append(node);
-			topLevel.insert(node);
-		}
-
-	for (auto node : allNodesForExpansion)
-		for (auto other : allNodesForExpansion)
-			if (node != other)
-				if (node->isAncestorOf(other))
-					topLevel.remove(other);
-
-	QVector<Model::Node*> unorderedOriginalResult;
-	for (auto node : topLevel)
-		unorderedOriginalResult.append(node);
-
-	StaticStuff::orderNodes(unorderedOriginalResult);
-
-	QVector<Model::Node*> orderedClonedResult;
-	for (auto node : unorderedOriginalResult)
-		orderedClonedResult.append(mapping->clone(node));
-
-	return orderedClonedResult;
 }
 
 OOModel::Declaration* MacroImportHelper::getActualContext(MacroExpansion* expansion)
