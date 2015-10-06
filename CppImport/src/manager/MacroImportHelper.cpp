@@ -26,6 +26,8 @@
 
 #include "MacroImportHelper.h"
 
+#include "StaticStuff.h"
+
 namespace CppImport {
 
 void MacroImportHelper::setSourceManager(const clang::SourceManager* sourceManager)
