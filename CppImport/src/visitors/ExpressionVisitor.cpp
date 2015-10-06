@@ -200,8 +200,8 @@ bool ExpressionVisitor::TraverseCallExpr(clang::CallExpr* callExpr)
 			log_->writeError(className_, *argIt, CppImportLogger::Reason::NOT_SUPPORTED);
 	}
 
-	baseVisitor_->macroImportHelper_.lexicalHelper_.correctMethodCall(callExpr->getCallee(), ooMethodCall);
 	baseVisitor_->trMngr_->mapAst(callExpr, ooMethodCall);
+	baseVisitor_->macroImportHelper_.lexicalHelper_.correctMethodCall(callExpr->getCallee(), ooMethodCall);
 
 	ooExprStack_.push(ooMethodCall);
 
@@ -279,6 +279,7 @@ bool ExpressionVisitor::TraverseCXXOperatorCallExpr(clang::CXXOperatorCallExpr* 
 				ooCall->setCallee(ooExprStack_.pop());
 
 				baseVisitor_->trMngr_->mapAst(callExpr, ooCall);
+				baseVisitor_->macroImportHelper_.lexicalHelper_.correctMethodCall(callExpr->getCallee(), ooCall);
 
 				ooExprStack_.push(ooCall);
 				break;
@@ -753,6 +754,7 @@ bool ExpressionVisitor::TraverseExplCastExpr(clang::ExplicitCastExpr* castExpr, 
 	TraverseStmt(castExpr->getSubExprAsWritten());
 	if (!ooExprStack_.empty()) ooCast->setExpr(ooExprStack_.pop());
 
+	baseVisitor_->macroImportHelper_.mapAst(castExpr, ooCast);
 	baseVisitor_->macroImportHelper_.lexicalHelper_.correctCastType(castExpr, ooCast);
 
 	ooExprStack_.push(ooCast);

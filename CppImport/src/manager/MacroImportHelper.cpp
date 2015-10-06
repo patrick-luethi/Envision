@@ -266,6 +266,8 @@ AstMapping* MacroImportHelper::astMapping()
 
 void MacroImportHelper::mapAst(clang::Stmt* clangAstNode, Model::Node* envisionAstNode)
 {
+	lexicalHelper_.correctNode(clangAstNode->getSourceRange().getBegin(), envisionAstNode);
+
 	if (auto bop = clang::dyn_cast<clang::BinaryOperator>(clangAstNode))
 		astMapping()->astMapping_[envisionAstNode]
 				.append(clang::SourceRange(bop->getOperatorLoc(), bop->getOperatorLoc()));
@@ -278,6 +280,7 @@ void MacroImportHelper::mapAst(clang::Stmt* clangAstNode, Model::Node* envisionA
 
 void MacroImportHelper::mapAst(clang::Decl* clangAstNode, Model::Node* envisionAstNode)
 {
+	lexicalHelper_.correctNode(clangAstNode->getSourceRange().getBegin(), envisionAstNode);
 	lexicalHelper_.correctNamedDecl(clangAstNode, envisionAstNode);
 
 	if (!astMapping()->astMapping_[envisionAstNode].contains(clangAstNode->getSourceRange()))

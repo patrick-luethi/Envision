@@ -104,8 +104,17 @@ QString LexicalHelper::getUnexpandedSpelling(clang::SourceRange range)
 	return mih_->clang()->getSpelling(start, end);
 }
 
+void LexicalHelper::correctNode(clang::SourceRange range, Model::Node* original)
+{
+	if (!mih_->clang()->isMacroRange(range)) return;
+
+	lexicalTransform_.insert(original, getUnexpandedSpelling(range));
+}
+
 void LexicalHelper::correctFormalArgType(clang::NamedDecl* namedDecl, OOModel::FormalArgument* original)
 {
+	correctNode(namedDecl->getSourceRange(), original);
+	return;
 	if (!mih_->clang()->isMacroRange(namedDecl->getSourceRange())) return;
 
 	auto token = getUnexpToken(namedDecl->getSourceRange().getBegin());
@@ -134,6 +143,8 @@ void LexicalHelper::correctFormalArgType(clang::NamedDecl* namedDecl, OOModel::F
 
 void LexicalHelper::correctFormalResultType(clang::FunctionDecl* method, OOModel::FormalResult* original)
 {
+	correctNode(method->getSourceRange(), original);
+	return;
 	if (!mih_->clang()->isMacroRange(method->getReturnTypeSourceRange())) return;
 
 	auto token = getUnexpToken(method->getReturnTypeSourceRange().getBegin());
@@ -162,6 +173,7 @@ void LexicalHelper::correctFormalResultType(clang::FunctionDecl* method, OOModel
 
 void LexicalHelper::correctMethodCall(clang::Expr* expr, OOModel::MethodCallExpression* methodCall)
 {
+	return;
 	if (!expr->getExprLoc().isMacroID()) return;
 
 	auto ref = DCast<OOModel::ReferenceExpression>(methodCall->callee());
@@ -247,6 +259,7 @@ void LexicalHelper::correctMethodCall(clang::Expr* expr, OOModel::MethodCallExpr
 
 void LexicalHelper::correctReferenceExpression(clang::SourceLocation loc, OOModel::ReferenceExpression* original)
 {
+	return;
 	if (loc.isMacroID())
 		if (isExpansionception(loc))
 		{
@@ -258,6 +271,7 @@ void LexicalHelper::correctReferenceExpression(clang::SourceLocation loc, OOMode
 void LexicalHelper::correctExplicitTemplateInst(clang::ClassTemplateSpecializationDecl* specializationDecl,
 																OOModel::ReferenceExpression* original)
 {
+	return;
 	if (!mih_->clang()->isMacroRange(specializationDecl->getSourceRange()))	return;
 
 	auto spelling = mih_->clang()->getSpelling(specializationDecl->getLocation(),
@@ -286,6 +300,7 @@ void LexicalHelper::correctExplicitTemplateInst(clang::ClassTemplateSpecializati
 
 void LexicalHelper::correctStringLiteral(clang::StringLiteral* strLit, OOModel::StringLiteral* original)
 {
+	return;
 	if (!strLit->getLocStart().isMacroID()) return;
 
 	auto rawValue = getUnexpandedSpelling(strLit->getSourceRange());
@@ -295,6 +310,7 @@ void LexicalHelper::correctStringLiteral(clang::StringLiteral* strLit, OOModel::
 
 void LexicalHelper::correctIntegerLiteral(clang::IntegerLiteral* intLit, OOModel::IntegerLiteral* original)
 {
+	return;
 	if (!intLit->getLocation().isMacroID()) return;
 
 	auto token = getUnexpToken(intLit->getLocStart());
@@ -304,6 +320,7 @@ void LexicalHelper::correctIntegerLiteral(clang::IntegerLiteral* intLit, OOModel
 
 void LexicalHelper::correctCastType(clang::Expr* expr, OOModel::CastExpression* original)
 {
+	return;
 	if (!mih_->clang()->isMacroRange(expr->getSourceRange())) return;
 
 	auto spelling = mih_->clang()->getSpelling(expr->getSourceRange());
@@ -328,6 +345,7 @@ void LexicalHelper::correctCastType(clang::Expr* expr, OOModel::CastExpression* 
 
 void LexicalHelper::correctNamedDecl(clang::Decl* decl, Model::Node* node)
 {
+	return;
 	if (!mih_->clang()->isMacroRange(decl->getSourceRange())) return;
 
 	if (auto ooDecl = DCast<OOModel::Declaration>(node))
@@ -345,24 +363,64 @@ void LexicalHelper::correctNamedDecl(clang::Decl* decl, Model::Node* node)
 		Q_ASSERT(false && "not implemented");
 }
 
-void LexicalHelper::applyLexicalTransformations(Model::Node* node, NodeMapping* mapping)
+void LexicalHelper::applyLexicalTransformations(Model::Node* node, NodeMapping* mapping, QVector<QString> formalArgs)
 {
 	if (lexicalTransform_.contains(mapping->original(node)))
 	{
 		auto transformed = lexicalTransform_.value(mapping->original(node));
 
-		if (auto ref = DCast<OOModel::ReferenceExpression>(node))
-			ref->setName(transformed);
-		else if (auto decl = DCast<OOModel::Declaration>(node))
-			decl->setName(transformed);
-		else if (auto strLit = DCast<OOModel::StringLiteral>(node))
-			strLit->setValue(transformed);
-		else
-			qDebug() << "Unhandled transformed node type" << node->typeName();
+		bool containsArg = false;
+		for (auto arg : formalArgs)
+			if (transformed.contains(arg))
+			{
+				containsArg = true;
+				break;
+			}
+
+		if (containsArg)
+		{
+			//transformed = "TRANSFORMED";
+
+			if (auto ref = DCast<OOModel::ReferenceExpression>(node))
+				ref->setName(transformed);
+			else if (auto decl = DCast<OOModel::Declaration>(node))
+				decl->setName(transformed);
+			else if (auto strLit = DCast<OOModel::StringLiteral>(node))
+				strLit->setValue(transformed);
+			else if (auto boolLit = DCast<OOModel::BooleanLiteral>(node))
+			{
+				auto newValue = new OOModel::ReferenceExpression(transformed);
+				boolLit->parent()->replaceChild(boolLit, newValue);
+				mapping->replaceClone(boolLit, newValue);
+			}
+			else if (auto methodCall = DCast<OOModel::MethodCallExpression>(node))
+			{
+				if (auto ref = DCast<OOModel::ReferenceExpression>(methodCall->callee()))
+				{
+					if (!ref->prefix() && ref->typeArguments()->size() == 0)
+					{
+						if (transformed.startsWith("#"))
+						{
+							auto newValue = new OOModel::ReferenceExpression(transformed);
+							methodCall->parent()->replaceChild(methodCall, newValue);
+							mapping->replaceClone(methodCall, newValue);
+						}
+						else
+							ref->setName(transformed);
+					}
+					else
+						qDebug() << "Unhandled transformed node type" << node->typeName() << "transformed" << transformed;
+				}
+				else
+					qDebug() << "Unhandled transformed node type" << node->typeName() << "transformed" << transformed;
+			}
+			else
+				qDebug() << "Unhandled transformed node type" << node->typeName() << "transformed" << transformed;
+		}
 	}
 
 	for (auto child : node->children())
-		applyLexicalTransformations(child, mapping);
+		applyLexicalTransformations(child, mapping, formalArgs);
 }
 
 LexicalHelper::Token LexicalHelper::Token::next()

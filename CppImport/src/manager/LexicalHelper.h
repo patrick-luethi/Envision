@@ -41,9 +41,11 @@ class CPPIMPORT_API LexicalHelper
 	public:
 		LexicalHelper(MacroImportHelper* mih);
 
-		void applyLexicalTransformations(Model::Node* node, NodeMapping* mapping);
+		void applyLexicalTransformations(Model::Node* node, NodeMapping* mapping, QVector<QString> formalArgs);
 
 		QString getUnexpandedSpelling(clang::SourceRange range);
+
+		void correctNode(clang::SourceRange range, Model::Node* original);
 
 		void correctFormalArgType(clang::NamedDecl* namedDecl, OOModel::FormalArgument* original);
 		void correctFormalResultType(clang::FunctionDecl* method, OOModel::FormalResult* original);
