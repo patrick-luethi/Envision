@@ -48,6 +48,7 @@ void CppImportLogger::setSourceManager(const clang::SourceManager* sourceManager
 void CppImportLogger::writeOut(const QString& inWhichClass, const clang::Decl* decl, OUTTYPE outType,
 										 const Reason& r, const QString& reason)
 {
+	return;
 	QTextStream* outStream;
 	switch (outType)
 	{
@@ -84,6 +85,7 @@ void CppImportLogger::writeOut(const QString& inWhichClass, const clang::Decl* d
 void CppImportLogger::writeOut(const QString& inWhichClass, const clang::Stmt* stmt, OUTTYPE outType,
 										 const Reason& r, const QString& reason)
 {
+	return;
 	// make sure it is a stmt and has a valid location
 	if (!stmt || stmt->getLocStart().isInvalid())
 		return;
@@ -117,6 +119,7 @@ void CppImportLogger::writeOut(const QString& inWhichClass, const clang::Stmt* s
 void CppImportLogger::writeError(const QString& inWhichClass, const clang::SourceLocation& loc, const Reason& r,
 											const QString& reason)
 {
+	return;
 	QString outMessage;
 	if (r == Reason::OTHER)
 		outMessage = reason;
@@ -138,6 +141,7 @@ void CppImportLogger::primitiveTypeNotSupported(const QString& typeName)
 
 void CppImportLogger::typeNotSupported(const clang::Type* type, const clang::SourceLocation& location)
 {
+	return;
 	QString typeName = QString(type->getTypeClassName());
 	int newCount = typeCountMap_.value(typeName) + 1;
 	typeCountMap_.insert(typeName, newCount);
