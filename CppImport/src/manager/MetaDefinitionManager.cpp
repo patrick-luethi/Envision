@@ -118,7 +118,8 @@ void MetaDefinitionManager::createMetaDef(QVector<Model::Node*> nodes, MacroExpa
 				NodeMapping childMapping;
 				auto cloned = StaticStuff::cloneWithMapping(mapping->original(n), &childMapping);
 
-				//applyLexicalTransformations(cloned, &childMapping);
+				mih_->lexicalHelper_.applyLexicalTransformations(cloned, &childMapping,
+																				 mih_->clang()->getArgumentNames(expansion->definition));
 
 				addChildMetaCalls(metaDef, expansion, &childMapping, splices);
 

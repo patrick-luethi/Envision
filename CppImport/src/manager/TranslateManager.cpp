@@ -100,6 +100,7 @@ bool TranslateManager::insertClassTemplate(clang::ClassTemplateDecl* classTempla
 		mapAst(classTemplate, ooClass);
 		return true;
 	}
+	mapAst(classTemplate, classMap_.value(hash));
 	return false;
 }
 
@@ -113,6 +114,8 @@ bool TranslateManager::insertClassTemplateSpec
 		mapAst(classTemplate, ooClass);
 		return true;
 	}
+
+	mapAst(classTemplate, classMap_.value(hash));
 	return false;
 }
 
@@ -198,8 +201,11 @@ OOModel::Field* TranslateManager::insertStaticField(clang::VarDecl* varDecl, boo
 	if (staticFieldMap_.contains(hash))
 	{
 		wasDeclared = true;
+
+		mapAst(varDecl, staticFieldMap_.value(hash));
 		return staticFieldMap_.value(hash);
 	}
+
 	wasDeclared = false;
 	const QString parentHash = nh_->hashParentOfStaticField(varDecl->getDeclContext());
 	if (classMap_.contains(parentHash))
@@ -224,6 +230,9 @@ OOModel::ExplicitTemplateInstantiation* TranslateManager::insertExplicitTemplate
 		explicitTemplateInstMap_.insert(hash, ooExplicitTemplateInst);
 		mapAst(const_cast<clang::ClassTemplateSpecializationDecl*>(explicitTemplateInst), ooExplicitTemplateInst);
 	}
+
+	mapAst(const_cast<clang::ClassTemplateSpecializationDecl*>(explicitTemplateInst),
+			 explicitTemplateInstMap_.value(hash));
 	return ooExplicitTemplateInst;
 }
 
