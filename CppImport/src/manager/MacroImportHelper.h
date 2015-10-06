@@ -595,45 +595,50 @@ class CPPIMPORT_API MacroImportHelper
 					return expansionCache_[node];
 				}
 
-				QVector<Model::Node*> getTopLevelNodes(MacroExpansion* expansion)
+				QVector<Model::Node*> getTLExpansionTLNodes(MacroExpansion* expansion)
 				{
-					Q_ASSERT(!expansion->parent);
+					Q_ASSERT(expansion);
+					Q_ASSERT(!expansion->parent); // ensure TLExpansion
 
-					QVector<Model::Node*> allNodesForExpansion;
+					QVector<Model::Node*> allTLExpansionNodes;
 					for (auto node : mih_->astMapping()->astMapping_.keys())
 					{
 						for (auto range : mih_->astMapping()->astMapping_[node])
 							if (mih_->clang()->sourceManager()->getExpansionLoc(range.getBegin()) ==
 								 expansion->range.getBegin())
 							{
-								allNodesForExpansion.append(node);
+								allTLExpansionNodes.append(node);
 								break;
 							}
 					}
 
-					QVector<Model::Node*> result = StaticStuff::topLevelNodes(allNodesForExpansion);
+					QVector<Model::Node*> result = StaticStuff::topLevelNodes(allTLExpansionNodes);
 					StaticStuff::orderNodes(result);
 					return result;
 				}
 
-				QVector<Model::Node*> getNodes(MacroExpansion* expansion, NodeMapping* mapping)
+				QVector<Model::Node*> getNTLExpansionTLNodes(MacroExpansion* expansion)
 				{
 					Q_ASSERT(expansion);
 
-					QVector<Model::Node*> allNodesForExpansion;
+					QVector<Model::Node*> allNTLExpansionNodes;
 					for (auto node : mih_->astMapping()->astMapping_.keys())
 						if (getExpansion(node).contains(expansion))
-							allNodesForExpansion.append(node);
+								allNTLExpansionNodes.append(node);
 
-					QVector<Model::Node*> unorderedOriginalResult = StaticStuff::topLevelNodes(allNodesForExpansion);
-					StaticStuff::orderNodes(unorderedOriginalResult);
-
-					QVector<Model::Node*> orderedClonedResult;
-					for (auto node : unorderedOriginalResult)
-						orderedClonedResult.append(mapping ? mapping->clone(node) : node);
-
-					return orderedClonedResult;
+					QVector<Model::Node*> result = StaticStuff::topLevelNodes(allNTLExpansionNodes);
+					StaticStuff::orderNodes(result);
+					return result;
 				}
+
+				QVector<Model::Node*> getExpansionTLNodes(MacroExpansion* expansion)
+				{
+					if (expansion->parent)
+						return getNTLExpansionTLNodes(expansion);
+					else
+						return getTLExpansionTLNodes(expansion);
+				}
+
 			private:
 				MacroImportHelper* mih_;
 				MacroExpansion* currentXMacroParent {};
@@ -809,7 +814,6 @@ class CPPIMPORT_API MacroImportHelper
 																	MacroExpansion* xMacroExpansionCpp);
 		MacroExpansion* partialBeginMacroChild(MacroExpansion* expansion);
 
-		void getChildrenBelongingToExpansion(MacroExpansion* expansion, QVector<Model::Node*>* result);
 };
 
 }

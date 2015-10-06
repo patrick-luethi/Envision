@@ -61,26 +61,6 @@ void MacroImportHelper::getChildrenNotBelongingToExpansion(Model::Node* node,
 	}
 }
 
-void MacroImportHelper::getChildrenBelongingToExpansion(MacroExpansion* expansion,
-																		QVector<Model::Node*>* result)
-{
-	Q_ASSERT(expansion);
-
-
-	QVector<Model::Node*> allNodesForExpansion;
-	for (auto node : astMapping()->astMapping_.keys())
-		if (expansionManager_.getExpansion(node).contains(expansion))
-		{
-			if (expansionManager_.getExpansion(node).size() == 1)
-			{
-				allNodesForExpansion.append(node);
-			}
-		}
-
-	*result = StaticStuff::topLevelNodes(allNodesForExpansion);
-	StaticStuff::orderNodes(*result);
-}
-
 MacroExpansion* MacroImportHelper::partialBeginMacroChild(MacroExpansion* expansion)
 {
 	for (auto child : expansion->children)
@@ -109,20 +89,15 @@ void MacroImportHelper::createMetaDef(QVector<Model::Node*> nodes, MacroExpansio
 	{
 		auto list = new Model::List();
 
-		QVector<Model::Node*> statements;
-		getChildrenBelongingToExpansion(expansion, &statements);
+		QVector<Model::Node*> statements = expansionManager_.getNTLExpansionTLNodes(expansion);
 
 		for (auto stmt : statements)
-		{
 			list->append(stmt->clone());
-		}
 
 		Q_ASSERT(statements.empty() || expansion->children.size() == 1);
 		for (auto child : expansion->children)
 			if (child != beginChild)
-			{
 				list->append(child->metaCall);
-			}
 
 		if (!statements.empty() || expansion->children.size() > 1)
 		{
@@ -360,7 +335,7 @@ void MacroImportHelper::macroGeneration()
 		NodeMapping mapping;
 		QVector<Model::Node*> generatedNodes;
 		QVector<MacroArgumentInfo> allArguments;
-		for (auto node : expansionManager_.getTopLevelNodes(expansion))
+		for (auto node : expansionManager_.getTLExpansionTLNodes(expansion))
 		{
 			auto generatedNode = StaticStuff::cloneWithMapping(node, &mapping);
 
@@ -396,6 +371,8 @@ void MacroImportHelper::macroGeneration()
 
 		for (auto node : generatedNodes)
 		{
+			Q_ASSERT(!node->parent());
+
 			if (astMapping()->astMapping_.contains(mapping.original(node)))
 			{
 				bool found = false;
@@ -446,7 +423,7 @@ void MacroImportHelper::macroGeneration()
 	for (auto expansion : expansionManager_.expansions_)
 		if (!expansion->xMacroChildren.empty())
 		{
-			for (auto node : expansionManager_.getTopLevelNodes(expansion))
+			for (auto node : expansionManager_.getTLExpansionTLNodes(expansion))
 			{
 				if (auto other = getMatchingXMacroExpansion(node))
 				{
@@ -687,8 +664,10 @@ void MacroImportHelper::handleMacroExpansion(QVector<Model::Node*> nodes,
 																		QHash<MacroExpansion*, Model::Node*>* splices)
 {
 	for (auto childExpansion : expansion->children)
-		handleMacroExpansion(expansionManager_.getNodes(childExpansion, mapping),
-									childExpansion, mapping, arguments, splices);
+	{
+		auto tlNodes = expansionManager_.getExpansionTLNodes(childExpansion);
+		handleMacroExpansion(mapping->clone(tlNodes), childExpansion, mapping, arguments, splices);
+	}
 
 	if (nodes.size() > 0)
 		splices->insert(expansion, mapping->original(nodes.first()));
