@@ -56,7 +56,7 @@ void MacroImportHelper::macroGeneration()
 
 		handleMacroExpansion(generatedNodes, expansion, &mapping, allArguments, &splices);
 
-		if (shouldCreateMetaCall(expansion))
+		if (insertMetaCall(expansion))
 		{
 			OOModel::Declaration* actualContext;
 
@@ -284,18 +284,18 @@ void MacroImportHelper::mapAst(clang::Decl* clangAstNode, Model::Node* envisionA
 		astMapping()->astMapping_[envisionAstNode].append(clangAstNode->getSourceRange());
 }
 
-bool MacroImportHelper::shouldCreateMetaCall(MacroExpansion* expansion)
+bool MacroImportHelper::insertMetaCall(MacroExpansion* expansion)
 {
 	auto hash = expansionManager_.hashExpansion(expansion);
 
-	if (!metaCallDuplicationPrevention_.contains(hash))
+	if (!metaCalls_.contains(hash))
 	{
-		metaCallDuplicationPrevention_.insert(hash, expansion->metaCall);
+		metaCalls_.insert(hash, expansion->metaCall);
 		return true;
 	}
 
 	SAFE_DELETE(expansion->metaCall);
-	expansion->metaCall = metaCallDuplicationPrevention_.value(hash);
+	expansion->metaCall = metaCalls_.value(hash);
 	return false;
 }
 

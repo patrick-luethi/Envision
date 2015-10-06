@@ -52,7 +52,6 @@ class CPPIMPORT_API MacroImportHelper
 				metaDefManager_(this) {}
 
 		void macroGeneration();
-
 		void finalize();
 
 		void mapAst(clang::Stmt* clangAstNode, Model::Node* envisionAstNode);
@@ -61,7 +60,7 @@ class CPPIMPORT_API MacroImportHelper
 		ClangHelper* clang();
 		AstMapping* astMapping();
 
-		bool shouldCreateMetaCall(MacroExpansion* expansion);
+		bool insertMetaCall(MacroExpansion* expansion);
 
 		OOModel::Declaration* getActualContext(MacroExpansion* expansion);
 
@@ -79,8 +78,7 @@ class CPPIMPORT_API MacroImportHelper
 	private:
 		ClangHelper clang_;
 		AstMapping astMapping_;
-
-		QHash<QString, OOModel::MetaCallExpression*> metaCallDuplicationPrevention_;
+		QHash<QString, OOModel::MetaCallExpression*> metaCalls_;
 
 		struct {
 				QVector<Model::Node*> nodes;
