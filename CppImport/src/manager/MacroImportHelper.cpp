@@ -373,11 +373,6 @@ void MacroImportHelper::clear()
 	expansions_.clear();
 }
 
-void MacroImportHelper::setProject(OOModel::Project* project)
-{
-	root_ = project;
-}
-
 void MacroImportHelper::macroGeneration()
 {
 	removeIncompleteExpansions();
