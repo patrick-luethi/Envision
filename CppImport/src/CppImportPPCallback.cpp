@@ -40,7 +40,7 @@ void CppImportPPCallback::MacroDefined(const clang::Token& MacroNameTok, const c
 
 	definitions_[name] = MD;
 
-	macroImportHelper_.addMacroDefinition(name, MD);
+	macroImportHelper_.expansionManager_.addMacroDefinition(name, MD);
 
 	auto s = sourceManager_->getSpellingLoc(MD->getMacroInfo()->getDefinitionLoc());
 
@@ -59,7 +59,7 @@ void CppImportPPCallback::MacroExpands(const clang::Token& MacroNameTok, const c
 	if (!definitions_.contains(name)) return;
 
 
-	macroImportHelper_.addMacroExpansion(sr, md, args);
+	macroImportHelper_.expansionManager_.addMacroExpansion(sr, md, args);
 
 	return;
 	qDebug() << "expanding"

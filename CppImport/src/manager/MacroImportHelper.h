@@ -43,7 +43,7 @@ namespace CppImport {
 class CPPIMPORT_API MacroImportHelper
 {
 	public:
-		MacroImportHelper(OOModel::Project* project) : root_(project), lexicalHelper_(this) {}
+		MacroImportHelper(OOModel::Project* project) : root_(project), lexicalHelper_(this), expansionManager_(this) {}
 
 		void setSourceManager(const clang::SourceManager* sourceManager);
 		void setPreprocessor(const clang::Preprocessor* preprocessor);
@@ -52,20 +52,11 @@ class CPPIMPORT_API MacroImportHelper
 
 		void finalize();
 
-		QVector<MacroExpansion*> expansions_;
-
-		QHash<const clang::MacroDirective*, QString> definitions_;
-
-		void addMacroDefinition(QString name, const clang::MacroDirective* md);
-		void addMacroExpansion(clang::SourceRange sr, const clang::MacroDirective* md, const clang::MacroArgs* args);
-
 		void mapAst(clang::Stmt* clangAstNode, Model::Node* envisionAstNode);
 		void mapAst(clang::Decl* clangAstNode, Model::Node* envisionAstNode);
 
 		ClangHelper* clang();
 		AstMapping* astMapping();
-
-		QString getDefinitionName(const clang::MacroDirective* md);
 
 		QVector<MacroExpansion*> getTopLevelExpansions();
 
@@ -92,7 +83,6 @@ class CPPIMPORT_API MacroImportHelper
 		OOModel::Project* root_;
 
 		QString hashDefinition(const clang::MacroDirective* md);
-
 
 		class LexicalHelper
 		{
@@ -438,6 +428,83 @@ class CPPIMPORT_API MacroImportHelper
 				QHash<Model::Node*, QString> lexicalTransform_;
 		} lexicalHelper_;
 
+		class ExpansionManager
+		{
+			public:
+				ExpansionManager(MacroImportHelper* mih) : mih_(mih) {}
+
+				void addMacroDefinition(QString name, const clang::MacroDirective* md)
+				{
+					if (name == "BEGIN_STANDARD_EXPRESSION_VISUALIZATION_ALL")
+						name = "BEGIN_STANDARD_EXPRESSION_VISUALIZATION_BASE";
+					if (name == "BEGIN_STANDARD_EXPRESSION_VISUALIZATION_STYLE")
+						name = "BEGIN_STANDARD_EXPRESSION_VISUALIZATION_BASE";
+
+					definitions_[md] = name;
+				}
+
+				void addMacroExpansion(clang::SourceRange sr, const clang::MacroDirective* md,
+																	const clang::MacroArgs* args)
+				{
+					if (getDefinitionName(md).startsWith("END_"))
+					{
+						currentXMacroParent = nullptr;
+						return;
+					}
+
+					auto entry = new MacroExpansion();
+					entry->range = sr;
+					entry->definition = md;
+					entry->parent = mih_->getExpansion(sr.getBegin());
+					if (entry->parent) entry->parent->children.append(entry);
+					entry->metaCall = new OOModel::MetaCallExpression(mih_->hashDefinition(entry->definition));
+
+					if (getDefinitionName(md).startsWith("BEGIN_") && !currentXMacroParent)
+						currentXMacroParent = entry;
+					else if (currentXMacroParent && !entry->parent)
+					{
+						entry->xMacroParent = currentXMacroParent;
+						currentXMacroParent->xMacroChildren.append(entry);
+					}
+
+					if (!md->getMacroInfo()->isObjectLike())
+					{
+						QRegularExpression regex ("\\((.*)\\)", QRegularExpression::DotMatchesEverythingOption);
+						auto match = regex.match(mih_->lexicalHelper_.getUnexpandedSpelling(sr));
+						auto arguments = match.captured(1).split(",");
+
+						for (auto i = 0; i < mih_->clang()->getArgumentNames(entry->definition).size(); i++)
+						{
+							auto actualArg = args->getUnexpArgument((unsigned int)i);
+							entry->metaCall->arguments()->append(new OOModel::ReferenceExpression(arguments[i]));
+							entry->argumentLocs.append(actualArg->getLocation());
+						}
+					}
+
+					expansions_.append(entry);
+				}
+
+				QVector<MacroExpansion*> expansions_;
+
+				QString getDefinitionName(const clang::MacroDirective* md)
+				{
+					if (!definitions_.contains(md)) return nullptr;
+
+					return definitions_[md];
+				}
+
+				void clear()
+				{
+					expansions_.clear();
+					definitions_.clear();
+				}
+
+			private:
+				MacroImportHelper* mih_;
+				QHash<const clang::MacroDirective*, QString> definitions_;
+				MacroExpansion* currentXMacroParent {};
+
+		} expansionManager_;
 	private:
 		class StaticStuff
 		{
@@ -554,7 +621,6 @@ class CPPIMPORT_API MacroImportHelper
 				}
 		};
 
-		MacroExpansion* currentXMacroParent {};
 		ClangHelper clang_;
 		AstMapping astMapping_;
 
