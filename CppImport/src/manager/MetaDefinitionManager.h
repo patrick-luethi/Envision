@@ -28,48 +28,50 @@
 
 #include "cppimport_api.h"
 
-#include "MacroExpansion.h"
-#include "clang/Lex/MacroArgs.h"
+#include "MacroArgumentInfo.h"
+#include "NodeMapping.h"
+#include "OOModel/src/allOOModelNodes.h"
 
 namespace CppImport {
 
 class MacroImportHelper;
 
-class CPPIMPORT_API ExpansionManager
+class CPPIMPORT_API MetaDefinitionManager
 {
 	public:
-		ExpansionManager(MacroImportHelper* mih);
+		MetaDefinitionManager(MacroImportHelper* mih);
 
-		void addMacroExpansion(clang::SourceRange sr, const clang::MacroDirective* md,
-															const clang::MacroArgs* args);
+		void createMetaDef(QVector<Model::Node*> nodes, MacroExpansion* expansion,
+														  NodeMapping* mapping, QVector<MacroArgumentInfo>& arguments,
+														  QHash<MacroExpansion*, Model::Node*>* splices);
 
-		QVector<MacroExpansion*> expansions_;
+		OOModel::MetaDefinition* createXMacroMetaDef(MacroExpansion* xMacroExpansionH_input,
+																  MacroExpansion* xMacroExpansionCpp_input);
 
-		void clear();
-
-		QString hashExpansion(MacroExpansion* expansion);
-
-		QVector<MacroExpansion*> getTopLevelExpansions();
-
-		MacroExpansion* getExpansion(clang::SourceLocation loc);
-
-		MacroExpansion* getExpansion(OOModel::MetaCallExpression* metaCall);
-
-		MacroExpansion* getImmediateExpansion(clang::SourceLocation loc);
-
-		QSet<MacroExpansion*> getExpansion(Model::Node* node);
-
-		QVector<Model::Node*> getTLExpansionTLNodes(MacroExpansion* expansion);
-
-		QVector<Model::Node*> getNTLExpansionTLNodes(MacroExpansion* expansion);
-
-		QVector<Model::Node*> getExpansionTLNodes(MacroExpansion* expansion);
+		QHash<QString, OOModel::MetaDefinition*> metaDefinitions_;
 
 	private:
 		MacroImportHelper* mih_;
-		MacroExpansion* currentXMacroParent {};
-		QHash<Model::Node*, QSet<MacroExpansion*>> expansionCache_;
 
+		void addChildMetaCalls(OOModel::MetaDefinition* metaDef,
+																MacroExpansion* expansion,
+																NodeMapping* childMapping,
+																QHash<MacroExpansion*, Model::Node*>* splices);
+
+		void getChildrenNotBelongingToExpansion(Model::Node* node,
+																						MacroExpansion* expansion,
+																						NodeMapping* mapping,
+																						QVector<Model::Node*>* result);
+
+		bool removeUnownedNodes(Model::Node* cloned,
+																	MacroExpansion* expansion,
+																	NodeMapping* mapping);
+
+
+		void insertArgumentSplices(NodeMapping* mapping, NodeMapping* childMapping,
+																	 QVector<MacroArgumentInfo>& arguments);
+
+		MacroExpansion* partialBeginMacroChild(MacroExpansion* expansion);
 };
 
 }
