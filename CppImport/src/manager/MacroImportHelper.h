@@ -59,16 +59,6 @@ class CPPIMPORT_API MacroImportHelper
 		ClangHelper* clang();
 		AstMapping* astMapping();
 
-		QVector<MacroExpansion*> getTopLevelExpansions();
-
-		MacroExpansion* getExpansion(clang::SourceLocation loc);
-		MacroExpansion* getExpansion(OOModel::MetaCallExpression* metaCall);
-		MacroExpansion* getImmediateExpansion(clang::SourceLocation loc);
-		QSet<MacroExpansion*> getExpansion(Model::Node* node);
-
-		QVector<Model::Node*> getTopLevelNodes(MacroExpansion* expansion);
-
-		QString hashExpansion(MacroExpansion* expansion);
 		bool shouldCreateMetaCall(MacroExpansion* expansion);
 
 		QVector<Model::Node*> getNodes(MacroExpansion* expansion, NodeMapping* mapping);
@@ -78,8 +68,6 @@ class CPPIMPORT_API MacroImportHelper
 		QVector<MacroArgumentLocation> getArgumentHistory(clang::SourceRange range);
 		QVector<MacroArgumentLocation> getArgumentHistory(Model::Node* node);
 		void getAllArguments(Model::Node* node, QVector<MacroArgumentInfo>* result, NodeMapping* mapping);
-
-		QHash<Model::Node*, QSet<MacroExpansion*>> expansionCache_;
 
 		OOModel::Project* root_;
 
@@ -128,7 +116,7 @@ class CPPIMPORT_API MacroImportHelper
 				bool isExpansionception(clang::SourceLocation loc)
 				{
 					if (loc.isMacroID())
-						if (auto immediateExpansion = mih_->getImmediateExpansion(loc))
+						if (auto immediateExpansion = mih_->expansionManager_.getImmediateExpansion(loc))
 							return mih_->clang()->sourceManager()->getImmediateExpansionRange(loc).first !=
 									immediateExpansion->range.getBegin();
 
@@ -487,7 +475,7 @@ class CPPIMPORT_API MacroImportHelper
 					auto entry = new MacroExpansion();
 					entry->range = sr;
 					entry->definition = md;
-					entry->parent = mih_->getExpansion(sr.getBegin());
+					entry->parent = getExpansion(sr.getBegin());
 					if (entry->parent) entry->parent->children.append(entry);
 					entry->metaCall =
 							new OOModel::MetaCallExpression(mih_->definitionManager_.hashDefinition(entry->definition));
@@ -521,12 +509,131 @@ class CPPIMPORT_API MacroImportHelper
 
 				void clear()
 				{
+					expansionCache_.clear();
 					expansions_.clear();
+				}
+
+				QString hashExpansion(MacroExpansion* expansion)
+				{
+					auto presumedLoc = mih_->clang()->sourceManager()->getPresumedLoc(expansion->range.getBegin());
+
+					QString hash = QDir(presumedLoc.getFilename()).absolutePath()
+							+ QString("|")
+							+ mih_->definitionManager_.hashDefinition(expansion->definition)
+							+ QString("|")
+							+ QString::number(presumedLoc.getLine())
+							+ QString("|")
+							+ QString::number(presumedLoc.getColumn());
+
+					return hash;
+				}
+
+
+				QVector<MacroExpansion*> getTopLevelExpansions()
+				{
+					QVector<MacroExpansion*> result;
+					for (auto expansion : expansions_)
+						if (!expansion->parent)
+							result.append(expansion);
+
+					return result;
+				}
+
+				MacroExpansion* getExpansion(clang::SourceLocation loc)
+				{
+					MacroExpansion* expansion = getImmediateExpansion(loc);
+					MacroExpansion* last = expansion;
+
+					if (expansion)
+					{
+						do
+						{
+							last = expansion;
+							loc = mih_->clang()->sourceManager()->getImmediateExpansionRange(loc).first;
+							expansion = getImmediateExpansion(loc);
+						} while (expansion && expansion->isChildOf(last));
+					}
+
+					return last;
+				}
+
+				MacroExpansion* getExpansion(OOModel::MetaCallExpression* metaCall)
+				{
+					for (auto expansion : expansions_)
+						if (expansion->metaCall == metaCall)
+							return expansion;
+
+					return nullptr;
+				}
+
+				MacroExpansion* getImmediateExpansion(clang::SourceLocation loc)
+				{
+					auto expansion = mih_->clang()->getImmediateMacroLoc(loc);
+					for (auto i = 0; i < expansions_.size(); i++)
+						if (expansions_[i]->range.getBegin() == expansion) return expansions_[i];
+
+					expansion = mih_->clang()->getImmediateMacroLoc(expansion);
+					for (auto i = 0; i < expansions_.size(); i++)
+						if (expansions_[i]->range.getBegin() == expansion) return expansions_[i];
+
+					return nullptr;
+				}
+
+				QSet<MacroExpansion*> getExpansion(Model::Node* node)
+				{
+					if (!node) return {}; //TODO: necessary?
+
+					//if (!expansionCache_.contains(node))
+					{
+						expansionCache_[node] = {};
+
+						if (auto n = mih_->astMapping()->closestParentWithAstMapping(node))
+							if (mih_->astMapping()->astMapping_.contains(n))
+								for (auto range : mih_->astMapping()->astMapping_[n])
+								{
+									auto expansion = getExpansion(range.getBegin());
+									if (expansion)	expansionCache_[node].insert(expansion);
+								}
+					}
+
+					return expansionCache_[node];
+				}
+
+				QVector<Model::Node*> getTopLevelNodes(MacroExpansion* expansion)
+				{
+					Q_ASSERT(!expansion->parent);
+
+					QVector<Model::Node*> allNodesForExpansion;
+					QSet<Model::Node*> topLevel;
+					for (auto node : mih_->astMapping()->astMapping_.keys())
+					{
+						for (auto range : mih_->astMapping()->astMapping_[node])
+							if (mih_->clang()->sourceManager()->getExpansionLoc(range.getBegin()) ==
+								 expansion->range.getBegin())
+							{
+								allNodesForExpansion.append(node);
+								topLevel.insert(node);
+								break;
+							}
+					}
+
+					for (auto node : allNodesForExpansion)
+						for (auto other : allNodesForExpansion)
+							if (node != other)
+								if (node->isAncestorOf(other))
+									topLevel.remove(other);
+
+					QVector<Model::Node*> result;
+					for (auto node : topLevel)
+						result.append(node);
+
+					return result;
 				}
 
 			private:
 				MacroImportHelper* mih_;
 				MacroExpansion* currentXMacroParent {};
+				QHash<Model::Node*, QSet<MacroExpansion*>> expansionCache_;
 
 		} expansionManager_;
 	private:
