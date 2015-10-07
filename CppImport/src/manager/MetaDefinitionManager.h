@@ -80,6 +80,9 @@ class CPPIMPORT_API MetaDefinitionManager
 		DefinitionManager* myDefinitionManager() { return d_; }
 		ExpansionManager* myExpansionManager() { return e_; }
 		LexicalHelper* myLexicalHelper() { return lex_; }
+		OOModel::Declaration* getMetaDefParent(const clang::MacroDirective* md);
+		std::pair<QString, QString> getMacroDirectionLocation(const clang::MacroDirective* md);
+		OOModel::ReferenceExpression* getExpansionQualifier(const clang::MacroDirective* md);
 };
 
 }
