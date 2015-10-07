@@ -35,111 +35,172 @@ MetaDefinitionManager::MetaDefinitionManager(OOModel::Project* root, ClangHelper
 															ExpansionManager* e, LexicalHelper* lex)
 	: root_(root), c_(c), d_(d), e_(e), lex_(lex) {}
 
+std::pair<QString, QString> MetaDefinitionManager::getMacroDirectionLocation(const clang::MacroDirective* md)
+{
+	auto presumedLoc = c_->sourceManager()->getPresumedLoc(md->getMacroInfo()->getDefinitionLoc());
+	auto path = QDir(presumedLoc.getFilename()).absolutePath();
+
+	QRegularExpression regex ("/Envision/(\\w+)(/.*/|/)(\\w+\\.\\w+)$", QRegularExpression::DotMatchesEverythingOption);
+	auto match = regex.match(path);
+	Q_ASSERT(match.hasMatch());
+
+	auto namespaceName = match.captured(1);
+
+	if (namespaceName == "ModelBase")
+		namespaceName = "Model";
+
+	auto fileName = match.captured(3);
+
+	return std::make_pair(namespaceName, fileName);
+}
+
+OOModel::Declaration* MetaDefinitionManager::getMetaDefParent(const clang::MacroDirective* md)
+{
+	auto mdLoc = getMacroDirectionLocation(md);
+
+	OOModel::Module* nameSpace = nullptr;
+	for (auto i = 0; i < root_->modules()->size(); i++)
+		if (root_->modules()->at(i)->name() == mdLoc.first)
+		{
+			nameSpace = root_->modules()->at(i);
+			break;
+		}
+	Q_ASSERT(nameSpace);
+
+	OOModel::Module* result = nullptr;
+	for (auto i = 0; i < nameSpace->modules()->size(); i++)
+		if (nameSpace->modules()->at(i)->name() == mdLoc.second)
+		{
+			result = nameSpace->modules()->at(i);
+			break;
+		}
+
+	if (!result)
+	{
+		result = new OOModel::Module(mdLoc.second);
+		nameSpace->modules()->append(result);
+	}
+
+	return result;
+}
+
+OOModel::ReferenceExpression* MetaDefinitionManager::getExpansionQualifier(const clang::MacroDirective* md)
+{
+	auto mdLoc = getMacroDirectionLocation(md);
+
+	return new OOModel::ReferenceExpression(mdLoc.second, new OOModel::ReferenceExpression(mdLoc.first));
+}
+
 void MetaDefinitionManager::createMetaDef(QVector<Model::Node*> nodes, MacroExpansion* expansion, NodeMapping* mapping,
 														QVector<MacroArgumentInfo>& arguments, QHash<MacroExpansion*, Model::Node*>* splices)
 {
 	auto metaDefName = myDefinitionManager()->hashDefinition(expansion->definition);
-	if (metaDefinitions_.contains(metaDefName)) return;
-
-	auto metaDef = new OOModel::MetaDefinition(metaDefName);
-	metaDefinitions_[metaDefName] = metaDef;
-	metaDefinitionHashes_[myDefinitionManager()->getDefinitionName(expansion->definition)].insert(metaDefName);
-
-	auto metaDefParent = root_;
-
-	for (auto argName : myClang()->getArgumentNames(expansion->definition))
-		metaDef->arguments()->append(new OOModel::FormalMetaArgument(argName));
-
-	if (auto beginChild = partialBeginChild(expansion))
+	if (!metaDefinitions_.contains(metaDefName))
 	{
-		auto list = new Model::List();
+		auto metaDef = new OOModel::MetaDefinition(metaDefName);
+		metaDefinitions_[metaDefName] = metaDef;
+		metaDefinitionHashes_[myDefinitionManager()->getDefinitionName(expansion->definition)].insert(metaDefName);
 
-		QVector<Model::Node*> statements = myExpansionManager()->getNTLExpansionTLNodes(expansion);
+		auto metaDefParent = getMetaDefParent(expansion->definition);
 
-		for (auto stmt : statements)
-			list->append(stmt->clone());
+		for (auto argName : myClang()->getArgumentNames(expansion->definition))
+			metaDef->arguments()->append(new OOModel::FormalMetaArgument(argName));
 
-		Q_ASSERT(statements.empty() || expansion->children.size() == 1);
-		for (auto child : expansion->children)
-			if (child != beginChild)
-				list->append(child->metaCall);
-
-		if (!statements.empty() || expansion->children.size() > 1)
+		if (auto beginChild = partialBeginChild(expansion))
 		{
-			auto childDef = metaDefinitions_.value(
-						myDefinitionManager()->hashDefinition(beginChild->definition));
+			auto list = new Model::List();
 
-			if (childDef->arguments()->size() == beginChild->metaCall->arguments()->size())
+			QVector<Model::Node*> statements = myExpansionManager()->getNTLExpansionTLNodes(expansion);
+
+			for (auto stmt : statements)
+				list->append(stmt->clone());
+
+			Q_ASSERT(statements.empty() || expansion->children.size() == 1);
+			for (auto child : expansion->children)
+				if (child != beginChild)
+					list->append(child->metaCall);
+
+			if (!statements.empty() || expansion->children.size() > 1)
 			{
-				if (childDef->name().endsWith("_H"))
-				{
-					childDef->context()->metaCalls()->append(new OOModel::ReferenceExpression("specSplfice"));
-				}
-				else
-				{
-					auto classContext = DCast<OOModel::Class>(childDef->context());
-					Q_ASSERT(classContext);
+				auto childDef = metaDefinitions_.value(
+							myDefinitionManager()->hashDefinition(beginChild->definition));
 
-					if (classContext->methods()->size() > 0)
+				if (childDef->arguments()->size() == beginChild->metaCall->arguments()->size())
+				{
+					if (childDef->name().endsWith("_H"))
 					{
-						classContext->methods()->last()->items()->append(new OOModel::ExpressionStatement(
-																							 new OOModel::ReferenceExpression("specSplice")));
+						childDef->context()->metaCalls()->append(new OOModel::ReferenceExpression("specSplfice"));
 					}
 					else
 					{
-						Q_ASSERT(childDef->context()->metaCalls()->size() == 1);
+						auto classContext = DCast<OOModel::Class>(childDef->context());
+						Q_ASSERT(classContext);
 
-						auto childDefInnerMetaCall =
-								DCast<OOModel::MetaCallExpression>(childDef->context()->metaCalls()->first());
-						Q_ASSERT(childDefInnerMetaCall);
+						if (classContext->methods()->size() > 0)
+						{
+							classContext->methods()->last()->items()->append(new OOModel::ExpressionStatement(
+																								 new OOModel::ReferenceExpression("specSplice")));
+						}
+						else
+						{
+							Q_ASSERT(childDef->context()->metaCalls()->size() == 1);
 
-						auto innerList = DCast<Model::List>(childDefInnerMetaCall->arguments()->last());
-						Q_ASSERT(innerList);
+							auto childDefInnerMetaCall =
+									DCast<OOModel::MetaCallExpression>(childDef->context()->metaCalls()->first());
+							Q_ASSERT(childDefInnerMetaCall);
 
-						innerList->append(new OOModel::ReferenceExpression("specSplice"));
+							auto innerList = DCast<Model::List>(childDefInnerMetaCall->arguments()->last());
+							Q_ASSERT(innerList);
+
+							innerList->append(new OOModel::ReferenceExpression("specSplice"));
+						}
 					}
+
+					childDef->arguments()->append(new OOModel::FormalMetaArgument("specSplice"));
 				}
-
-				childDef->arguments()->append(new OOModel::FormalMetaArgument("specSplice"));
 			}
+
+			beginChild->metaCall->arguments()->append(list);
+
+			metaDef->context()->metaCalls()->append(beginChild->metaCall);
 		}
-
-		beginChild->metaCall->arguments()->append(list);
-
-		metaDef->context()->metaCalls()->append(beginChild->metaCall);
-	}
-	else
-	{
-		if (nodes.size() > 0)
+		else
 		{
-			auto actualContext = StaticStuff::getActualContext(mapping->original(nodes.first()));
-			metaDef->setContext(StaticStuff::createContext(actualContext));
-
-			for (auto n : nodes)
+			if (nodes.size() > 0)
 			{
-				NodeMapping childMapping;
-				auto cloned = StaticStuff::cloneWithMapping(mapping->original(n), &childMapping);
+				auto actualContext = StaticStuff::getActualContext(mapping->original(nodes.first()));
+				metaDef->setContext(StaticStuff::createContext(actualContext));
 
-				myLexicalHelper()->applyLexicalTransformations(cloned, &childMapping,
-																				 myClang()->getArgumentNames(expansion->definition));
+				for (auto n : nodes)
+				{
+					NodeMapping childMapping;
+					auto cloned = StaticStuff::cloneWithMapping(mapping->original(n), &childMapping);
 
-				addChildMetaCalls(metaDef, expansion, &childMapping, splices);
+					myLexicalHelper()->applyLexicalTransformations(cloned, &childMapping,
+																					 myClang()->getArgumentNames(expansion->definition));
 
-				if (removeUnownedNodes(cloned, expansion, &childMapping))
-					continue;
+					addChildMetaCalls(metaDef, expansion, &childMapping, splices);
 
-				insertArgumentSplices(mapping, &childMapping, arguments);
+					if (removeUnownedNodes(cloned, expansion, &childMapping))
+						continue;
 
-				StaticStuff::addNodeToDeclaration(cloned, metaDef->context());
+					insertArgumentSplices(mapping, &childMapping, arguments);
+
+					StaticStuff::addNodeToDeclaration(cloned, metaDef->context());
+				}
 			}
+
+			for (auto childExpansion : expansion->children)
+				if (!childExpansion->metaCall->parent())
+					metaDef->context()->metaCalls()->append(childExpansion->metaCall);
 		}
 
-		for (auto childExpansion : expansion->children)
-			if (!childExpansion->metaCall->parent())
-				metaDef->context()->metaCalls()->append(childExpansion->metaCall);
+		metaDefParent->subDeclarations()->append(metaDef);
 	}
 
-	metaDefParent->subDeclarations()->append(metaDef);
+	auto callee = DCast<OOModel::ReferenceExpression>(expansion->metaCall->callee());
+	Q_ASSERT(callee);
+	callee->setPrefix(getExpansionQualifier(expansion->definition));
 }
 
 OOModel::MetaDefinition*MetaDefinitionManager::createXMacroMetaDef(MacroExpansion* xMacroExpansionH_input,
