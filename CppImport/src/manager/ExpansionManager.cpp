@@ -164,8 +164,8 @@ QSet<MacroExpansion*> ExpansionManager::getExpansion(Model::Node* node)
 		expansionCache_[node] = {};
 
 		if (auto n = mih_->astMapping()->closestParentWithAstMapping(node))
-			if (mih_->astMapping()->astMapping_.contains(n))
-				for (auto range : mih_->astMapping()->astMapping_[n])
+			if (mih_->astMapping()->contains(n))
+				for (auto range : mih_->astMapping()->get(n))
 				{
 					auto expansion = getExpansion(range.getBegin());
 					if (expansion)	expansionCache_[node].insert(expansion);
@@ -182,16 +182,13 @@ QVector<Model::Node*> ExpansionManager::getTLExpansionTLNodes(MacroExpansion* ex
 	Q_ASSERT(!expansion->parent); // ensure TLExpansion
 
 	QVector<Model::Node*> allTLExpansionNodes;
-	for (auto node : mih_->astMapping()->astMapping_.keys())
-	{
-		for (auto range : mih_->astMapping()->astMapping_[node])
-			if (mih_->clang()->sourceManager()->getExpansionLoc(range.getBegin()) ==
-				 expansion->range.getBegin())
+	for (auto node : mih_->astMapping()->nodes())
+		for (auto range : mih_->astMapping()->get(node))
+			if (mih_->clang()->sourceManager()->getExpansionLoc(range.getBegin()) == expansion->range.getBegin())
 			{
 				allTLExpansionNodes.append(node);
 				break;
 			}
-	}
 
 	QVector<Model::Node*> result = StaticStuff::topLevelNodes(allTLExpansionNodes);
 	StaticStuff::orderNodes(result);
@@ -204,7 +201,7 @@ QVector<Model::Node*> ExpansionManager::getNTLExpansionTLNodes(MacroExpansion* e
 	Q_ASSERT(expansion);
 
 	QVector<Model::Node*> allNTLExpansionNodes;
-	for (auto node : mih_->astMapping()->astMapping_.keys())
+	for (auto node : mih_->astMapping()->nodes())
 		if (getExpansion(node).contains(expansion))
 			allNTLExpansionNodes.append(node);
 

@@ -32,7 +32,7 @@ namespace CppImport {
 
 void MacroImportHelper::clear()
 {
-	astMapping()->astMapping_.clear();
+	astMapping()->clear();
 	definitionManager_.clear();
 	expansionManager_.clear();
 }
@@ -83,10 +83,10 @@ void MacroImportHelper::macroGeneration()
 		{
 			Q_ASSERT(!node->parent());
 
-			if (astMapping()->astMapping_.contains(mapping.original(node)))
+			if (astMapping()->contains(mapping.original(node)))
 			{
 				bool found = false;
-				for (auto range : astMapping()->astMapping_[mapping.original(node)])
+				for (auto range : astMapping()->get(mapping.original(node)))
 					if (!clang()->isMacroRange(range))
 					{
 						found = true;
@@ -267,22 +267,14 @@ void MacroImportHelper::mapAst(clang::Stmt* clangAstNode, Model::Node* envisionA
 {
 	lexicalHelper_.correctNode(clangAstNode, envisionAstNode);
 
-	if (auto bop = clang::dyn_cast<clang::BinaryOperator>(clangAstNode))
-		astMapping()->astMapping_[envisionAstNode]
-				.append(clang::SourceRange(bop->getOperatorLoc(), bop->getOperatorLoc()));
-	else if (auto op = clang::dyn_cast<clang::CXXOperatorCallExpr>(clangAstNode))
-		astMapping()->astMapping_[envisionAstNode]
-				.append(clang::SourceRange(op->getOperatorLoc(), op->getOperatorLoc()));
-	else
-		astMapping()->astMapping_[envisionAstNode].append(clangAstNode->getSourceRange());
+	astMapping()->mapAst(clangAstNode, envisionAstNode);
 }
 
 void MacroImportHelper::mapAst(clang::Decl* clangAstNode, Model::Node* envisionAstNode)
 {
 	lexicalHelper_.correctNode(clangAstNode, envisionAstNode);
 
-	if (!astMapping()->astMapping_[envisionAstNode].contains(clangAstNode->getSourceRange()))
-		astMapping()->astMapping_[envisionAstNode].append(clangAstNode->getSourceRange());
+	astMapping()->mapAst(clangAstNode, envisionAstNode);
 }
 
 bool MacroImportHelper::insertMetaCall(MacroExpansion* expansion)
@@ -305,8 +297,7 @@ OOModel::Declaration* MacroImportHelper::getActualContext(MacroExpansion* expans
 	Q_ASSERT(!expansion->parent);
 
 	QVector<OOModel::Declaration*> candidates;
-	for (auto i = astMapping()->astMapping_.begin();
-		  i != astMapping()->astMapping_.end(); i++)
+	for (auto i = astMapping()->begin(); i != astMapping()->end(); i++)
 		for (auto range : i.value())
 			if (clang()->contains(range, expansion->range))
 				if (StaticStuff::validContext(i.key()))
@@ -350,8 +341,8 @@ QVector<MacroArgumentLocation> MacroImportHelper::getArgumentHistory(clang::Sour
 QVector<MacroArgumentLocation> MacroImportHelper::getArgumentHistory(Model::Node* node)
 {
 	QVector<MacroArgumentLocation> result;
-	if (astMapping()->astMapping_.contains(node))
-			result = getArgumentHistory(astMapping()->astMapping_[node].first());
+	if (astMapping()->contains(node))
+			result = getArgumentHistory(astMapping()->get(node).first());
 	return result;
 }
 
