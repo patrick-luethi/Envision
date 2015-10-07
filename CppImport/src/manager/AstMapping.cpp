@@ -37,4 +37,22 @@ Model::Node* AstMapping::closestParentWithAstMapping(Model::Node* node)
 	return nullptr;
 }
 
+void AstMapping::mapAst(clang::Stmt* clangAstNode, Model::Node* envisionAstNode)
+{
+	if (auto bop = clang::dyn_cast<clang::BinaryOperator>(clangAstNode))
+		astMapping_[envisionAstNode]
+				.append(clang::SourceRange(bop->getOperatorLoc(), bop->getOperatorLoc()));
+	else if (auto op = clang::dyn_cast<clang::CXXOperatorCallExpr>(clangAstNode))
+		astMapping_[envisionAstNode]
+				.append(clang::SourceRange(op->getOperatorLoc(), op->getOperatorLoc()));
+	else
+		astMapping_[envisionAstNode].append(clangAstNode->getSourceRange());
+}
+
+void AstMapping::mapAst(clang::Decl* clangAstNode, Model::Node* envisionAstNode)
+{
+	if (!astMapping_[envisionAstNode].contains(clangAstNode->getSourceRange()))
+		astMapping_[envisionAstNode].append(clangAstNode->getSourceRange());
+}
+
 }
