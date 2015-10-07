@@ -46,60 +46,17 @@ class CPPIMPORT_API LexicalHelper
 		QString getUnexpandedSpelling(clang::SourceRange range);
 
 		void correctNode(clang::SourceRange range, Model::Node* original);
-
-		void correctFormalArgType(clang::NamedDecl* namedDecl, OOModel::FormalArgument* original);
-		void correctFormalResultType(clang::FunctionDecl* method, OOModel::FormalResult* original);
-		void correctMethodCall(clang::Expr* expr, OOModel::MethodCallExpression* methodCall);
-		void correctReferenceExpression(clang::SourceLocation loc, OOModel::ReferenceExpression* original);
-		void correctStringLiteral(clang::StringLiteral* strLit, OOModel::StringLiteral* original);
-		void correctIntegerLiteral(clang::IntegerLiteral* intLit, OOModel::IntegerLiteral* original);
-		void correctCastType(clang::Expr* expr, OOModel::CastExpression* original);
-		void correctNamedDecl(clang::Decl* decl, Model::Node* node);
-		void correctExplicitTemplateInst(clang::ClassTemplateSpecializationDecl* specializationDecl,
-																			 OOModel::ReferenceExpression* original);
+		void correctNode(clang::Decl* clangAstNode, Model::Node* envisionAstNode);
+		void correctNode(clang::Stmt* clangAstNode, Model::Node* envisionAstNode);
 
 	private:
 		MacroImportHelper* mih_;
 		QHash<Model::Node*, QString> lexicalTransform_;
 
-		class Token
-		{
-			public:
-				Token(ClangHelper* clang, clang::SourceLocation loc) : clang_(clang), loc_(loc) {}
-
-				QString value() { return clang_->getSpelling(loc_); }
-				Token next();
-
-				QVector<Token*> type();
-				QVector<Token*> qualifiedIdentifier();
-				QVector<Token*> identifier();
-
-				QString toString(QVector<Token*> tokens);
-
-				bool isIdentifier() { return matchesRegex("^\\w+$");	}
-				bool isWhitespace() { return matchesRegex("^\\s+$"); }
-				bool isEmpty() { return value().length() == 0; }
-				bool isConcatenation() { return value() == "##"; }
-				bool isStringifycation() { return value() == "#"; }
-				bool isNamespaceSeparator() { return value() == "::"; }
-
-				clang::SourceLocation loc() { return loc_; }
-
-				bool matchesRegex(QString regex);
-
-			private:
-				void buildQualifiedIdentifier(QVector<Token*>* tokens);
-				void buildIdentifier(QVector<Token*>* tokens);
-
-				ClangHelper* clang_;
-				clang::SourceLocation loc_;
-		};
-
-		Token getUnexpToken(clang::SourceLocation start);
-		bool getUnexpandedNameWithQualifiers(clang::SourceLocation loc, QString* result);
 		bool isExpansionception(clang::SourceLocation loc);
 		bool nameSeparator(QString candidate);
 
+		void replaceWithReference(Model::Node* current, QString replacement, NodeMapping* mapping);
 };
 
 }

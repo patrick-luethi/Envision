@@ -172,8 +172,6 @@ bool ClangAstVisitor::TraverseClassTemplateSpecializationDecl
 			ooRef->setPrefix(new OOModel::ReferenceExpression(QString::fromStdString(p->getNameAsString())));
 		ooExplicitTemplateInst->setInstantiatedClass(ooRef);
 
-		macroImportHelper_.lexicalHelper_.correctExplicitTemplateInst(specializationDecl, ooRef);
-
 		// add to tree
 		if (auto decl = DCast<OOModel::Declaration>(ooStack_.top()))
 			decl->subDeclarations()->append(ooExplicitTemplateInst);
@@ -273,7 +271,7 @@ bool ClangAstVisitor::TraverseFunctionTemplateDecl(clang::FunctionTemplateDecl* 
 {
 	// this node does not provide any special information
 	// therefore it is sufficient to just visit the templated function
-	return TraverseFunctionDecl(functionDecl->getTemplatedDecl());
+	return TraverseDecl(functionDecl->getTemplatedDecl());
 }
 
 bool ClangAstVisitor::TraverseVarDecl(clang::VarDecl* varDecl)

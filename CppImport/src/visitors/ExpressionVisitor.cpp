@@ -145,8 +145,6 @@ bool ExpressionVisitor::TraverseDeclRefExpr(clang::DeclRefExpr* declRefExpr)
 
 	ooExprStack_.push(ooReference);
 	baseVisitor_->trMngr_->mapAst(declRefExpr, ooReference);
-	baseVisitor_->macroImportHelper_.lexicalHelper_.correctReferenceExpression(declRefExpr->getLocStart(),
-																											ooReference);
 
 	return true;
 }
@@ -201,7 +199,6 @@ bool ExpressionVisitor::TraverseCallExpr(clang::CallExpr* callExpr)
 	}
 
 	baseVisitor_->trMngr_->mapAst(callExpr, ooMethodCall);
-	baseVisitor_->macroImportHelper_.lexicalHelper_.correctMethodCall(callExpr->getCallee(), ooMethodCall);
 
 	ooExprStack_.push(ooMethodCall);
 
@@ -279,7 +276,6 @@ bool ExpressionVisitor::TraverseCXXOperatorCallExpr(clang::CXXOperatorCallExpr* 
 				ooCall->setCallee(ooExprStack_.pop());
 
 				baseVisitor_->trMngr_->mapAst(callExpr, ooCall);
-				baseVisitor_->macroImportHelper_.lexicalHelper_.correctMethodCall(callExpr->getCallee(), ooCall);
 
 				ooExprStack_.push(ooCall);
 				break;
@@ -345,8 +341,6 @@ bool ExpressionVisitor::TraverseIntegerLiteral(clang::IntegerLiteral* intLit)
 {
 	auto ooIntegerLiteral = new OOModel::IntegerLiteral(intLit->getValue().getLimitedValue());
 
-	baseVisitor_->macroImportHelper_.lexicalHelper_.correctIntegerLiteral(intLit, ooIntegerLiteral);
-
 	baseVisitor_->trMngr_->mapAst(intLit, ooIntegerLiteral);
 
 	ooExprStack_.push(ooIntegerLiteral);
@@ -397,7 +391,6 @@ bool ExpressionVisitor::TraverseStringLiteral(clang::StringLiteral* stringLitera
 {
 	auto ooStringLiteral = new OOModel::StringLiteral(QString::fromStdString(stringLiteral->getBytes().str()));
 
-	baseVisitor_->macroImportHelper_.lexicalHelper_.correctStringLiteral(stringLiteral, ooStringLiteral);
 	baseVisitor_->trMngr_->mapAst(stringLiteral, ooStringLiteral);
 
 	ooExprStack_.push(ooStringLiteral);
@@ -426,7 +419,6 @@ bool ExpressionVisitor::TraverseCXXConstructExpr(clang::CXXConstructExpr* constr
 				log_->writeError(className_, *argIt, CppImportLogger::Reason::NOT_SUPPORTED);
 		}
 
-		baseVisitor_->macroImportHelper_.lexicalHelper_.correctMethodCall(constructExpr, ooMethodCall);
 		baseVisitor_->trMngr_->mapAst(constructExpr, ooMethodCall);
 
 		ooExprStack_.push(ooMethodCall);
@@ -755,7 +747,6 @@ bool ExpressionVisitor::TraverseExplCastExpr(clang::ExplicitCastExpr* castExpr, 
 	if (!ooExprStack_.empty()) ooCast->setExpr(ooExprStack_.pop());
 
 	baseVisitor_->macroImportHelper_.mapAst(castExpr, ooCast);
-	baseVisitor_->macroImportHelper_.lexicalHelper_.correctCastType(castExpr, ooCast);
 
 	ooExprStack_.push(ooCast);
 	return true;
