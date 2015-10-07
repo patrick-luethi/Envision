@@ -26,6 +26,8 @@
 
 #pragma once
 
+#include "AstMapping.h"
+#include "ClangHelper.h"
 #include "cppimport_api.h"
 
 #include "MacroExpansion.h"
@@ -33,12 +35,14 @@
 
 namespace CppImport {
 
-class MacroImportHelper;
+class DefinitionManager;
+class LexicalHelper;
 
 class CPPIMPORT_API ExpansionManager
 {
 	public:
-		ExpansionManager(MacroImportHelper* mih);
+		ExpansionManager(ClangHelper* c, AstMapping* a,
+							  DefinitionManager* d, LexicalHelper* lex);
 
 		void addMacroExpansion(clang::SourceRange sr, const clang::MacroDirective* md,
 															const clang::MacroArgs* args);
@@ -60,9 +64,17 @@ class CPPIMPORT_API ExpansionManager
 		QVector<Model::Node*> getNTLExpansionTLNodes(MacroExpansion* expansion);
 
 	private:
-		MacroImportHelper* mih_;
+		ClangHelper* c_;
+		AstMapping* a_;
+		DefinitionManager* d_;
+		LexicalHelper* lex_;
 		MacroExpansion* currentXMacroParent {};
 		QHash<Model::Node*, QSet<MacroExpansion*>> expansionCache_;
+
+		ClangHelper* myClang() { return c_; }
+		AstMapping* myAstMapping() { return a_; }
+		DefinitionManager* myDefinitionManager() { return d_; }
+		LexicalHelper* myLexicalHelper() { return lex_; }
 
 };
 

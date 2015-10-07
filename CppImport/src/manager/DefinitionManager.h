@@ -28,14 +28,14 @@
 
 #include "cppimport_api.h"
 
-namespace CppImport {
+#include "ClangHelper.h"
 
-class MacroImportHelper;
+namespace CppImport {
 
 class CPPIMPORT_API DefinitionManager
 {
 	public:
-		DefinitionManager(MacroImportHelper* mih);
+		DefinitionManager(ClangHelper* c);
 
 		void addMacroDefinition(QString name, const clang::MacroDirective* md);
 
@@ -48,8 +48,10 @@ class CPPIMPORT_API DefinitionManager
 		void clear();
 
 	private:
-		MacroImportHelper* mih_;
+		ClangHelper* c_;
 		QHash<const clang::MacroDirective*, QString> definitions_;
+
+		ClangHelper* myClang() { return c_; }
 };
 
 }

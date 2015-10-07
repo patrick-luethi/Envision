@@ -26,12 +26,12 @@
 
 #include "LexicalHelper.h"
 
-#include "MacroImportHelper.h"
+#include "ExpansionManager.h"
 #include "StaticStuff.h"
 
 namespace CppImport {
 
-LexicalHelper::LexicalHelper(MacroImportHelper* mih) : mih_(mih) {}
+LexicalHelper::LexicalHelper(ClangHelper* c, ExpansionManager* em) : c_(c), em_(em) {}
 
 bool LexicalHelper::nameSeparator(QString candidate)
 {
@@ -41,8 +41,8 @@ bool LexicalHelper::nameSeparator(QString candidate)
 bool LexicalHelper::isExpansionception(clang::SourceLocation loc)
 {
 	if (loc.isMacroID())
-		if (auto immediateExpansion = mih_->expansionManager_.getImmediateExpansion(loc))
-			return mih_->clang()->sourceManager()->getImmediateExpansionRange(loc).first !=
+		if (auto immediateExpansion = myExpansionManager()->getImmediateExpansion(loc))
+			return myClang()->sourceManager()->getImmediateExpansionRange(loc).first !=
 					immediateExpansion->range.getBegin();
 
 	return false;
@@ -53,16 +53,16 @@ QString LexicalHelper::getUnexpandedSpelling(clang::SourceRange range)
 	clang::SourceLocation start, end;
 
 	if (isExpansionception(range.getBegin()))
-		start = mih_->clang()->sourceManager()->getImmediateExpansionRange(range.getBegin()).first;
+		start = myClang()->sourceManager()->getImmediateExpansionRange(range.getBegin()).first;
 	else
 		start = range.getBegin();
 
 	if (isExpansionception(range.getEnd()))
-		end = mih_->clang()->sourceManager()->getImmediateExpansionRange(range.getEnd()).second;
+		end = myClang()->sourceManager()->getImmediateExpansionRange(range.getEnd()).second;
 	else
 		end = range.getEnd();
 
-	auto result = mih_->clang()->getSpelling(start, end);
+	auto result = myClang()->getSpelling(start, end);
 	while (result.startsWith("\\")) result = result.right(result.length() - 1);
 
 	return result.trimmed();
@@ -139,7 +139,7 @@ void LexicalHelper::correctNode(clang::SourceRange range, Model::Node* original)
 	if (DCast<OOModel::NewExpression>(original)) return;
 	if (DCast<OOModel::BinaryOperation>(original)) return;
 
-	if (!mih_->clang()->isMacroRange(range)) return;
+	if (!myClang()->isMacroRange(range)) return;
 
 	auto transformed = getUnexpandedSpelling(range);
 

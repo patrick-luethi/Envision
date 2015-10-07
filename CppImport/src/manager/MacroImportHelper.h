@@ -48,8 +48,11 @@ class CPPIMPORT_API MacroImportHelper
 {
 	public:
 		MacroImportHelper(OOModel::Project* project)
-			: root_(project), lexicalHelper_(this), definitionManager_(this), expansionManager_(this),
-				metaDefManager_(this) {}
+			: root_(project),
+			  definitionManager_(clang()),
+			  expansionManager_(clang(), &astMapping_, &definitionManager_, &lexicalHelper_),
+				metaDefManager_(project, clang(), &definitionManager_, &expansionManager_, &lexicalHelper_),
+				lexicalHelper_(clang(), &expansionManager_) {}
 
 		void macroGeneration();
 		void finalize();
@@ -58,7 +61,6 @@ class CPPIMPORT_API MacroImportHelper
 		void mapAst(clang::Decl* clangAstNode, Model::Node* envisionAstNode);
 
 		ClangHelper* clang();
-		AstMapping* astMapping();
 
 		bool insertMetaCall(MacroExpansion* expansion);
 
@@ -70,10 +72,11 @@ class CPPIMPORT_API MacroImportHelper
 
 		OOModel::Project* root_;
 
-		LexicalHelper lexicalHelper_;
 		DefinitionManager definitionManager_;
 		ExpansionManager expansionManager_;
 		MetaDefinitionManager metaDefManager_;
+
+		LexicalHelper lexicalHelper_;
 
 	private:
 		ClangHelper clang_;
