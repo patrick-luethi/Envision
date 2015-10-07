@@ -31,28 +31,30 @@
 
 namespace CppImport {
 
-MetaDefinitionManager::MetaDefinitionManager(MacroImportHelper* mih) : mih_(mih) {}
+MetaDefinitionManager::MetaDefinitionManager(OOModel::Project* root, ClangHelper* c, DefinitionManager* d,
+															ExpansionManager* e, LexicalHelper* lex)
+	: root_(root), c_(c), d_(d), e_(e), lex_(lex) {}
 
 void MetaDefinitionManager::createMetaDef(QVector<Model::Node*> nodes, MacroExpansion* expansion, NodeMapping* mapping,
 														QVector<MacroArgumentInfo>& arguments, QHash<MacroExpansion*, Model::Node*>* splices)
 {
-	auto metaDefName = mih_->definitionManager_.hashDefinition(expansion->definition);
+	auto metaDefName = myDefinitionManager()->hashDefinition(expansion->definition);
 	if (metaDefinitions_.contains(metaDefName)) return;
 
 	auto metaDef = new OOModel::MetaDefinition(metaDefName);
 	metaDefinitions_[metaDefName] = metaDef;
-	metaDefinitionHashes_[mih_->definitionManager_.getDefinitionName(expansion->definition)].insert(metaDefName);
+	metaDefinitionHashes_[myDefinitionManager()->getDefinitionName(expansion->definition)].insert(metaDefName);
 
-	auto metaDefParent = mih_->root_;
+	auto metaDefParent = root_;
 
-	for (auto argName : mih_->clang()->getArgumentNames(expansion->definition))
+	for (auto argName : myClang()->getArgumentNames(expansion->definition))
 		metaDef->arguments()->append(new OOModel::FormalMetaArgument(argName));
 
 	if (auto beginChild = partialBeginChild(expansion))
 	{
 		auto list = new Model::List();
 
-		QVector<Model::Node*> statements = mih_->expansionManager_.getNTLExpansionTLNodes(expansion);
+		QVector<Model::Node*> statements = myExpansionManager()->getNTLExpansionTLNodes(expansion);
 
 		for (auto stmt : statements)
 			list->append(stmt->clone());
@@ -65,7 +67,7 @@ void MetaDefinitionManager::createMetaDef(QVector<Model::Node*> nodes, MacroExpa
 		if (!statements.empty() || expansion->children.size() > 1)
 		{
 			auto childDef = metaDefinitions_.value(
-						mih_->definitionManager_.hashDefinition(beginChild->definition));
+						myDefinitionManager()->hashDefinition(beginChild->definition));
 
 			if (childDef->arguments()->size() == beginChild->metaCall->arguments()->size())
 			{
@@ -118,8 +120,8 @@ void MetaDefinitionManager::createMetaDef(QVector<Model::Node*> nodes, MacroExpa
 				NodeMapping childMapping;
 				auto cloned = StaticStuff::cloneWithMapping(mapping->original(n), &childMapping);
 
-				mih_->lexicalHelper_.applyLexicalTransformations(cloned, &childMapping,
-																				 mih_->clang()->getArgumentNames(expansion->definition));
+				myLexicalHelper()->applyLexicalTransformations(cloned, &childMapping,
+																				 myClang()->getArgumentNames(expansion->definition));
 
 				addChildMetaCalls(metaDef, expansion, &childMapping, splices);
 
@@ -150,7 +152,7 @@ OOModel::MetaDefinition*MetaDefinitionManager::createXMacroMetaDef(MacroExpansio
 		bool found = false;
 
 		for (auto child : xMacroExpansionH->children)
-			if (mih_->definitionManager_.isPartialBegin(child->definition))
+			if (myDefinitionManager()->isPartialBegin(child->definition))
 			{
 				xMacroExpansionH = child;
 				found = true;
@@ -164,7 +166,7 @@ OOModel::MetaDefinition*MetaDefinitionManager::createXMacroMetaDef(MacroExpansio
 		bool found = false;
 
 		for (auto child : xMacroExpansionCpp->children)
-			if (mih_->definitionManager_.isPartialBegin(child->definition))
+			if (myDefinitionManager()->isPartialBegin(child->definition))
 			{
 				xMacroExpansionCpp = child;
 				found = true;
@@ -173,13 +175,13 @@ OOModel::MetaDefinition*MetaDefinitionManager::createXMacroMetaDef(MacroExpansio
 		if (!found) break;
 	}
 
-	auto metaDefName = mih_->definitionManager_.getDefinitionName(xMacroExpansionH->definition);
+	auto metaDefName = myDefinitionManager()->getDefinitionName(xMacroExpansionH->definition);
 	if (metaDefinitions_.contains(metaDefName)) return metaDefinitions_[metaDefName];
 
 	auto xMacroDefH = metaDefinitions_.value(
-				mih_->definitionManager_.hashDefinition(xMacroExpansionH->definition));
+				myDefinitionManager()->hashDefinition(xMacroExpansionH->definition));
 	auto xMacroDefCpp = metaDefinitions_.value(
-				mih_->definitionManager_.hashDefinition(xMacroExpansionCpp->definition));
+				myDefinitionManager()->hashDefinition(xMacroExpansionCpp->definition));
 
 	auto metaDef = xMacroDefH->clone();
 	metaDefinitions_[metaDefName] = metaDef;
@@ -224,7 +226,7 @@ OOModel::MetaDefinition*MetaDefinitionManager::createXMacroMetaDef(MacroExpansio
 
 	metaDef->arguments()->append(new OOModel::FormalMetaArgument("metaBindingInput"));
 
-	mih_->root_->subDeclarations()->append(metaDef);
+	root_->subDeclarations()->append(metaDef);
 
 	return metaDef;
 }
@@ -240,7 +242,7 @@ void MetaDefinitionManager::finalize()
 		if (metaDefinitionHashes_[name].size() == 1)
 		{
 			it.value()->setName(name);
-			renameMetaCalls(mih_->root_, hashedName, name);
+			renameMetaCalls(root_, hashedName, name);
 		}
 	}
 }
@@ -294,7 +296,7 @@ void MetaDefinitionManager::getChildrenNotBelongingToExpansion(Model::Node* node
 
 	if (DCast<OOModel::MetaCallExpression>(node)) return;
 
-	if (mih_->expansionManager_.getExpansion(mapping->original(node)).contains(expansion))
+	if (myExpansionManager()->getExpansion(mapping->original(node)).contains(expansion))
 	{
 		for (auto child : node->children())
 		{
@@ -330,7 +332,7 @@ void MetaDefinitionManager::insertArgumentSplices(NodeMapping* mapping, NodeMapp
 		{
 			auto spliceLoc = argument.history.first();
 
-			auto argName = mih_->clang()->getArgumentNames(spliceLoc.expansion->definition)
+			auto argName = myClang()->getArgumentNames(spliceLoc.expansion->definition)
 					.at(spliceLoc.argumentNumber);
 			auto newNode = new OOModel::ReferenceExpression(argName);
 
@@ -343,7 +345,7 @@ void MetaDefinitionManager::insertArgumentSplices(NodeMapping* mapping, NodeMapp
 MacroExpansion* MetaDefinitionManager::partialBeginChild(MacroExpansion* expansion)
 {
 	for (auto child : expansion->children)
-		if (mih_->definitionManager_.isPartialBegin(child->definition))
+		if (myDefinitionManager()->isPartialBegin(child->definition))
 			return child;
 
 	return nullptr;

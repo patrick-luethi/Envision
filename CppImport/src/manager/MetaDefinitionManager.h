@@ -28,18 +28,25 @@
 
 #include "cppimport_api.h"
 
+#include "ClangHelper.h"
 #include "MacroArgumentInfo.h"
 #include "NodeMapping.h"
 #include "OOModel/src/allOOModelNodes.h"
 
 namespace CppImport {
 
-class MacroImportHelper;
+class DefinitionManager;
+class ExpansionManager;
+class LexicalHelper;
 
 class CPPIMPORT_API MetaDefinitionManager
 {
 	public:
-		MetaDefinitionManager(MacroImportHelper* mih);
+		MetaDefinitionManager(OOModel::Project* root,
+		ClangHelper* c,
+		DefinitionManager* d,
+		ExpansionManager* e,
+		LexicalHelper* lex);
 
 		void createMetaDef(QVector<Model::Node*> nodes, MacroExpansion* expansion, NodeMapping* mapping,
 								 QVector<MacroArgumentInfo>& arguments, QHash<MacroExpansion*, Model::Node*>* splices);
@@ -50,7 +57,12 @@ class CPPIMPORT_API MetaDefinitionManager
 		void finalize();
 
 	private:
-		MacroImportHelper* mih_;
+		OOModel::Project* root_;
+		ClangHelper* c_;
+		DefinitionManager* d_;
+		ExpansionManager* e_;
+		LexicalHelper* lex_;
+
 		QHash<QString, OOModel::MetaDefinition*> metaDefinitions_;
 		QHash<QString, QSet<QString>> metaDefinitionHashes_;
 
@@ -63,6 +75,11 @@ class CPPIMPORT_API MetaDefinitionManager
 
 		MacroExpansion* partialBeginChild(MacroExpansion* expansion);
 		void renameMetaCalls(Model::Node* node, QString current, QString replace);
+
+		ClangHelper* myClang() { return c_; }
+		DefinitionManager* myDefinitionManager() { return d_; }
+		ExpansionManager* myExpansionManager() { return e_; }
+		LexicalHelper* myLexicalHelper() { return lex_; }
 };
 
 }

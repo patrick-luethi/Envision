@@ -26,11 +26,9 @@
 
 #include "DefinitionManager.h"
 
-#include "MacroImportHelper.h"
-
 namespace CppImport {
 
-DefinitionManager::DefinitionManager(MacroImportHelper* mih) : mih_(mih) {}
+DefinitionManager::DefinitionManager(ClangHelper* c) : c_(c) {}
 
 void DefinitionManager::addMacroDefinition(QString name, const clang::MacroDirective* md)
 {
@@ -51,7 +49,7 @@ QString DefinitionManager::getDefinitionName(const clang::MacroDirective* md)
 
 QString DefinitionManager::hashDefinition(const clang::MacroDirective* md)
 {
-	auto presumedLoc = mih_->clang()->sourceManager()->getPresumedLoc(md->getMacroInfo()->getDefinitionLoc());
+	auto presumedLoc = myClang()->sourceManager()->getPresumedLoc(md->getMacroInfo()->getDefinitionLoc());
 	auto suffix = QDir(presumedLoc.getFilename()).absolutePath().right(1) == "h" ? "_H" : "_CPP";
 
 	return getDefinitionName(md) + suffix;

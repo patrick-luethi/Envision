@@ -32,7 +32,7 @@ namespace CppImport {
 
 void MacroImportHelper::clear()
 {
-	astMapping()->clear();
+	astMapping_.clear();
 	definitionManager_.clear();
 	expansionManager_.clear();
 }
@@ -83,10 +83,10 @@ void MacroImportHelper::macroGeneration()
 		{
 			Q_ASSERT(!node->parent());
 
-			if (astMapping()->contains(mapping.original(node)))
+			if (astMapping_.contains(mapping.original(node)))
 			{
 				bool found = false;
-				for (auto range : astMapping()->get(mapping.original(node)))
+				for (auto range : astMapping_.get(mapping.original(node)))
 					if (!clang()->isMacroRange(range))
 					{
 						found = true;
@@ -258,23 +258,18 @@ ClangHelper* MacroImportHelper::clang()
 	return &clang_;
 }
 
-AstMapping* MacroImportHelper::astMapping()
-{
-	return &astMapping_;
-}
-
 void MacroImportHelper::mapAst(clang::Stmt* clangAstNode, Model::Node* envisionAstNode)
 {
 	lexicalHelper_.correctNode(clangAstNode, envisionAstNode);
 
-	astMapping()->mapAst(clangAstNode, envisionAstNode);
+	astMapping_.mapAst(clangAstNode, envisionAstNode);
 }
 
 void MacroImportHelper::mapAst(clang::Decl* clangAstNode, Model::Node* envisionAstNode)
 {
 	lexicalHelper_.correctNode(clangAstNode, envisionAstNode);
 
-	astMapping()->mapAst(clangAstNode, envisionAstNode);
+	astMapping_.mapAst(clangAstNode, envisionAstNode);
 }
 
 bool MacroImportHelper::insertMetaCall(MacroExpansion* expansion)
@@ -297,7 +292,7 @@ OOModel::Declaration* MacroImportHelper::getActualContext(MacroExpansion* expans
 	Q_ASSERT(!expansion->parent);
 
 	QVector<OOModel::Declaration*> candidates;
-	for (auto i = astMapping()->begin(); i != astMapping()->end(); i++)
+	for (auto i = astMapping_.begin(); i != astMapping_.end(); i++)
 		for (auto range : i.value())
 			if (clang()->contains(range, expansion->range))
 				if (StaticStuff::validContext(i.key()))
@@ -341,8 +336,8 @@ QVector<MacroArgumentLocation> MacroImportHelper::getArgumentHistory(clang::Sour
 QVector<MacroArgumentLocation> MacroImportHelper::getArgumentHistory(Model::Node* node)
 {
 	QVector<MacroArgumentLocation> result;
-	if (astMapping()->contains(node))
-			result = getArgumentHistory(astMapping()->get(node).first());
+	if (astMapping_.contains(node))
+			result = getArgumentHistory(astMapping_.get(node).first());
 	return result;
 }
 
