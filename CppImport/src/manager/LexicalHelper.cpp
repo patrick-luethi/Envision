@@ -27,42 +27,11 @@
 #include "LexicalHelper.h"
 
 #include "MacroImportHelper.h"
+#include "StaticStuff.h"
 
 namespace CppImport {
 
 LexicalHelper::LexicalHelper(MacroImportHelper* mih) : mih_(mih) {}
-
-bool LexicalHelper::getUnexpandedNameWithQualifiers(clang::SourceLocation loc, QString* result)
-{
-	auto token = getUnexpToken(loc);
-
-	*result = token.value();
-	if (result->startsWith("#")) return true; // TODO: wth?
-
-	QRegularExpression regularExpression("^(\\w|##)*$");
-	auto match = regularExpression.match(token.value());
-	if (!match.hasMatch())
-	{
-		*result = "";
-		return false;
-	}
-
-	while (true)
-	{
-		auto sepa = token.next();
-		if (!nameSeparator(sepa.value()))
-			break;
-
-		auto identifier = sepa.next();
-		if (identifier.value() == ",")
-			break;
-
-		*result += sepa.value() + identifier.value();
-		token = identifier.next();
-	}
-
-	return true;
-}
 
 bool LexicalHelper::nameSeparator(QString candidate)
 {
@@ -79,14 +48,6 @@ bool LexicalHelper::isExpansionception(clang::SourceLocation loc)
 	return false;
 }
 
-LexicalHelper::Token LexicalHelper::getUnexpToken(clang::SourceLocation start)
-{
-	auto loc = isExpansionception(start) ?
-				mih_->clang()->sourceManager()->getImmediateExpansionRange(start).first : start;
-
-	return LexicalHelper::Token(mih_->clang(), mih_->clang()->sourceManager()->getSpellingLoc(loc));
-}
-
 QString LexicalHelper::getUnexpandedSpelling(clang::SourceRange range)
 {
 	clang::SourceLocation start, end;
@@ -101,266 +62,107 @@ QString LexicalHelper::getUnexpandedSpelling(clang::SourceRange range)
 	else
 		end = range.getEnd();
 
-	return mih_->clang()->getSpelling(start, end);
+	auto result = mih_->clang()->getSpelling(start, end);
+	while (result.startsWith("\\")) result = result.right(result.length() - 1);
+
+	return result.trimmed();
+}
+
+void LexicalHelper::correctNode(clang::Decl* clangAstNode, Model::Node* envisionAstNode)
+{
+	clang::SourceRange spellingRange = clangAstNode->getSourceRange();
+
+	if (auto fDecl = clang::dyn_cast<clang::FunctionDecl>(clangAstNode))
+	{
+		spellingRange = fDecl->getNameInfo().getSourceRange();
+
+		auto ooMethod = DCast<OOModel::Method>(envisionAstNode);
+		Q_ASSERT(ooMethod);
+
+		if (ooMethod->results()->size() > 0)
+			correctNode(fDecl->getReturnTypeSourceRange(), ooMethod->results()->first());
+
+		int i = 0;
+		for (auto it = fDecl->param_begin(); it != fDecl->param_end(); it++)
+		{
+			auto varDecl = clang::dyn_cast<clang::VarDecl>(*it);
+			Q_ASSERT(varDecl);
+
+			auto start = varDecl->getLocation();
+			auto end = varDecl->hasInit() ? varDecl->getInit()->getSourceRange().getBegin() :
+													  varDecl->getSourceRange().getEnd();
+
+			auto ooVarDecl = DCast<OOModel::VariableDeclaration>(ooMethod->arguments()->at(i));
+
+			correctNode(varDecl->getTypeSourceInfo()->getTypeLoc().getSourceRange(),
+												ooVarDecl->typeExpression());
+			correctNode(clang::SourceRange(start, end), ooVarDecl);
+			i++;
+		}
+	}
+	else if (auto varDecl = clang::dyn_cast<clang::VarDecl>(clangAstNode))
+	{
+		auto ooVarDecl = DCast<OOModel::VariableDeclaration>(envisionAstNode);
+		Q_ASSERT(ooVarDecl);
+
+		auto start = varDecl->getLocation();
+		auto end = varDecl->getSourceRange().getEnd();
+
+		correctNode(varDecl->getTypeSourceInfo()->getTypeLoc().getSourceRange(),
+											ooVarDecl->typeExpression());
+
+		spellingRange = clang::SourceRange(start, end);
+	}
+
+	correctNode(spellingRange, envisionAstNode);
+}
+
+void LexicalHelper::correctNode(clang::Stmt* clangAstNode, Model::Node* envisionAstNode)
+{
+	if (auto callExpr = clang::dyn_cast<clang::CallExpr>(clangAstNode))
+		correctNode(callExpr->getCallee()->getSourceRange(),
+											envisionAstNode);
+	else if (auto constrExpr = clang::dyn_cast<clang::CXXConstructExpr>(clangAstNode))
+	{
+		correctNode(
+				clang::SourceRange(constrExpr->getLocStart(),
+										 constrExpr->getParenOrBraceRange().getBegin()),
+											envisionAstNode);
+	}
+	else
+		correctNode(clangAstNode->getSourceRange(), envisionAstNode);
 }
 
 void LexicalHelper::correctNode(clang::SourceRange range, Model::Node* original)
 {
+	if (DCast<OOModel::ReturnStatement>(original)) return;
+	if (DCast<OOModel::NewExpression>(original)) return;
+	if (DCast<OOModel::BinaryOperation>(original)) return;
+
 	if (!mih_->clang()->isMacroRange(range)) return;
 
-	lexicalTransform_.insert(original, getUnexpandedSpelling(range));
-}
+	auto transformed = getUnexpandedSpelling(range);
 
-void LexicalHelper::correctFormalArgType(clang::NamedDecl* namedDecl, OOModel::FormalArgument* original)
-{
-	correctNode(namedDecl->getSourceRange(), original);
-	return;
-	if (!mih_->clang()->isMacroRange(namedDecl->getSourceRange())) return;
-
-	auto token = getUnexpToken(namedDecl->getSourceRange().getBegin());
-	auto typeTokens = token.type();
-
-	auto identifier = token.toString(typeTokens);
-	auto nextToken = typeTokens.last()->next();
-
-	while (nextToken.isWhitespace() || nextToken.isEmpty()) nextToken = nextToken.next();
-
-	if (nextToken.value() == "*") // TODO: this won't work with multipointers
+	if (DCast<OOModel::CastExpression>(original))
 	{
-		if (auto ptrExpr = DCast<OOModel::PointerTypeExpression>(original->typeExpression()))
-			if (auto refExpr = DCast<OOModel::ReferenceExpression>(ptrExpr->typeExpression()))
-				lexicalTransform_.insert(refExpr, identifier);
-	}
-	else if (nextToken.value() == "&")
-	{
-		if (auto ptrExpr = DCast<OOModel::ReferenceTypeExpression>(original->typeExpression()))
-			if (auto refExpr = DCast<OOModel::ReferenceExpression>(ptrExpr->typeExpression()))
-				lexicalTransform_.insert(refExpr, identifier);
-	}
-	else
-		lexicalTransform_.insert(original->typeExpression(), identifier);
-}
+		QRegularExpression regularExpression("^static_cast<\\s*((\\w|\\*|##)+)\\s*>");
+		auto match = regularExpression.match(transformed);
 
-void LexicalHelper::correctFormalResultType(clang::FunctionDecl* method, OOModel::FormalResult* original)
-{
-	correctNode(method->getSourceRange(), original);
-	return;
-	if (!mih_->clang()->isMacroRange(method->getReturnTypeSourceRange())) return;
-
-	auto token = getUnexpToken(method->getReturnTypeSourceRange().getBegin());
-	auto typeTokens = token.type();
-
-	auto identifier = token.toString(typeTokens);
-	auto nextToken = typeTokens.last()->next();
-
-	while (nextToken.isWhitespace() || nextToken.isEmpty()) nextToken = nextToken.next();
-
-	if (nextToken.value() == "*")
-	{
-		if (auto ptrExpr = DCast<OOModel::PointerTypeExpression>(original->typeExpression()))
-			if (auto refExpr = DCast<OOModel::ReferenceExpression>(ptrExpr->typeExpression()))
-				lexicalTransform_.insert(refExpr, identifier);
-	}
-	else if (nextToken.value() == "&")
-	{
-		if (auto ptrExpr = DCast<OOModel::ReferenceTypeExpression>(original->typeExpression()))
-			if (auto refExpr = DCast<OOModel::ReferenceExpression>(ptrExpr->typeExpression()))
-				lexicalTransform_.insert(refExpr, identifier);
-	}
-	else
-		lexicalTransform_.insert(original->typeExpression(), identifier);
-}
-
-void LexicalHelper::correctMethodCall(clang::Expr* expr, OOModel::MethodCallExpression* methodCall)
-{
-	return;
-	if (!expr->getExprLoc().isMacroID()) return;
-
-	auto ref = DCast<OOModel::ReferenceExpression>(methodCall->callee());
-	if (!ref) return;
-
-	auto token = getUnexpToken(expr->getSourceRange().getBegin());
-
-	/*
-			 * these conditions intend to skip all implict type initializations.
-			 * the locations don't map to the actual call in those situations because they don't exist in the source (implicit)
-			 * we therefore have to skip them.
-			 */
-	if (!getUnexpandedSpelling(expr->getSourceRange()).contains("(") && methodCall->arguments()->size() == 0) return;
-	if (token.value() == "{") return;
-
-	/*
-			 * an exception to the above are implicit QString initializations.
-			 * since those might contain vital information we have to handle those.
-			 */
-	if (ref->name() == "QString" && methodCall->arguments()->size() == 1)
-	{
-		if (auto sLit = DCast<OOModel::StringLiteral>(methodCall->arguments()->first()))
-		{
-			lexicalTransform_.insert(sLit, getUnexpandedSpelling(expr->getSourceRange()));
-			return;
-		}
-	}
-
-	QStack<OOModel::ReferenceExpression*> refs;
-	while (true)
-	{
-		for (auto i = ref->typeArguments()->size() - 1; i >= 0; i--)
-			if (auto r = DCast<OOModel::ReferenceExpression>(ref->typeArguments()->at(i)))
-				refs.push(r);
-			else
-				return;
-
-		refs.push(ref);
-
-		if (ref->prefix())
-		{
-			ref = DCast<OOModel::ReferenceExpression>(ref->prefix());
-			if (!ref) return;
-		}
+		if (match.hasMatch())
+			transformed = match.captured(1);
 		else
-			break;
+			qDebug() << "unmatched regex in cast expression" << transformed;
 	}
-
-	auto identTokens = token.identifier();
-
-	if (!identTokens.empty())
+	else if (DCast<OOModel::MethodCallExpression>(original))
 	{
-		token = token.identifier().last()->next();
-		lexicalTransform_.insert(refs.pop(), token.toString(identTokens));
+		if (transformed.endsWith("(")) transformed = transformed.left(transformed.length() - 1);
 	}
-	else
+	else if (DCast<OOModel::VariableDeclaration>(original))
 	{
-		// TODO: maybe examine this deeper (only intended to happen for global scope)
-		refs.pop();
-		token = token.next();
+		if (transformed.contains("=")) transformed = transformed.left(transformed.indexOf("=")).trimmed();
 	}
 
-	while (!refs.empty())
-	{
-		while (nameSeparator(token.value()))
-			token = token.next();
-
-		identTokens = token.identifier();
-
-		if (!identTokens.empty())
-		{
-			lexicalTransform_.insert(refs.pop(), token.toString(identTokens));
-			token = identTokens.last()->next();
-		}
-		else
-		{
-			// TODO: why?
-			refs.pop();
-			token = token.next();
-		}
-	}
-}
-
-void LexicalHelper::correctReferenceExpression(clang::SourceLocation loc, OOModel::ReferenceExpression* original)
-{
-	return;
-	if (loc.isMacroID())
-		if (isExpansionception(loc))
-		{
-			auto token = getUnexpToken(loc);
-			lexicalTransform_.insert(original, token.toString(token.identifier()));
-		}
-}
-
-void LexicalHelper::correctExplicitTemplateInst(clang::ClassTemplateSpecializationDecl* specializationDecl,
-																OOModel::ReferenceExpression* original)
-{
-	return;
-	if (!mih_->clang()->isMacroRange(specializationDecl->getSourceRange()))	return;
-
-	auto spelling = mih_->clang()->getSpelling(specializationDecl->getLocation(),
-															 specializationDecl->getSourceRange().getEnd());
-
-	// TODO: improve parsing to handle more complicated cases.
-	QRegularExpression regularExpression("^(\\w+)<(\\w+::\\w+)>$");
-
-	auto match = regularExpression.match(spelling);
-	if (match.hasMatch())
-	{
-		lexicalTransform_.insert(original, match.captured(1));
-
-		Q_ASSERT(original->typeArguments()->size() == 1);
-
-		auto typeArg = DCast<OOModel::ReferenceExpression>(original->typeArguments()->first());
-		Q_ASSERT(typeArg);
-		Q_ASSERT(!typeArg->prefix());
-		lexicalTransform_.insert(typeArg, match.captured(2));
-	}
-	else
-	{
-		qDebug() << "could not correct explicit template instantiation: " << spelling;
-	}
-}
-
-void LexicalHelper::correctStringLiteral(clang::StringLiteral* strLit, OOModel::StringLiteral* original)
-{
-	return;
-	if (!strLit->getLocStart().isMacroID()) return;
-
-	auto rawValue = getUnexpandedSpelling(strLit->getSourceRange());
-
-	lexicalTransform_.insert(original, rawValue);
-}
-
-void LexicalHelper::correctIntegerLiteral(clang::IntegerLiteral* intLit, OOModel::IntegerLiteral* original)
-{
-	return;
-	if (!intLit->getLocation().isMacroID()) return;
-
-	auto token = getUnexpToken(intLit->getLocStart());
-
-	lexicalTransform_.insert(original, token.value());
-}
-
-void LexicalHelper::correctCastType(clang::Expr* expr, OOModel::CastExpression* original)
-{
-	return;
-	if (!mih_->clang()->isMacroRange(expr->getSourceRange())) return;
-
-	auto spelling = mih_->clang()->getSpelling(expr->getSourceRange());
-
-	QRegularExpression regularExpression("static_cast<\\s*((\\w|\\*|##)+)\\s*>");
-	auto match = regularExpression.match(spelling);
-
-	if (match.hasMatch())
-	{
-		auto typeExpression = match.captured(1);
-
-		if (typeExpression.endsWith("*"))
-		{
-			if (auto ptrExpr = DCast<OOModel::PointerTypeExpression>(original->castType()))
-				if (auto refExpr = DCast<OOModel::ReferenceExpression>(ptrExpr->typeExpression()))
-					lexicalTransform_.insert(refExpr, typeExpression);
-		}
-		else
-			lexicalTransform_.insert(original->castType(), typeExpression);
-	}
-}
-
-void LexicalHelper::correctNamedDecl(clang::Decl* decl, Model::Node* node)
-{
-	return;
-	if (!mih_->clang()->isMacroRange(decl->getSourceRange())) return;
-
-	if (auto ooDecl = DCast<OOModel::Declaration>(node))
-	{
-		if (auto namedDecl = clang::dyn_cast<clang::NamedDecl>(decl))
-		{
-			auto token = getUnexpToken(namedDecl->getLocation());
-
-			lexicalTransform_.insert(ooDecl, token.toString(token.qualifiedIdentifier()));
-		}
-		else
-			Q_ASSERT(false && "not implemented");
-	}
-	else
-		Q_ASSERT(false && "not implemented");
+	lexicalTransform_.insert(original, transformed);
 }
 
 void LexicalHelper::applyLexicalTransformations(Model::Node* node, NodeMapping* mapping, QVector<QString> formalArgs)
@@ -379,40 +181,45 @@ void LexicalHelper::applyLexicalTransformations(Model::Node* node, NodeMapping* 
 
 		if (containsArg)
 		{
-			//transformed = "TRANSFORMED";
-
 			if (auto ref = DCast<OOModel::ReferenceExpression>(node))
 				ref->setName(transformed);
-			else if (auto decl = DCast<OOModel::Declaration>(node))
+			else if (auto decl = DCast<OOModel::Class>(node))
+				decl->setName(transformed);
+			else if (auto decl = DCast<OOModel::Method>(node))
+				decl->setName(transformed);
+			else if (auto decl = DCast<OOModel::Field>(node))
 				decl->setName(transformed);
 			else if (auto strLit = DCast<OOModel::StringLiteral>(node))
 				strLit->setValue(transformed);
+			else if (auto formalResult = DCast<OOModel::FormalResult>(node))
+				formalResult->setTypeExpression(StaticStuff::createNameExpressionFromString(transformed));
 			else if (auto boolLit = DCast<OOModel::BooleanLiteral>(node))
-			{
-				auto newValue = new OOModel::ReferenceExpression(transformed);
-				boolLit->parent()->replaceChild(boolLit, newValue);
-				mapping->replaceClone(boolLit, newValue);
-			}
+				replaceWithReference(boolLit, transformed, mapping);
+			else if (auto castExpr = DCast<OOModel::CastExpression>(node))
+				castExpr->setType(new OOModel::ReferenceExpression(transformed));
+			else if (auto castExpr = DCast<OOModel::PointerTypeExpression>(node))
+				replaceWithReference(castExpr, transformed, mapping);
 			else if (auto methodCall = DCast<OOModel::MethodCallExpression>(node))
 			{
 				if (auto ref = DCast<OOModel::ReferenceExpression>(methodCall->callee()))
 				{
-					if (!ref->prefix() && ref->typeArguments()->size() == 0)
-					{
-						if (transformed.startsWith("#"))
-						{
-							auto newValue = new OOModel::ReferenceExpression(transformed);
-							methodCall->parent()->replaceChild(methodCall, newValue);
-							mapping->replaceClone(methodCall, newValue);
-						}
-						else
-							ref->setName(transformed);
-					}
+					if (transformed.startsWith("#"))
+						replaceWithReference(methodCall, transformed, mapping);
 					else
-						qDebug() << "Unhandled transformed node type" << node->typeName() << "transformed" << transformed;
+						replaceWithReference(ref, transformed, mapping);
 				}
 				else
 					qDebug() << "Unhandled transformed node type" << node->typeName() << "transformed" << transformed;
+			}
+			else if (auto templateInst = DCast<OOModel::ExplicitTemplateInstantiation>(node))
+			{
+				QRegularExpression regEx("\\s(\\w+::\\w+<\\w+::\\w+>)$");
+
+				auto m = regEx.match(transformed);
+				if (m.hasMatch())
+					replaceWithReference(templateInst->instantiatedClass(), m.captured(1), mapping);
+				else
+					qDebug() << "could not correct explicit template instantiation: " << transformed;
 			}
 			else
 				qDebug() << "Unhandled transformed node type" << node->typeName() << "transformed" << transformed;
@@ -423,76 +230,11 @@ void LexicalHelper::applyLexicalTransformations(Model::Node* node, NodeMapping* 
 		applyLexicalTransformations(child, mapping, formalArgs);
 }
 
-LexicalHelper::Token LexicalHelper::Token::next()
+void LexicalHelper::replaceWithReference(Model::Node* current, QString replacement, NodeMapping* mapping)
 {
-	auto nextLoc = clang_->getLocForEndOfToken(loc_);
-	if (nextLoc == loc_) nextLoc = loc_.getLocWithOffset(1);
-
-	return Token(clang_, nextLoc);
-}
-
-QVector<LexicalHelper::Token*> LexicalHelper::Token::type()
-{
-	auto first = qualifiedIdentifier();
-
-	if (toString(first) == "const")
-	{
-		auto nextToken = first.last()->next();
-		while (nextToken.isEmpty() || nextToken.isWhitespace()) nextToken = nextToken.next();
-		auto second = nextToken.qualifiedIdentifier();
-
-		QVector<Token*> total;
-		for (auto f : first) total.append(f);
-		for (auto s : second) total.append(s);
-		return total;
-	}
-
-	return first;
-}
-
-QVector<LexicalHelper::Token*> LexicalHelper::Token::qualifiedIdentifier()
-{
-	QVector<Token*> result;
-	buildQualifiedIdentifier(&result);
-	return result;
-}
-
-QVector<LexicalHelper::Token*> LexicalHelper::Token::identifier()
-{
-	QVector<Token*> result;
-	buildIdentifier(&result);
-	return result;
-}
-
-QString LexicalHelper::Token::toString(QVector<LexicalHelper::Token*> tokens)
-{
-	if (tokens.empty()) return "";
-
-	return clang_->getSpelling(tokens.first()->loc(), tokens.last()->loc());
-}
-
-bool LexicalHelper::Token::matchesRegex(QString regex)
-{
-	QRegularExpression regularExpression(regex);
-	return regularExpression.match(value()).hasMatch();
-}
-
-void LexicalHelper::Token::buildQualifiedIdentifier(QVector<LexicalHelper::Token*>* tokens)
-{
-	if (isIdentifier() || isConcatenation() || isStringifycation() || isNamespaceSeparator())
-	{
-		tokens->append(new Token(clang_, loc_));
-		next().buildQualifiedIdentifier(tokens);
-	}
-}
-
-void LexicalHelper::Token::buildIdentifier(QVector<LexicalHelper::Token*>* tokens)
-{
-	if (isIdentifier() || isConcatenation() || isStringifycation())
-	{
-		tokens->append(new Token(clang_, loc_));
-		next().buildIdentifier(tokens);
-	}
+	auto newValue = StaticStuff::createNameExpressionFromString(replacement);
+	current->parent()->replaceChild(current, newValue);
+	mapping->replaceClone(current, newValue);
 }
 
 }

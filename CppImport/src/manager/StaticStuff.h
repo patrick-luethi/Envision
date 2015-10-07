@@ -51,6 +51,9 @@ class CPPIMPORT_API StaticStuff
 
 		static void addNodeToDeclaration(Model::Node* node, OOModel::Declaration* declaration);
 
+		static OOModel::Expression* createNameExpressionFromString(QString input);
+		static bool stringMatches(QString regex, QString value);
+
 	private:
 		static void buildMappingInfo(Model::Node* node, QList<Model::Node*>* info);
 		static void useMappingInfo(Model::Node* node, QList<Model::Node*>* info, NodeMapping* mapping);

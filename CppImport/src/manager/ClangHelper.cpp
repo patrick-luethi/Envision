@@ -62,6 +62,8 @@ QString ClangHelper::getSpelling(clang::SourceLocation start, clang::SourceLocat
 
 	try
 	{
+		if (length > 1000) return "TOO_LONG";
+
 		return 0 < length ? QString::fromStdString(std::string(sm_->getCharacterData(b), length)) : "";
 	}
 	catch (...)

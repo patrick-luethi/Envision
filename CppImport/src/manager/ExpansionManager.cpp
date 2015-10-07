@@ -62,7 +62,8 @@ void ExpansionManager::addMacroExpansion(clang::SourceRange sr,
 	if (!md->getMacroInfo()->isObjectLike())
 	{
 		QRegularExpression regex ("\\((.*)\\)", QRegularExpression::DotMatchesEverythingOption);
-		auto match = regex.match(mih_->lexicalHelper_.getUnexpandedSpelling(sr));
+		auto argumentsString = mih_->lexicalHelper_.getUnexpandedSpelling(sr);
+		auto match = regex.match(argumentsString);
 		auto arguments = match.captured(1).split(",");
 
 		for (auto i = 0; i < mih_->clang()->getArgumentNames(entry->definition).size(); i++)

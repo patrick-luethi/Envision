@@ -89,7 +89,6 @@ void MacroImportHelper::macroGeneration()
 				for (auto range : astMapping()->astMapping_[mapping.original(node)])
 					if (!clang()->isMacroRange(range))
 					{
-						qDebug() << "real occurence found of" << node->typeName();
 						found = true;
 						break;
 					}
@@ -266,7 +265,7 @@ AstMapping* MacroImportHelper::astMapping()
 
 void MacroImportHelper::mapAst(clang::Stmt* clangAstNode, Model::Node* envisionAstNode)
 {
-	lexicalHelper_.correctNode(clangAstNode->getSourceRange().getBegin(), envisionAstNode);
+	lexicalHelper_.correctNode(clangAstNode, envisionAstNode);
 
 	if (auto bop = clang::dyn_cast<clang::BinaryOperator>(clangAstNode))
 		astMapping()->astMapping_[envisionAstNode]
@@ -280,8 +279,7 @@ void MacroImportHelper::mapAst(clang::Stmt* clangAstNode, Model::Node* envisionA
 
 void MacroImportHelper::mapAst(clang::Decl* clangAstNode, Model::Node* envisionAstNode)
 {
-	lexicalHelper_.correctNode(clangAstNode->getSourceRange().getBegin(), envisionAstNode);
-	lexicalHelper_.correctNamedDecl(clangAstNode, envisionAstNode);
+	lexicalHelper_.correctNode(clangAstNode, envisionAstNode);
 
 	if (!astMapping()->astMapping_[envisionAstNode].contains(clangAstNode->getSourceRange()))
 		astMapping()->astMapping_[envisionAstNode].append(clangAstNode->getSourceRange());

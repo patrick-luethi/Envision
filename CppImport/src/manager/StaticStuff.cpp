@@ -261,7 +261,7 @@ void StaticStuff::useMappingInfo(Model::Node* node, QList<Model::Node*>* info, N
 		useMappingInfo(child, info, mapping);
 }
 
-OOModel::MetaCallExpression*StaticStuff::containsMetaCall(Model::Node* node)
+OOModel::MetaCallExpression* StaticStuff::containsMetaCall(Model::Node* node)
 {
 	if (auto metaCall = DCast<OOModel::MetaCallExpression>(node))
 		return metaCall;
@@ -271,6 +271,77 @@ OOModel::MetaCallExpression*StaticStuff::containsMetaCall(Model::Node* node)
 			return metaCall;
 
 	return nullptr;
+}
+
+bool StaticStuff::stringMatches(QString regex, QString value)
+{
+	QRegularExpression regEx(regex);
+	return regEx.match(value).hasMatch();
+}
+
+OOModel::Expression* StaticStuff::createNameExpressionFromString(QString input)
+{
+	QString baseCase = "((::)?(\\w+(::|.))*\\w+(\\*|&)?)";
+
+	if (stringMatches("^" + baseCase + "$", input))
+	{
+		QRegularExpression regEx("(::|\\.)");
+		QStringList parts = input.split(regEx);
+
+		QString basePart = parts.last();
+
+		OOModel::Expression* result = nullptr;
+		OOModel::ReferenceExpression* current = nullptr;
+
+		if (basePart.endsWith("&"))
+		{
+			current = new OOModel::ReferenceExpression(basePart.left(basePart.length() - 1));
+			result = new OOModel::ReferenceTypeExpression(current);
+		}
+		else if (basePart.endsWith("*"))
+		{
+			current = new OOModel::ReferenceExpression(basePart.left(basePart.length() - 1));
+			result = new OOModel::PointerTypeExpression(current);
+		}
+		else
+		{
+			current = new OOModel::ReferenceExpression(basePart);
+			result = current;
+		}
+
+		for (auto i = parts.size() - 2; i >= 0; i--)
+		{
+			QString part = parts[i];
+
+			if (part.isEmpty())
+			{
+				Q_ASSERT(i == 0);
+				current->setPrefix(new OOModel::GlobalScopeExpression());
+			}
+			else
+			{
+				auto next = new OOModel::ReferenceExpression(part);
+				current->setPrefix(next);
+				current = next;
+			}
+		}
+
+		return result;
+	}
+	else if (stringMatches("^" + baseCase + "<" + baseCase + ">$", input))
+	{
+		QStringList split = input.split("<");
+		auto baseRef = DCast<OOModel::ReferenceExpression>(createNameExpressionFromString(split[0]));
+		Q_ASSERT(baseRef);
+		auto typeArg = createNameExpressionFromString(split[1].left(split[1].length() - 1));
+		baseRef->typeArguments()->append(typeArg);
+		return baseRef;
+	}
+	else
+	{
+		qDebug() << "createReferenceExpressionFromString failed on input:" << input;
+		return new OOModel::ReferenceExpression(input);
+	}
 }
 
 }
