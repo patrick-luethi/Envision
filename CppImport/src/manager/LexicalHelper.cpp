@@ -109,6 +109,10 @@ void LexicalHelper::correctNode(clang::Decl* clangAstNode, Model::Node* envision
 
 		spellingRange = clang::SourceRange(start, end);
 	}
+	else if (auto namedDecl = clang::dyn_cast<clang::NamedDecl>(clangAstNode))
+	{
+		spellingRange = clang::SourceRange(namedDecl->getLocation(), namedDecl->getSourceRange().getEnd());
+	}
 
 	correctNode(spellingRange, envisionAstNode);
 }
