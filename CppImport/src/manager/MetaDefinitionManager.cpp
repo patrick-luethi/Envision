@@ -31,13 +31,15 @@
 
 namespace CppImport {
 
-MetaDefinitionManager::MetaDefinitionManager(OOModel::Project* root, ClangHelper* c, DefinitionManager* d,
-															ExpansionManager* e, LexicalHelper* lex)
-	: root_(root), c_(c), d_(d), e_(e), lex_(lex) {}
+MetaDefinitionManager::MetaDefinitionManager(OOModel::Project* root, ClangHelper* clang,
+															DefinitionManager* definitionManager,
+															ExpansionManager* expansionManager, LexicalHelper* lexicalHelper)
+	: root_(root), clang_(clang), definitionManager_(definitionManager),
+	  expansionManager_(expansionManager), lexicalHelper_(lexicalHelper) {}
 
 std::pair<QString, QString> MetaDefinitionManager::getMacroDirectionLocation(const clang::MacroDirective* md)
 {
-	auto presumedLoc = c_->sourceManager()->getPresumedLoc(md->getMacroInfo()->getDefinitionLoc());
+	auto presumedLoc = clang_->sourceManager()->getPresumedLoc(md->getMacroInfo()->getDefinitionLoc());
 	auto path = QDir(presumedLoc.getFilename()).absolutePath();
 
 	QRegularExpression regex ("/Envision/(\\w+)(/.*/|/)(\\w+\\.\\w+)$", QRegularExpression::DotMatchesEverythingOption);
@@ -94,23 +96,23 @@ OOModel::ReferenceExpression* MetaDefinitionManager::getExpansionQualifier(const
 void MetaDefinitionManager::createMetaDef(QVector<Model::Node*> nodes, MacroExpansion* expansion, NodeMapping* mapping,
 														QVector<MacroArgumentInfo>& arguments, QHash<MacroExpansion*, Model::Node*>* splices)
 {
-	auto metaDefName = myDefinitionManager()->hashDefinition(expansion->definition);
+	auto metaDefName = definitionManager_->hashDefinition(expansion->definition);
 	if (!metaDefinitions_.contains(metaDefName))
 	{
 		auto metaDef = new OOModel::MetaDefinition(metaDefName);
 		metaDefinitions_[metaDefName] = metaDef;
-		metaDefinitionHashes_[myDefinitionManager()->getDefinitionName(expansion->definition)].insert(metaDefName);
+		metaDefinitionHashes_[definitionManager_->getDefinitionName(expansion->definition)].insert(metaDefName);
 
 		auto metaDefParent = getMetaDefParent(expansion->definition);
 
-		for (auto argName : myClang()->getArgumentNames(expansion->definition))
+		for (auto argName : clang_->getArgumentNames(expansion->definition))
 			metaDef->arguments()->append(new OOModel::FormalMetaArgument(argName));
 
 		if (auto beginChild = partialBeginChild(expansion))
 		{
 			auto list = new Model::List();
 
-			QVector<Model::Node*> statements = myExpansionManager()->getNTLExpansionTLNodes(expansion);
+			QVector<Model::Node*> statements = expansionManager_->getNTLExpansionTLNodes(expansion);
 
 			for (auto stmt : statements)
 				list->append(stmt->clone());
@@ -123,7 +125,7 @@ void MetaDefinitionManager::createMetaDef(QVector<Model::Node*> nodes, MacroExpa
 			if (!statements.empty() || expansion->children.size() > 1)
 			{
 				auto childDef = metaDefinitions_.value(
-							myDefinitionManager()->hashDefinition(beginChild->definition));
+							definitionManager_->hashDefinition(beginChild->definition));
 
 				if (childDef->arguments()->size() == beginChild->metaCall->arguments()->size())
 				{
@@ -176,8 +178,8 @@ void MetaDefinitionManager::createMetaDef(QVector<Model::Node*> nodes, MacroExpa
 					NodeMapping childMapping;
 					auto cloned = StaticStuff::cloneWithMapping(mapping->original(n), &childMapping);
 
-					myLexicalHelper()->applyLexicalTransformations(cloned, &childMapping,
-																					 myClang()->getArgumentNames(expansion->definition));
+					lexicalHelper_->applyLexicalTransformations(cloned, &childMapping,
+																					 clang_->getArgumentNames(expansion->definition));
 
 					addChildMetaCalls(metaDef, expansion, &childMapping, splices);
 
@@ -213,7 +215,7 @@ OOModel::MetaDefinition*MetaDefinitionManager::createXMacroMetaDef(MacroExpansio
 		bool found = false;
 
 		for (auto child : xMacroExpansionH->children)
-			if (myDefinitionManager()->isPartialBegin(child->definition))
+			if (definitionManager_->isPartialBegin(child->definition))
 			{
 				xMacroExpansionH = child;
 				found = true;
@@ -227,7 +229,7 @@ OOModel::MetaDefinition*MetaDefinitionManager::createXMacroMetaDef(MacroExpansio
 		bool found = false;
 
 		for (auto child : xMacroExpansionCpp->children)
-			if (myDefinitionManager()->isPartialBegin(child->definition))
+			if (definitionManager_->isPartialBegin(child->definition))
 			{
 				xMacroExpansionCpp = child;
 				found = true;
@@ -236,13 +238,13 @@ OOModel::MetaDefinition*MetaDefinitionManager::createXMacroMetaDef(MacroExpansio
 		if (!found) break;
 	}
 
-	auto metaDefName = myDefinitionManager()->getDefinitionName(xMacroExpansionH->definition);
+	auto metaDefName = definitionManager_->getDefinitionName(xMacroExpansionH->definition);
 	if (metaDefinitions_.contains(metaDefName)) return metaDefinitions_[metaDefName];
 
 	auto xMacroDefH = metaDefinitions_.value(
-				myDefinitionManager()->hashDefinition(xMacroExpansionH->definition));
+				definitionManager_->hashDefinition(xMacroExpansionH->definition));
 	auto xMacroDefCpp = metaDefinitions_.value(
-				myDefinitionManager()->hashDefinition(xMacroExpansionCpp->definition));
+				definitionManager_->hashDefinition(xMacroExpansionCpp->definition));
 
 	auto metaDef = xMacroDefH->clone();
 	metaDefinitions_[metaDefName] = metaDef;
@@ -357,7 +359,7 @@ void MetaDefinitionManager::getChildrenNotBelongingToExpansion(Model::Node* node
 
 	if (DCast<OOModel::MetaCallExpression>(node)) return;
 
-	if (myExpansionManager()->getExpansion(mapping->original(node)).contains(expansion))
+	if (expansionManager_->getExpansion(mapping->original(node)).contains(expansion))
 	{
 		for (auto child : node->children())
 		{
@@ -393,7 +395,7 @@ void MetaDefinitionManager::insertArgumentSplices(NodeMapping* mapping, NodeMapp
 		{
 			auto spliceLoc = argument.history.first();
 
-			auto argName = myClang()->getArgumentNames(spliceLoc.expansion->definition)
+			auto argName = clang_->getArgumentNames(spliceLoc.expansion->definition)
 					.at(spliceLoc.argumentNumber);
 			auto newNode = new OOModel::ReferenceExpression(argName);
 
@@ -406,7 +408,7 @@ void MetaDefinitionManager::insertArgumentSplices(NodeMapping* mapping, NodeMapp
 MacroExpansion* MetaDefinitionManager::partialBeginChild(MacroExpansion* expansion)
 {
 	for (auto child : expansion->children)
-		if (myDefinitionManager()->isPartialBegin(child->definition))
+		if (definitionManager_->isPartialBegin(child->definition))
 			return child;
 
 	return nullptr;
