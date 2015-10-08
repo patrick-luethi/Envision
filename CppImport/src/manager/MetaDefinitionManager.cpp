@@ -228,53 +228,72 @@ MacroExpansion* MetaDefinitionManager::getBasePartialBegin(MacroExpansion* parti
 	return partialBeginExpansion;
 }
 
+OOModel::MetaDefinition* MetaDefinitionManager::getXMacroMetaDefinition(const clang::MacroDirective* md)
+{
+	QString h = definitionManager_->getDefinitionName(md);
+
+	if (!xMacroMetaDefinitions_.contains(h))
+		return nullptr;
+
+	return xMacroMetaDefinitions_.value(h);
+}
+
+void MetaDefinitionManager::addXMacroMetaDefinition(const clang::MacroDirective* md, OOModel::MetaDefinition* metaDef)
+{
+	xMacroMetaDefinitions_.insert(definitionManager_->getDefinitionName(md), metaDef);
+}
+
+void MetaDefinitionManager::mergeClasses(OOModel::Class* merged, OOModel::Class* mergee)
+{
+	for (auto i = 0; i < mergee->metaCalls()->size(); i++)
+		merged->metaCalls()->append(mergee->metaCalls()->at(i)->clone());
+
+	for (auto i = 0; i < merged->methods()->size(); i++)
+		for (auto j = 0; j < mergee->methods()->size(); j++)
+		{
+			auto mergedMethod = merged->methods()->at(i);
+			auto mergeeMethod = mergee->methods()->at(j);
+
+			if (mergedMethod->name() == mergeeMethod->name())
+			{
+				for (auto k = 0; k < mergeeMethod->items()->size(); k++)
+					mergedMethod->items()->append(mergeeMethod->items()->at(k)->clone());
+
+				mergedMethod->memberInitializers()->clear();
+				for (auto k = 0; k < mergeeMethod->memberInitializers()->size(); k++)
+					mergedMethod->memberInitializers()->append(mergeeMethod->memberInitializers()->at(k)->clone());
+			}
+		}
+
+}
+
 OOModel::MetaDefinition* MetaDefinitionManager::createXMacroMetaDef(MacroExpansion* xMacroExpansionH_input,
 																						 MacroExpansion* xMacroExpansionCpp_input)
 {
 	auto xMacroExpansionH = getBasePartialBegin(xMacroExpansionH_input);
 	auto xMacroExpansionCpp = getBasePartialBegin(xMacroExpansionCpp_input);
 
-	auto metaDefName = definitionManager_->getDefinitionName(xMacroExpansionH->definition);
-	if (xMacroMetaDefinitions_.contains(metaDefName))
-		return xMacroMetaDefinitions_[metaDefName];
+	if (auto existing = getXMacroMetaDefinition(xMacroExpansionH->definition))
+		return existing;
 
 	auto xMacroDefH = getMetaDefinition(xMacroExpansionH->definition);
 	Q_ASSERT(xMacroDefH);
-
 	auto xMacroDefCpp = getMetaDefinition(xMacroExpansionCpp->definition);
 	Q_ASSERT(xMacroDefCpp);
 
 	auto metaDef = xMacroDefH->clone();
-	xMacroMetaDefinitions_[metaDefName] = metaDef;
-	metaDef->setName(metaDefName);
+	metaDef->setName(definitionManager_->getDefinitionName(xMacroExpansionH->definition));
+	addXMacroMetaDefinition(xMacroExpansionH->definition, metaDef);
 
 	if (auto moduleContextH = DCast<OOModel::Module>(metaDef->context()))
 		if (auto classH = DCast<OOModel::Class>(moduleContextH->classes()->first()))
 			if (auto classCpp = DCast<OOModel::Class>(xMacroDefCpp->context()))
 			{
-				for (auto k = 0; k < classCpp->metaCalls()->size(); k++)
-					classH->metaCalls()->append(classCpp->metaCalls()->at(k)->clone());
-
-				for (auto i = 0; i < classH->methods()->size(); i++)
-					for (auto j = 0; j < classCpp->methods()->size(); j++)
-					{
-						auto methodH = classH->methods()->at(i);
-						auto methodCpp = classCpp->methods()->at(j);
-
-						if (methodH->name() == methodCpp->name())
-						{
-							for (auto k = 0; k < methodCpp->items()->size(); k++)
-								methodH->items()->append(methodCpp->items()->at(k)->clone());
-
-							methodH->memberInitializers()->clear();
-							for (auto k = 0; k < methodCpp->memberInitializers()->size(); k++)
-								methodH->memberInitializers()->append(methodCpp->memberInitializers()->at(k)->clone());
-						}
-					}
+				mergeClasses(classH, classCpp);
 
 				classH->metaCalls()->append(new OOModel::ReferenceExpression("list1"));
 				classH->methods()->last()->items()->append(new OOModel::ExpressionStatement(
-																			 new OOModel::ReferenceExpression("list2")));
+																			new OOModel::ReferenceExpression("list2")));
 			}
 
 	auto binding1 = new OOModel::MetaBinding("list1");
