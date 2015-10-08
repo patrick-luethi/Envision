@@ -40,7 +40,6 @@ class CPPIMPORT_API DefinitionManager
 		void addMacroDefinition(QString name, const clang::MacroDirective* md);
 
 		QString getDefinitionName(const clang::MacroDirective* md);
-		QString hashDefinition(const clang::MacroDirective* md);
 
 		bool isPartialBegin(const clang::MacroDirective* md);
 		bool isPartialEnd(const clang::MacroDirective* md);
