@@ -54,8 +54,6 @@ class CPPIMPORT_API MetaDefinitionManager
 		OOModel::MetaDefinition* createXMacroMetaDef(MacroExpansion* xMacroExpansionH_input,
 																	 MacroExpansion* xMacroExpansionCpp_input);
 
-		void finalize();
-
 	private:
 		OOModel::Project* root_;
 		ClangHelper* clang_;
@@ -64,7 +62,7 @@ class CPPIMPORT_API MetaDefinitionManager
 		LexicalHelper* lexicalHelper_;
 
 		QHash<QString, OOModel::MetaDefinition*> metaDefinitions_;
-		QHash<QString, QSet<QString>> metaDefinitionHashes_;
+		QHash<QString, OOModel::MetaDefinition*> xMacroMetaDefinitions_;
 
 		void addChildMetaCalls(OOModel::MetaDefinition* metaDef, MacroExpansion* expansion,	NodeMapping* childMapping,
 										QHash<MacroExpansion*, Model::Node*>* splices);
@@ -79,6 +77,9 @@ class CPPIMPORT_API MetaDefinitionManager
 		OOModel::Declaration* getMetaDefParent(const clang::MacroDirective* md);
 		std::pair<QString, QString> getMacroDirectionLocation(const clang::MacroDirective* md);
 		OOModel::ReferenceExpression* getExpansionQualifier(const clang::MacroDirective* md);
+		QString hash(const clang::MacroDirective* md);
+		OOModel::MetaDefinition*getMetaDefinition(const clang::MacroDirective* md);
+		void addMetaDefinition(const clang::MacroDirective* md, OOModel::MetaDefinition* metaDef);
 };
 
 }

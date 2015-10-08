@@ -191,12 +191,12 @@ void MacroImportHelper::macroGeneration()
 
 						auto mapping1 = new OOModel::MetaCallMapping(unbound);
 						mapping1->setValue(new OOModel::ReferenceExpression(
-													 definitionManager_.hashDefinition(xMacroChildH->definition)));
+													 definitionManager_.getDefinitionName(xMacroChildH->definition)));
 						binding1->mappings()->append(mapping1);
 
 						auto mapping2 = new OOModel::MetaCallMapping(unbound);
 						mapping2->setValue(new OOModel::ReferenceExpression(
-													 definitionManager_.hashDefinition(xMacroChildCpp->definition)));
+													 definitionManager_.getDefinitionName(xMacroChildCpp->definition)));
 						binding2->mappings()->append(mapping2);
 					}
 
@@ -227,8 +227,6 @@ MacroExpansion* MacroImportHelper::getMatchingXMacroExpansion(Model::Node* node)
 
 void MacroImportHelper::finalize()
 {
-	metaDefManager_.finalize();
-
 	for (auto i = finalizationMetaCalls.begin(); i != finalizationMetaCalls.end(); i++)
 		if (DCast<OOModel::Statement>(i.key()))
 			i.key()->parent()->replaceChild(i.key(), new OOModel::ExpressionStatement(i.value()->metaCall));

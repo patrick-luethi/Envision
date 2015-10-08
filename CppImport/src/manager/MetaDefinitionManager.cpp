@@ -51,7 +51,7 @@ std::pair<QString, QString> MetaDefinitionManager::getMacroDirectionLocation(con
 	if (namespaceName == "ModelBase")
 		namespaceName = "Model";
 
-	auto fileName = match.captured(3);
+	auto fileName = match.captured(3).replace(".h", "").replace(".cpp", "_CPP");
 
 	return std::make_pair(namespaceName, fileName);
 }
@@ -86,6 +86,28 @@ OOModel::Declaration* MetaDefinitionManager::getMetaDefParent(const clang::Macro
 	return result;
 }
 
+OOModel::MetaDefinition* MetaDefinitionManager::getMetaDefinition(const clang::MacroDirective* md)
+{
+	QString h = hash(md);
+
+	if (!metaDefinitions_.contains(h))
+		return nullptr;
+
+	return metaDefinitions_.value(h);
+}
+
+void MetaDefinitionManager::addMetaDefinition(const clang::MacroDirective* md, OOModel::MetaDefinition* metaDef)
+{
+	metaDefinitions_.insert(hash(md), metaDef);
+}
+
+QString MetaDefinitionManager::hash(const clang::MacroDirective* md)
+{
+	auto mdLoc = getMacroDirectionLocation(md);
+	return mdLoc.first + "/" + mdLoc.second + "/" + definitionManager_->getDefinitionName(md);
+}
+
+
 OOModel::ReferenceExpression* MetaDefinitionManager::getExpansionQualifier(const clang::MacroDirective* md)
 {
 	auto mdLoc = getMacroDirectionLocation(md);
@@ -96,12 +118,13 @@ OOModel::ReferenceExpression* MetaDefinitionManager::getExpansionQualifier(const
 void MetaDefinitionManager::createMetaDef(QVector<Model::Node*> nodes, MacroExpansion* expansion, NodeMapping* mapping,
 														QVector<MacroArgumentInfo>& arguments, QHash<MacroExpansion*, Model::Node*>* splices)
 {
-	auto metaDefName = definitionManager_->hashDefinition(expansion->definition);
-	if (!metaDefinitions_.contains(metaDefName))
+	auto metaDefName = definitionManager_->getDefinitionName(expansion->definition);
+
+
+	if (!getMetaDefinition(expansion->definition))
 	{
 		auto metaDef = new OOModel::MetaDefinition(metaDefName);
-		metaDefinitions_[metaDefName] = metaDef;
-		metaDefinitionHashes_[definitionManager_->getDefinitionName(expansion->definition)].insert(metaDefName);
+		addMetaDefinition(expansion->definition, metaDef);
 
 		auto metaDefParent = getMetaDefParent(expansion->definition);
 
@@ -124,8 +147,8 @@ void MetaDefinitionManager::createMetaDef(QVector<Model::Node*> nodes, MacroExpa
 
 			if (!statements.empty() || expansion->children.size() > 1)
 			{
-				auto childDef = metaDefinitions_.value(
-							definitionManager_->hashDefinition(beginChild->definition));
+				auto childDef = getMetaDefinition(beginChild->definition);
+				Q_ASSERT(childDef);
 
 				if (childDef->arguments()->size() == beginChild->metaCall->arguments()->size())
 				{
@@ -205,7 +228,7 @@ void MetaDefinitionManager::createMetaDef(QVector<Model::Node*> nodes, MacroExpa
 	callee->setPrefix(getExpansionQualifier(expansion->definition));
 }
 
-OOModel::MetaDefinition*MetaDefinitionManager::createXMacroMetaDef(MacroExpansion* xMacroExpansionH_input,
+OOModel::MetaDefinition* MetaDefinitionManager::createXMacroMetaDef(MacroExpansion* xMacroExpansionH_input,
 																						 MacroExpansion* xMacroExpansionCpp_input)
 {
 	auto xMacroExpansionH = xMacroExpansionH_input;
@@ -239,16 +262,17 @@ OOModel::MetaDefinition*MetaDefinitionManager::createXMacroMetaDef(MacroExpansio
 	}
 
 	auto metaDefName = definitionManager_->getDefinitionName(xMacroExpansionH->definition);
-	if (metaDefinitions_.contains(metaDefName)) return metaDefinitions_[metaDefName];
+	if (xMacroMetaDefinitions_.contains(metaDefName))
+		return xMacroMetaDefinitions_[metaDefName];
 
-	auto xMacroDefH = metaDefinitions_.value(
-				definitionManager_->hashDefinition(xMacroExpansionH->definition));
-	auto xMacroDefCpp = metaDefinitions_.value(
-				definitionManager_->hashDefinition(xMacroExpansionCpp->definition));
+	auto xMacroDefH = getMetaDefinition(xMacroExpansionH->definition);
+	Q_ASSERT(xMacroDefH);
+
+	auto xMacroDefCpp = getMetaDefinition(xMacroExpansionCpp->definition);
+	Q_ASSERT(xMacroDefCpp);
 
 	auto metaDef = xMacroDefH->clone();
-	metaDefinitions_[metaDefName] = metaDef;
-
+	xMacroMetaDefinitions_[metaDefName] = metaDef;
 	metaDef->setName(metaDefName);
 
 	if (auto moduleContextH = DCast<OOModel::Module>(metaDef->context()))
@@ -292,22 +316,6 @@ OOModel::MetaDefinition*MetaDefinitionManager::createXMacroMetaDef(MacroExpansio
 	root_->subDeclarations()->append(metaDef);
 
 	return metaDef;
-}
-
-void MetaDefinitionManager::finalize()
-{
-	for (auto it = metaDefinitions_.begin(); it != metaDefinitions_.end(); it++)
-	{
-		auto hashedName = it.key();
-		auto name = hashedName.endsWith("_H") ? hashedName.left(hashedName.length() - 2) :
-															 hashedName.left(hashedName.length() - 4);
-
-		if (metaDefinitionHashes_[name].size() == 1)
-		{
-			it.value()->setName(name);
-			renameMetaCalls(root_, hashedName, name);
-		}
-	}
 }
 
 void MetaDefinitionManager::renameMetaCalls(Model::Node* node, QString current, QString replace)

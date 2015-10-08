@@ -59,7 +59,7 @@ void ExpansionManager::addMacroExpansion(clang::SourceRange sr,
 	}
 
 	entry->metaCall =
-			new OOModel::MetaCallExpression(definitionManager_->hashDefinition(entry->definition));
+			new OOModel::MetaCallExpression(definitionManager_->getDefinitionName(entry->definition));
 
 	if (!md->getMacroInfo()->isObjectLike())
 	{
@@ -95,7 +95,7 @@ QString ExpansionManager::hashExpansion(MacroExpansion* expansion)
 
 	QString hash = QDir(presumedLoc.getFilename()).absolutePath()
 			+ QString("|")
-			+ definitionManager_->hashDefinition(expansion->definition)
+			+ definitionManager_->getDefinitionName(expansion->definition)
 			+ QString("|")
 			+ QString::number(presumedLoc.getLine())
 			+ QString("|")

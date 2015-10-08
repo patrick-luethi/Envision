@@ -47,14 +47,6 @@ QString DefinitionManager::getDefinitionName(const clang::MacroDirective* md)
 	return definitions_[md];
 }
 
-QString DefinitionManager::hashDefinition(const clang::MacroDirective* md)
-{
-	auto presumedLoc = clang_->sourceManager()->getPresumedLoc(md->getMacroInfo()->getDefinitionLoc());
-	auto suffix = QDir(presumedLoc.getFilename()).absolutePath().right(1) == "h" ? "_H" : "_CPP";
-
-	return getDefinitionName(md) + suffix;
-}
-
 bool DefinitionManager::isPartialBegin(const clang::MacroDirective* md)
 {
 	return getDefinitionName(md).startsWith("BEGIN_");
