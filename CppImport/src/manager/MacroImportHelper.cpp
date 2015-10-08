@@ -212,17 +212,10 @@ void MacroImportHelper::macroGeneration()
 MacroExpansion* MacroImportHelper::getMatchingXMacroExpansion(Model::Node* node)
 {
 	if (auto metaCall = DCast<OOModel::MetaCallExpression>(node))
-	{
-		qDebug() << "metacall found";
-
 		for (auto expansion : expansionManager_.expansions())
 			if (!expansion->xMacroChildren.empty())
 				if (expansion->metaCall == metaCall)
 					return expansion;
-
-		auto rr = DCast<OOModel::ReferenceExpression>(metaCall->callee());
-		qDebug() << "not good enough" << rr->name();
-	}
 
 	for (auto child : node->children())
 		if (auto expansion = getMatchingXMacroExpansion(child))
@@ -243,8 +236,6 @@ void MacroImportHelper::finalize()
 			i.key()->parent()->parent()->replaceChild(i.key()->parent(), i.value()->metaCall);
 		else
 			qDebug() << "not inserted top level metacall" << i.key()->typeName();
-
-	return;
 
 	StaticStuff::removeNodes(finalizationNodes);
 }
