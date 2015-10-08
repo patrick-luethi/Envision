@@ -68,7 +68,7 @@ class CPPIMPORT_API MacroImportHelper
 		DefinitionManager definitionManager_;
 		ExpansionManager expansionManager_;
 		LexicalHelper lexicalHelper_;
-		MetaDefinitionManager metaDefManager_;
+		MetaDefinitionManager metaDefinitionManager_;
 		QHash<QString, OOModel::MetaCallExpression*> metaCalls_;
 		QVector<Model::Node*> finalizationNodes;
 		QHash<Model::Node*, MacroExpansion*> finalizationMetaCalls;

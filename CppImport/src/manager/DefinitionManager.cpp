@@ -62,4 +62,31 @@ void DefinitionManager::clear()
 	definitions_.clear();
 }
 
+std::pair<QString, QString> DefinitionManager::getMacroDirectionLocation(const clang::MacroDirective* md)
+{
+	auto presumedLoc = clang_->sourceManager()->getPresumedLoc(md->getMacroInfo()->getDefinitionLoc());
+	auto path = QDir(presumedLoc.getFilename()).absolutePath();
+
+	QRegularExpression regex ("/Envision/(\\w+)(/.*/|/)(\\w+\\.\\w+)$", QRegularExpression::DotMatchesEverythingOption);
+	auto match = regex.match(path);
+	Q_ASSERT(match.hasMatch());
+
+	auto namespaceName = match.captured(1);
+
+	if (namespaceName == "ModelBase")
+		namespaceName = "Model";
+	else if (namespaceName == "VisualizationBase")
+		namespaceName = "Visualization";
+
+	auto fileName = match.captured(3).replace(".h", "").replace(".cpp", "_CPP");
+
+	return std::make_pair(namespaceName, fileName);
+}
+
+QString DefinitionManager::hash(const clang::MacroDirective* md)
+{
+	auto mdLoc = getMacroDirectionLocation(md);
+	return mdLoc.first + "/" + mdLoc.second + "/" + getDefinitionName(md);
+}
+
 }

@@ -37,28 +37,9 @@ MetaDefinitionManager::MetaDefinitionManager(OOModel::Project* root, ClangHelper
 	: root_(root), clang_(clang), definitionManager_(definitionManager),
 	  expansionManager_(expansionManager), lexicalHelper_(lexicalHelper) {}
 
-std::pair<QString, QString> MetaDefinitionManager::getMacroDirectionLocation(const clang::MacroDirective* md)
-{
-	auto presumedLoc = clang_->sourceManager()->getPresumedLoc(md->getMacroInfo()->getDefinitionLoc());
-	auto path = QDir(presumedLoc.getFilename()).absolutePath();
-
-	QRegularExpression regex ("/Envision/(\\w+)(/.*/|/)(\\w+\\.\\w+)$", QRegularExpression::DotMatchesEverythingOption);
-	auto match = regex.match(path);
-	Q_ASSERT(match.hasMatch());
-
-	auto namespaceName = match.captured(1);
-
-	if (namespaceName == "ModelBase")
-		namespaceName = "Model";
-
-	auto fileName = match.captured(3).replace(".h", "").replace(".cpp", "_CPP");
-
-	return std::make_pair(namespaceName, fileName);
-}
-
 OOModel::Declaration* MetaDefinitionManager::getMetaDefParent(const clang::MacroDirective* md)
 {
-	auto mdLoc = getMacroDirectionLocation(md);
+	auto mdLoc = definitionManager_->getMacroDirectionLocation(md);
 
 	OOModel::Module* nameSpace = nullptr;
 	for (auto i = 0; i < root_->modules()->size(); i++)
@@ -69,13 +50,23 @@ OOModel::Declaration* MetaDefinitionManager::getMetaDefParent(const clang::Macro
 		}
 	Q_ASSERT(nameSpace);
 
-	OOModel::Module* result = nullptr;
+	OOModel::Declaration* result = nullptr;
 	for (auto i = 0; i < nameSpace->modules()->size(); i++)
 		if (nameSpace->modules()->at(i)->name() == mdLoc.second)
 		{
 			result = nameSpace->modules()->at(i);
 			break;
 		}
+
+	if (!result)
+	{
+		for (auto i = 0; i < nameSpace->classes()->size(); i++)
+			if (nameSpace->classes()->at(i)->name() == mdLoc.second)
+			{
+				result = nameSpace->classes()->at(i);
+				break;
+			}
+	}
 
 	if (!result)
 	{
@@ -88,7 +79,7 @@ OOModel::Declaration* MetaDefinitionManager::getMetaDefParent(const clang::Macro
 
 OOModel::MetaDefinition* MetaDefinitionManager::getMetaDefinition(const clang::MacroDirective* md)
 {
-	QString h = hash(md);
+	QString h = definitionManager_->hash(md);
 
 	if (!metaDefinitions_.contains(h))
 		return nullptr;
@@ -98,96 +89,87 @@ OOModel::MetaDefinition* MetaDefinitionManager::getMetaDefinition(const clang::M
 
 void MetaDefinitionManager::addMetaDefinition(const clang::MacroDirective* md, OOModel::MetaDefinition* metaDef)
 {
-	metaDefinitions_.insert(hash(md), metaDef);
+	metaDefinitions_.insert(definitionManager_->hash(md), metaDef);
 }
 
-QString MetaDefinitionManager::hash(const clang::MacroDirective* md)
+void MetaDefinitionManager::handlePartialBeginSpecialization(OOModel::Declaration* metaDefParent,
+																				 OOModel::MetaDefinition* metaDef,
+																				 MacroExpansion* expansion,
+																				 MacroExpansion* beginChild)
 {
-	auto mdLoc = getMacroDirectionLocation(md);
-	return mdLoc.first + "/" + mdLoc.second + "/" + definitionManager_->getDefinitionName(md);
-}
+	auto list = new Model::List();
 
+	QVector<Model::Node*> statements = expansionManager_->getNTLExpansionTLNodes(expansion);
 
-OOModel::ReferenceExpression* MetaDefinitionManager::getExpansionQualifier(const clang::MacroDirective* md)
-{
-	auto mdLoc = getMacroDirectionLocation(md);
+	for (auto stmt : statements)
+		list->append(stmt->clone());
 
-	return new OOModel::ReferenceExpression(mdLoc.second, new OOModel::ReferenceExpression(mdLoc.first));
+	Q_ASSERT(statements.empty() || expansion->children.size() == 1);
+	for (auto child : expansion->children)
+		if (child != beginChild)
+			list->append(child->metaCall);
+
+	if (!statements.empty() || expansion->children.size() > 1)
+	{
+		auto childDef = getMetaDefinition(beginChild->definition);
+		Q_ASSERT(childDef);
+
+		if (childDef->arguments()->size() == beginChild->metaCall->arguments()->size())
+		{
+			childDef->arguments()->append(new OOModel::FormalMetaArgument("specSplice"));
+
+			if (!metaDefParent->name().endsWith("_CPP"))
+			{
+				childDef->context()->metaCalls()->append(new OOModel::ReferenceExpression("specSplice"));
+			}
+			else
+			{
+				auto classContext = DCast<OOModel::Class>(childDef->context());
+				Q_ASSERT(classContext);
+
+				if (classContext->methods()->size() > 0)
+				{
+					classContext->methods()->last()->items()->append(new OOModel::ExpressionStatement(
+																						 new OOModel::ReferenceExpression("specSplice")));
+				}
+				else
+				{
+					Q_ASSERT(childDef->context()->metaCalls()->size() == 1);
+
+					auto childDefInnerMetaCall =
+							DCast<OOModel::MetaCallExpression>(childDef->context()->metaCalls()->first());
+					Q_ASSERT(childDefInnerMetaCall);
+
+					auto innerList = DCast<Model::List>(childDefInnerMetaCall->arguments()->last());
+					Q_ASSERT(innerList);
+
+					innerList->append(new OOModel::ReferenceExpression("specSplice"));
+				}
+			}
+		}
+	}
+
+	beginChild->metaCall->arguments()->append(list);
+
+	metaDef->context()->metaCalls()->append(beginChild->metaCall);
 }
 
 void MetaDefinitionManager::createMetaDef(QVector<Model::Node*> nodes, MacroExpansion* expansion, NodeMapping* mapping,
 														QVector<MacroArgumentInfo>& arguments, QHash<MacroExpansion*, Model::Node*>* splices)
 {
-	auto metaDefName = definitionManager_->getDefinitionName(expansion->definition);
-
-
 	if (!getMetaDefinition(expansion->definition))
 	{
-		auto metaDef = new OOModel::MetaDefinition(metaDefName);
+		auto metaDef = new OOModel::MetaDefinition(definitionManager_->getDefinitionName(expansion->definition));
 		addMetaDefinition(expansion->definition, metaDef);
-
-		auto metaDefParent = getMetaDefParent(expansion->definition);
 
 		for (auto argName : clang_->getArgumentNames(expansion->definition))
 			metaDef->arguments()->append(new OOModel::FormalMetaArgument(argName));
 
+		auto metaDefParent = getMetaDefParent(expansion->definition);
+
 		if (auto beginChild = partialBeginChild(expansion))
 		{
-			auto list = new Model::List();
-
-			QVector<Model::Node*> statements = expansionManager_->getNTLExpansionTLNodes(expansion);
-
-			for (auto stmt : statements)
-				list->append(stmt->clone());
-
-			Q_ASSERT(statements.empty() || expansion->children.size() == 1);
-			for (auto child : expansion->children)
-				if (child != beginChild)
-					list->append(child->metaCall);
-
-			if (!statements.empty() || expansion->children.size() > 1)
-			{
-				auto childDef = getMetaDefinition(beginChild->definition);
-				Q_ASSERT(childDef);
-
-				if (childDef->arguments()->size() == beginChild->metaCall->arguments()->size())
-				{
-					if (childDef->name().endsWith("_H"))
-					{
-						childDef->context()->metaCalls()->append(new OOModel::ReferenceExpression("specSplfice"));
-					}
-					else
-					{
-						auto classContext = DCast<OOModel::Class>(childDef->context());
-						Q_ASSERT(classContext);
-
-						if (classContext->methods()->size() > 0)
-						{
-							classContext->methods()->last()->items()->append(new OOModel::ExpressionStatement(
-																								 new OOModel::ReferenceExpression("specSplice")));
-						}
-						else
-						{
-							Q_ASSERT(childDef->context()->metaCalls()->size() == 1);
-
-							auto childDefInnerMetaCall =
-									DCast<OOModel::MetaCallExpression>(childDef->context()->metaCalls()->first());
-							Q_ASSERT(childDefInnerMetaCall);
-
-							auto innerList = DCast<Model::List>(childDefInnerMetaCall->arguments()->last());
-							Q_ASSERT(innerList);
-
-							innerList->append(new OOModel::ReferenceExpression("specSplice"));
-						}
-					}
-
-					childDef->arguments()->append(new OOModel::FormalMetaArgument("specSplice"));
-				}
-			}
-
-			beginChild->metaCall->arguments()->append(list);
-
-			metaDef->context()->metaCalls()->append(beginChild->metaCall);
+			handlePartialBeginSpecialization(metaDefParent, metaDef, expansion, beginChild);
 		}
 		else
 		{
@@ -228,38 +210,29 @@ void MetaDefinitionManager::createMetaDef(QVector<Model::Node*> nodes, MacroExpa
 	callee->setPrefix(getExpansionQualifier(expansion->definition));
 }
 
+OOModel::ReferenceExpression* MetaDefinitionManager::getExpansionQualifier(const clang::MacroDirective* md)
+{
+	auto mdLoc = definitionManager_->getMacroDirectionLocation(md);
+
+	return new OOModel::ReferenceExpression(mdLoc.second, new OOModel::ReferenceExpression(mdLoc.first));
+}
+
+MacroExpansion* MetaDefinitionManager::getBasePartialBegin(MacroExpansion* partialBeginExpansion)
+{
+	Q_ASSERT(definitionManager_->isPartialBegin(partialBeginExpansion->definition));
+
+	for (auto child : partialBeginExpansion->children)
+		if (definitionManager_->isPartialBegin(child->definition))
+		 return getBasePartialBegin(child);
+
+	return partialBeginExpansion;
+}
+
 OOModel::MetaDefinition* MetaDefinitionManager::createXMacroMetaDef(MacroExpansion* xMacroExpansionH_input,
 																						 MacroExpansion* xMacroExpansionCpp_input)
 {
-	auto xMacroExpansionH = xMacroExpansionH_input;
-	auto xMacroExpansionCpp = xMacroExpansionCpp_input;
-	while (!xMacroExpansionH->children.empty())
-	{
-		bool found = false;
-
-		for (auto child : xMacroExpansionH->children)
-			if (definitionManager_->isPartialBegin(child->definition))
-			{
-				xMacroExpansionH = child;
-				found = true;
-			}
-
-		if (!found) break;
-	}
-
-	while (!xMacroExpansionCpp->children.empty())
-	{
-		bool found = false;
-
-		for (auto child : xMacroExpansionCpp->children)
-			if (definitionManager_->isPartialBegin(child->definition))
-			{
-				xMacroExpansionCpp = child;
-				found = true;
-			}
-
-		if (!found) break;
-	}
+	auto xMacroExpansionH = getBasePartialBegin(xMacroExpansionH_input);
+	auto xMacroExpansionCpp = getBasePartialBegin(xMacroExpansionCpp_input);
 
 	auto metaDefName = definitionManager_->getDefinitionName(xMacroExpansionH->definition);
 	if (xMacroMetaDefinitions_.contains(metaDefName))

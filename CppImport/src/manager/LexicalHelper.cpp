@@ -134,6 +134,7 @@ void LexicalHelper::correctNode(clang::SourceRange range, Model::Node* original)
 	if (DCast<OOModel::ReturnStatement>(original)) return;
 	if (DCast<OOModel::NewExpression>(original)) return;
 	if (DCast<OOModel::BinaryOperation>(original)) return;
+	if (DCast<OOModel::IfStatement>(original)) return;
 
 	if (!clang_->isMacroRange(range)) return;
 

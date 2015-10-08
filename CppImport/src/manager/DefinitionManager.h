@@ -29,6 +29,7 @@
 #include "cppimport_api.h"
 
 #include "ClangHelper.h"
+#include "OOModel/src/expressions/ReferenceExpression.h"
 
 namespace CppImport {
 
@@ -45,6 +46,9 @@ class CPPIMPORT_API DefinitionManager
 		bool isPartialEnd(const clang::MacroDirective* md);
 
 		void clear();
+
+		std::pair<QString, QString> getMacroDirectionLocation(const clang::MacroDirective* md);
+		QString hash(const clang::MacroDirective* md);
 
 	private:
 		ClangHelper* clang_;

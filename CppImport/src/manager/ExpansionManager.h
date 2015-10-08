@@ -50,8 +50,6 @@ class CPPIMPORT_API ExpansionManager
 		QVector<MacroExpansion*> expansions();
 		void clear();
 
-		QString hashExpansion(MacroExpansion* expansion);
-
 		QVector<MacroExpansion*> getTopLevelExpansions();
 
 		MacroExpansion* getImmediateExpansion(clang::SourceLocation loc);

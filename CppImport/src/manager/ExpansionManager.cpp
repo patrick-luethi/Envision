@@ -88,23 +88,6 @@ void ExpansionManager::clear()
 	expansions_.clear();
 }
 
-
-QString ExpansionManager::hashExpansion(MacroExpansion* expansion)
-{
-	auto presumedLoc = clang_->sourceManager()->getPresumedLoc(expansion->range.getBegin());
-
-	QString hash = QDir(presumedLoc.getFilename()).absolutePath()
-			+ QString("|")
-			+ definitionManager_->getDefinitionName(expansion->definition)
-			+ QString("|")
-			+ QString::number(presumedLoc.getLine())
-			+ QString("|")
-			+ QString::number(presumedLoc.getColumn());
-
-	return hash;
-}
-
-
 QVector<MacroExpansion*> ExpansionManager::getTopLevelExpansions()
 {
 	QVector<MacroExpansion*> result;
