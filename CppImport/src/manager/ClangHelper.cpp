@@ -38,11 +38,6 @@ void ClangHelper::setPreprocessor(const clang::Preprocessor* preprocessor)
 	preprocessor_ = preprocessor;
 }
 
-clang::SourceLocation ClangHelper::getLocForEndOfToken(clang::SourceLocation loc)
-{
-	return clang::Lexer::getLocForEndOfToken(loc, 0, *sm_, preprocessor_->getLangOpts());
-}
-
 QString ClangHelper::getSpelling(clang::SourceLocation loc)
 {
 	return getSpelling(loc, loc);
@@ -56,14 +51,14 @@ QString ClangHelper::getSpelling(clang::SourceRange range)
 QString ClangHelper::getSpelling(clang::SourceLocation start, clang::SourceLocation end)
 {
 	clang::SourceLocation b = sm_->getSpellingLoc(start);
-	clang::SourceLocation e = getLocForEndOfToken(sm_->getSpellingLoc(end));
+	clang::SourceLocation e = clang::Lexer::getLocForEndOfToken(sm_->getSpellingLoc(end), 0, *sm_,
+																					preprocessor_->getLangOpts());
 
 	auto length = sm_->getCharacterData(e) - sm_->getCharacterData(b);
+	if (length > 1000) return "ERROR_IN_GET_SPELLING";
 
 	try
 	{
-		if (length > 1000) return "TOO_LONG";
-
 		return 0 < length ? QString::fromStdString(std::string(sm_->getCharacterData(b), length)) : "";
 	}
 	catch (...)

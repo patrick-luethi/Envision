@@ -137,7 +137,7 @@ void MacroImportHelper::macroGeneration()
 		}
 	}
 
-	for (auto expansion : expansionManager_.expansions_)
+	for (auto expansion : expansionManager_.expansions())
 		if (!expansion->xMacroChildren.empty())
 		{
 			for (auto node : expansionManager_.getTLExpansionTLNodes(expansion))
@@ -212,7 +212,7 @@ MacroExpansion* MacroImportHelper::getMatchingXMacroExpansion(Model::Node* node)
 {
 	if (auto metaCall = DCast<OOModel::MetaCallExpression>(node))
 	{
-		for (auto expansion : expansionManager_.expansions_)
+		for (auto expansion : expansionManager_.expansions())
 			if (!expansion->xMacroChildren.empty())
 				if (expansion->metaCall == metaCall)
 					return expansion;
@@ -347,7 +347,7 @@ QVector<MacroArgumentLocation> MacroImportHelper::getArgumentHistory(clang::Sour
 		clang_.getImmediateSpellingHistory(range.getBegin(), &spellingHistory);
 
 		for (auto argumentLoc : spellingHistory)
-			for (auto expansion : expansionManager_.expansions_)
+			for (auto expansion : expansionManager_.expansions())
 				for (auto i = 0; i < expansion->argumentLocs.size(); i++)
 					if (expansion->argumentLocs[i] == argumentLoc)
 						result.append(MacroArgumentLocation(expansion, i));

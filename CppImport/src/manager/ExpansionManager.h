@@ -41,22 +41,19 @@ class LexicalHelper;
 class CPPIMPORT_API ExpansionManager
 {
 	public:
-		ExpansionManager(ClangHelper* c, AstMapping* a,
-							  DefinitionManager* d, LexicalHelper* lex);
+		ExpansionManager(ClangHelper* clang, AstMapping* astMapping, DefinitionManager* definitionManager,
+							  LexicalHelper* lexicalHelper);
 
 		void addMacroExpansion(clang::SourceRange sr, const clang::MacroDirective* md,
 															const clang::MacroArgs* args);
 
-		QVector<MacroExpansion*> expansions_;
-
+		QVector<MacroExpansion*> expansions();
 		void clear();
 
 		QString hashExpansion(MacroExpansion* expansion);
 
 		QVector<MacroExpansion*> getTopLevelExpansions();
 
-		MacroExpansion* getExpansion(clang::SourceLocation loc);
-		MacroExpansion* getExpansion(OOModel::MetaCallExpression* metaCall);
 		MacroExpansion* getImmediateExpansion(clang::SourceLocation loc);
 		QSet<MacroExpansion*> getExpansion(Model::Node* node);
 
@@ -64,17 +61,15 @@ class CPPIMPORT_API ExpansionManager
 		QVector<Model::Node*> getNTLExpansionTLNodes(MacroExpansion* expansion);
 
 	private:
-		ClangHelper* c_;
-		AstMapping* a_;
-		DefinitionManager* d_;
-		LexicalHelper* lex_;
+		ClangHelper* clang_;
+		AstMapping* astMapping_;
+		DefinitionManager* definitionManager_;
+		LexicalHelper* lexicalHelper_;
 		MacroExpansion* currentXMacroParent {};
 		QHash<Model::Node*, QSet<MacroExpansion*>> expansionCache_;
+		QVector<MacroExpansion*> expansions_;
 
-		ClangHelper* myClang() { return c_; }
-		AstMapping* myAstMapping() { return a_; }
-		DefinitionManager* myDefinitionManager() { return d_; }
-		LexicalHelper* myLexicalHelper() { return lex_; }
+		MacroExpansion* getExpansion(clang::SourceLocation loc);
 
 };
 

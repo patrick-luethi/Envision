@@ -39,28 +39,24 @@ class ExpansionManager;
 class CPPIMPORT_API LexicalHelper
 {
 	public:
-		LexicalHelper(ClangHelper* c, ExpansionManager* em);
+		LexicalHelper(ClangHelper* clang, ExpansionManager* expansionManager);
 
 		void applyLexicalTransformations(Model::Node* node, NodeMapping* mapping, QVector<QString> formalArgs);
 
 		QString getUnexpandedSpelling(clang::SourceRange range);
 
-		void correctNode(clang::SourceRange range, Model::Node* original);
 		void correctNode(clang::Decl* clangAstNode, Model::Node* envisionAstNode);
 		void correctNode(clang::Stmt* clangAstNode, Model::Node* envisionAstNode);
 
 	private:
-		ClangHelper* c_;
-		ExpansionManager* em_;
-		QHash<Model::Node*, QString> lexicalTransform_;
+		ClangHelper* clang_;
+		ExpansionManager* expansionManager_;
+		QHash<Model::Node*, QString> transformations_;
 
 		bool isExpansionception(clang::SourceLocation loc);
-		bool nameSeparator(QString candidate);
-
+		void correctNode(clang::SourceRange range, Model::Node* original);
 		void replaceWithReference(Model::Node* current, QString replacement, NodeMapping* mapping);
 
-		ClangHelper* myClang() { return c_; }
-		ExpansionManager* myExpansionManager() { return em_; }
 };
 
 }
