@@ -37,31 +37,46 @@
 #include "ExpansionManager.h"
 #include "DefinitionManager.h"
 #include "LexicalHelper.h"
-
-#include "OOModel/src/allOOModelNodes.h"
-
 #include "MetaDefinitionManager.h"
+#include "OOModel/src/allOOModelNodes.h"
+#include "clang/Lex/MacroArgs.h"
 
 namespace CppImport {
 
 class CPPIMPORT_API MacroImportHelper
 {
 	public:
-		MacroImportHelper(OOModel::Project* project)
-			: root_(project),
-			  definitionManager_(clang()),
-			  expansionManager_(clang(), &astMapping_, &definitionManager_, &lexicalHelper_),
-				metaDefManager_(project, clang(), &definitionManager_, &expansionManager_, &lexicalHelper_),
-				lexicalHelper_(clang(), &expansionManager_) {}
+		MacroImportHelper(OOModel::Project* project);
 
 		void macroGeneration();
 		void finalize();
 
+		void setSourceManager(const clang::SourceManager* sourceManager);
+		void setPreprocessor(const clang::Preprocessor* preprocessor);
+
 		void mapAst(clang::Stmt* clangAstNode, Model::Node* envisionAstNode);
 		void mapAst(clang::Decl* clangAstNode, Model::Node* envisionAstNode);
 
-		ClangHelper* clang();
+		void addMacroDefinition(QString name, const clang::MacroDirective* md);
+		void addMacroExpansion(clang::SourceRange sr, const clang::MacroDirective* md, const clang::MacroArgs* args);
 
+	private:
+		OOModel::Project* root_;
+
+		ClangHelper clang_;
+		AstMapping astMapping_;
+		DefinitionManager definitionManager_;
+		ExpansionManager expansionManager_;
+		LexicalHelper lexicalHelper_;
+		MetaDefinitionManager metaDefManager_;
+		QHash<QString, OOModel::MetaCallExpression*> metaCalls_;
+		QVector<Model::Node*> finalizationNodes;
+		QHash<Model::Node*, MacroExpansion*> finalizationMetaCalls;
+
+		void handleMacroExpansion(QVector<Model::Node*> nodes, MacroExpansion* expansion, NodeMapping* mapping,
+										  QVector<MacroArgumentInfo>& arguments, QHash<MacroExpansion*, Model::Node*>* splices);
+
+		MacroExpansion* getMatchingXMacroExpansion(Model::Node* node);
 		bool insertMetaCall(MacroExpansion* expansion);
 
 		OOModel::Declaration* getActualContext(MacroExpansion* expansion);
@@ -69,29 +84,6 @@ class CPPIMPORT_API MacroImportHelper
 		QVector<MacroArgumentLocation> getArgumentHistory(clang::SourceRange range);
 		QVector<MacroArgumentLocation> getArgumentHistory(Model::Node* node);
 		void getAllArguments(Model::Node* node, QVector<MacroArgumentInfo>* result, NodeMapping* mapping);
-
-		OOModel::Project* root_;
-
-		DefinitionManager definitionManager_;
-		ExpansionManager expansionManager_;
-		MetaDefinitionManager metaDefManager_;
-
-		LexicalHelper lexicalHelper_;
-
-	private:
-		ClangHelper clang_;
-		AstMapping astMapping_;
-		QHash<QString, OOModel::MetaCallExpression*> metaCalls_;
-
-		struct {
-				QVector<Model::Node*> nodes;
-				QHash<Model::Node*, MacroExpansion*> metaCalls;
-		} finalizationInfo;
-
-		void handleMacroExpansion(QVector<Model::Node*> nodes, MacroExpansion* expansion, NodeMapping* mapping,
-										  QVector<MacroArgumentInfo>& arguments, QHash<MacroExpansion*, Model::Node*>* splices);
-
-		MacroExpansion* getMatchingXMacroExpansion(Model::Node* node);
 
 		void clear();
 };

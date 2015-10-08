@@ -63,14 +63,14 @@ void ClangAstVisitor::setSourceManager(const clang::SourceManager* sourceManager
 	Q_ASSERT(sourceManager);
 	sourceManager_ = sourceManager;
 	trMngr_->setSourceManager(sourceManager);
-	macroImportHelper_.clang()->setSourceManager(sourceManager);
+	macroImportHelper_.setSourceManager(sourceManager);
 }
 
 void ClangAstVisitor::setPreprocessor(const clang::Preprocessor* preprocessor)
 {
 	Q_ASSERT(preprocessor);
 	preprocessor_ = const_cast<clang::Preprocessor*>(preprocessor);
-	macroImportHelper_.clang()->setPreprocessor(preprocessor);
+	macroImportHelper_.setPreprocessor(preprocessor);
 	preprocessor_->addPPCallbacks(std::make_unique<CppImportPPCallback>(preprocessor_,
 																							  sourceManager_, macroImportHelper_));
 }
@@ -150,7 +150,7 @@ bool ClangAstVisitor::TraverseClassTemplateDecl(clang::ClassTemplateDecl* classT
 bool ClangAstVisitor::TraverseClassTemplateSpecializationDecl
 (clang::ClassTemplateSpecializationDecl* specializationDecl)
 {
-	if (!shouldImport(specializationDecl->getLocation()) || !specializationDecl->isThisDeclarationADefinition())
+	if (!shouldImport(specializationDecl->getLocation()))
 		return true;
 
 	//	explicit instation declaration
