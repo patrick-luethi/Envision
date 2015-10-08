@@ -31,18 +31,14 @@
 
 namespace CppImport {
 
-LexicalHelper::LexicalHelper(ClangHelper* c, ExpansionManager* em) : c_(c), em_(em) {}
-
-bool LexicalHelper::nameSeparator(QString candidate)
-{
-	return candidate == "::" || candidate == "." || candidate == "<" || candidate == ">" || candidate == "->";
-}
+LexicalHelper::LexicalHelper(ClangHelper* clang, ExpansionManager* expansionManager)
+	: clang_(clang), expansionManager_(expansionManager) {}
 
 bool LexicalHelper::isExpansionception(clang::SourceLocation loc)
 {
 	if (loc.isMacroID())
-		if (auto immediateExpansion = myExpansionManager()->getImmediateExpansion(loc))
-			return myClang()->sourceManager()->getImmediateExpansionRange(loc).first !=
+		if (auto immediateExpansion = expansionManager_->getImmediateExpansion(loc))
+			return clang_->sourceManager()->getImmediateExpansionRange(loc).first !=
 					immediateExpansion->range.getBegin();
 
 	return false;
@@ -53,16 +49,16 @@ QString LexicalHelper::getUnexpandedSpelling(clang::SourceRange range)
 	clang::SourceLocation start, end;
 
 	if (isExpansionception(range.getBegin()))
-		start = myClang()->sourceManager()->getImmediateExpansionRange(range.getBegin()).first;
+		start = clang_->sourceManager()->getImmediateExpansionRange(range.getBegin()).first;
 	else
 		start = range.getBegin();
 
 	if (isExpansionception(range.getEnd()))
-		end = myClang()->sourceManager()->getImmediateExpansionRange(range.getEnd()).second;
+		end = clang_->sourceManager()->getImmediateExpansionRange(range.getEnd()).second;
 	else
 		end = range.getEnd();
 
-	auto result = myClang()->getSpelling(start, end);
+	auto result = clang_->getSpelling(start, end);
 	while (result.startsWith("\\")) result = result.right(result.length() - 1);
 
 	return result.trimmed();
@@ -139,7 +135,7 @@ void LexicalHelper::correctNode(clang::SourceRange range, Model::Node* original)
 	if (DCast<OOModel::NewExpression>(original)) return;
 	if (DCast<OOModel::BinaryOperation>(original)) return;
 
-	if (!myClang()->isMacroRange(range)) return;
+	if (!clang_->isMacroRange(range)) return;
 
 	auto transformed = getUnexpandedSpelling(range);
 
@@ -162,14 +158,14 @@ void LexicalHelper::correctNode(clang::SourceRange range, Model::Node* original)
 		if (transformed.contains("=")) transformed = transformed.left(transformed.indexOf("=")).trimmed();
 	}
 
-	lexicalTransform_.insert(original, transformed);
+	transformations_.insert(original, transformed);
 }
 
 void LexicalHelper::applyLexicalTransformations(Model::Node* node, NodeMapping* mapping, QVector<QString> formalArgs)
 {
-	if (lexicalTransform_.contains(mapping->original(node)))
+	if (transformations_.contains(mapping->original(node)))
 	{
-		auto transformed = lexicalTransform_.value(mapping->original(node));
+		auto transformed = transformations_.value(mapping->original(node));
 
 		bool containsArg = false;
 		for (auto arg : formalArgs)

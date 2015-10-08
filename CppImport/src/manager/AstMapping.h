@@ -35,30 +35,22 @@ namespace CppImport {
 class CPPIMPORT_API AstMapping
 {
 	public:
-		typedef QHash<Model::Node*, QVector<clang::SourceRange>> InternalType;
-
-		InternalType::iterator begin() { return astMapping_.begin(); }
-		InternalType::iterator end() { return astMapping_.end(); }
-
-		Model::Node* closestParentWithAstMapping(Model::Node* node);
+		QHash<Model::Node*, QVector<clang::SourceRange>>::iterator begin() { return astMapping_.begin(); }
+		QHash<Model::Node*, QVector<clang::SourceRange>>::iterator end() { return astMapping_.end(); }
 
 		void mapAst(clang::Stmt* clangAstNode, Model::Node* envisionAstNode);
 		void mapAst(clang::Decl* clangAstNode, Model::Node* envisionAstNode);
 
-		void clear() { astMapping_.clear(); }
+		QList<Model::Node*> nodes();
+		QVector<clang::SourceRange> get(Model::Node* node);
+		bool contains(Model::Node* node);
+		void clear();
 
-		bool contains(Model::Node* node) { return astMapping_.contains(node); }
-
-		QVector<clang::SourceRange> get(Model::Node* node)
-		{
-			if (!astMapping_.contains(node)) return {};
-			return astMapping_.value(node);
-		}
-
-		QList<Model::Node*> nodes() { return astMapping_.keys(); }
+		Model::Node* closestParentWithAstMapping(Model::Node* node);
 
 	private:
-		InternalType astMapping_;
+		QHash<Model::Node*, QVector<clang::SourceRange>> astMapping_;
+
 };
 
 }

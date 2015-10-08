@@ -37,22 +37,18 @@ class CPPIMPORT_API ClangHelper
 		void setSourceManager(const clang::SourceManager* sourceManager);
 		void setPreprocessor(const clang::Preprocessor* preprocessor);
 
-		clang::SourceLocation getLocForEndOfToken(clang::SourceLocation loc);
+		const clang::SourceManager* sourceManager();
 
 		QString getSpelling(clang::SourceRange range);
 		QString getSpelling(clang::SourceLocation loc);
 		QString getSpelling(clang::SourceLocation start, clang::SourceLocation end);
 
 		clang::SourceLocation getImmediateMacroLoc(clang::SourceLocation loc);
-
 		void getImmediateSpellingHistory(clang::SourceLocation loc, QVector<clang::SourceLocation>* result);
 
 		QVector<QString> getArgumentNames(const clang::MacroDirective* definition);
 
 		bool contains(clang::SourceRange range, clang::SourceRange other);
-
-		const clang::SourceManager* sourceManager();
-
 		bool isMacroRange(clang::SourceRange range) { return range.getBegin().isMacroID() && range.getEnd().isMacroID(); }
 
 	private:

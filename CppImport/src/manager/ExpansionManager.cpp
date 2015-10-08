@@ -31,14 +31,14 @@
 
 namespace CppImport {
 
-ExpansionManager::ExpansionManager(ClangHelper* c, AstMapping* a,
-											  DefinitionManager* d, LexicalHelper* lex)
-	: c_(c), a_(a), d_(d), lex_(lex) {}
+ExpansionManager::ExpansionManager(ClangHelper* clang, AstMapping* astMapping,
+											  DefinitionManager* definitionManager, LexicalHelper* lexicalHelper)
+	: clang_(clang), astMapping_(astMapping), definitionManager_(definitionManager), lexicalHelper_(lexicalHelper) {}
 
 void ExpansionManager::addMacroExpansion(clang::SourceRange sr,
 													  const clang::MacroDirective* md, const clang::MacroArgs* args)
 {
-	if (myDefinitionManager()->isPartialEnd(md))
+	if (definitionManager_->isPartialEnd(md))
 	{
 		currentXMacroParent = nullptr;
 		return;
@@ -50,7 +50,7 @@ void ExpansionManager::addMacroExpansion(clang::SourceRange sr,
 	entry->parent = getExpansion(sr.getBegin());
 	if (entry->parent) entry->parent->children.append(entry);
 
-	if (myDefinitionManager()->isPartialBegin(md) && !currentXMacroParent)
+	if (definitionManager_->isPartialBegin(md) && !currentXMacroParent)
 		currentXMacroParent = entry;
 	else if (currentXMacroParent && !entry->parent)
 	{
@@ -59,16 +59,16 @@ void ExpansionManager::addMacroExpansion(clang::SourceRange sr,
 	}
 
 	entry->metaCall =
-			new OOModel::MetaCallExpression(myDefinitionManager()->hashDefinition(entry->definition));
+			new OOModel::MetaCallExpression(definitionManager_->hashDefinition(entry->definition));
 
 	if (!md->getMacroInfo()->isObjectLike())
 	{
 		QRegularExpression regex ("\\((.*)\\)", QRegularExpression::DotMatchesEverythingOption);
-		auto argumentsString = myLexicalHelper()->getUnexpandedSpelling(sr);
+		auto argumentsString = lexicalHelper_->getUnexpandedSpelling(sr);
 		auto match = regex.match(argumentsString);
 		auto arguments = match.captured(1).split(",");
 
-		for (auto i = 0; i < myClang()->getArgumentNames(entry->definition).size(); i++)
+		for (auto i = 0; i < clang_->getArgumentNames(entry->definition).size(); i++)
 		{
 			auto actualArg = args->getUnexpArgument((unsigned int)i);
 			entry->metaCall->arguments()->append(new OOModel::ReferenceExpression(arguments[i]));
@@ -78,6 +78,8 @@ void ExpansionManager::addMacroExpansion(clang::SourceRange sr,
 
 	expansions_.append(entry);
 }
+
+QVector<MacroExpansion*> ExpansionManager::expansions() { return expansions_; }
 
 
 void ExpansionManager::clear()
@@ -89,11 +91,11 @@ void ExpansionManager::clear()
 
 QString ExpansionManager::hashExpansion(MacroExpansion* expansion)
 {
-	auto presumedLoc = myClang()->sourceManager()->getPresumedLoc(expansion->range.getBegin());
+	auto presumedLoc = clang_->sourceManager()->getPresumedLoc(expansion->range.getBegin());
 
 	QString hash = QDir(presumedLoc.getFilename()).absolutePath()
 			+ QString("|")
-			+ myDefinitionManager()->hashDefinition(expansion->definition)
+			+ definitionManager_->hashDefinition(expansion->definition)
 			+ QString("|")
 			+ QString::number(presumedLoc.getLine())
 			+ QString("|")
@@ -124,7 +126,7 @@ MacroExpansion*ExpansionManager::getExpansion(clang::SourceLocation loc)
 		do
 		{
 			last = expansion;
-			loc = myClang()->sourceManager()->getImmediateExpansionRange(loc).first;
+			loc = clang_->sourceManager()->getImmediateExpansionRange(loc).first;
 			expansion = getImmediateExpansion(loc);
 		} while (expansion && expansion->isChildOf(last));
 	}
@@ -132,24 +134,13 @@ MacroExpansion*ExpansionManager::getExpansion(clang::SourceLocation loc)
 	return last;
 }
 
-
-MacroExpansion*ExpansionManager::getExpansion(OOModel::MetaCallExpression* metaCall)
-{
-	for (auto expansion : expansions_)
-		if (expansion->metaCall == metaCall)
-			return expansion;
-
-	return nullptr;
-}
-
-
 MacroExpansion*ExpansionManager::getImmediateExpansion(clang::SourceLocation loc)
 {
-	auto expansion = myClang()->getImmediateMacroLoc(loc);
+	auto expansion = clang_->getImmediateMacroLoc(loc);
 	for (auto i = 0; i < expansions_.size(); i++)
 		if (expansions_[i]->range.getBegin() == expansion) return expansions_[i];
 
-	expansion = myClang()->getImmediateMacroLoc(expansion);
+	expansion = clang_->getImmediateMacroLoc(expansion);
 	for (auto i = 0; i < expansions_.size(); i++)
 		if (expansions_[i]->range.getBegin() == expansion) return expansions_[i];
 
@@ -165,9 +156,9 @@ QSet<MacroExpansion*> ExpansionManager::getExpansion(Model::Node* node)
 	{
 		expansionCache_[node] = {};
 
-		if (auto n = myAstMapping()->closestParentWithAstMapping(node))
-			if (myAstMapping()->contains(n))
-				for (auto range : myAstMapping()->get(n))
+		if (auto n = astMapping_->closestParentWithAstMapping(node))
+			if (astMapping_->contains(n))
+				for (auto range : astMapping_->get(n))
 				{
 					auto expansion = getExpansion(range.getBegin());
 					if (expansion)	expansionCache_[node].insert(expansion);
@@ -184,9 +175,9 @@ QVector<Model::Node*> ExpansionManager::getTLExpansionTLNodes(MacroExpansion* ex
 	Q_ASSERT(!expansion->parent); // ensure TLExpansion
 
 	QVector<Model::Node*> allTLExpansionNodes;
-	for (auto node : myAstMapping()->nodes())
-		for (auto range : myAstMapping()->get(node))
-			if (myClang()->sourceManager()->getExpansionLoc(range.getBegin()) == expansion->range.getBegin())
+	for (auto node : astMapping_->nodes())
+		for (auto range : astMapping_->get(node))
+			if (clang_->sourceManager()->getExpansionLoc(range.getBegin()) == expansion->range.getBegin())
 			{
 				allTLExpansionNodes.append(node);
 				break;
@@ -203,7 +194,7 @@ QVector<Model::Node*> ExpansionManager::getNTLExpansionTLNodes(MacroExpansion* e
 	Q_ASSERT(expansion);
 
 	QVector<Model::Node*> allNTLExpansionNodes;
-	for (auto node : myAstMapping()->nodes())
+	for (auto node : astMapping_->nodes())
 		if (getExpansion(node).contains(expansion))
 			allNTLExpansionNodes.append(node);
 

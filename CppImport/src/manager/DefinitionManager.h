@@ -35,23 +35,22 @@ namespace CppImport {
 class CPPIMPORT_API DefinitionManager
 {
 	public:
-		DefinitionManager(ClangHelper* c);
+		DefinitionManager(ClangHelper* clang);
 
 		void addMacroDefinition(QString name, const clang::MacroDirective* md);
 
 		QString getDefinitionName(const clang::MacroDirective* md);
 		QString hashDefinition(const clang::MacroDirective* md);
 
-		bool isPartialBegin(const clang::MacroDirective* md) { return getDefinitionName(md).startsWith("BEGIN_"); }
-		bool isPartialEnd(const clang::MacroDirective* md) { return getDefinitionName(md).startsWith("END_"); }
+		bool isPartialBegin(const clang::MacroDirective* md);
+		bool isPartialEnd(const clang::MacroDirective* md);
 
 		void clear();
 
 	private:
-		ClangHelper* c_;
+		ClangHelper* clang_;
 		QHash<const clang::MacroDirective*, QString> definitions_;
 
-		ClangHelper* myClang() { return c_; }
 };
 
 }
