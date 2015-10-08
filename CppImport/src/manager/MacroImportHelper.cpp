@@ -42,7 +42,7 @@ MacroImportHelper::MacroImportHelper(OOModel::Project* project)
 	  definitionManager_(&clang_),
 	  expansionManager_(&clang_, &astMapping_, &definitionManager_, &lexicalHelper_),
 	  lexicalHelper_(&clang_, &expansionManager_),
-	  metaDefManager_(project, &clang_, &definitionManager_, &expansionManager_, &lexicalHelper_)
+	  metaDefinitionManager_(project, &clang_, &definitionManager_, &expansionManager_, &lexicalHelper_)
 	  {}
 
 void MacroImportHelper::macroGeneration()
@@ -144,6 +144,7 @@ void MacroImportHelper::macroGeneration()
 			{
 				if (auto other = getMatchingXMacroExpansion(node))
 				{
+					qDebug() << "schnapp";
 					if (auto list = DCast<Model::List>(other->metaCall->parent()))
 						 list->remove(list->indexOf(other->metaCall));
 
@@ -168,7 +169,7 @@ void MacroImportHelper::macroGeneration()
 
 					expansion->metaCall->parent()->replaceChild(expansion->metaCall, merged);
 
-					auto metaDef = metaDefManager_.createXMacroMetaDef(expansion, other);
+					auto metaDef = metaDefinitionManager_.createXMacroMetaDef(expansion, other);
 
 					for (auto i = 0; i < expansion->xMacroChildren.size(); i++)
 					{
@@ -212,10 +213,15 @@ MacroExpansion* MacroImportHelper::getMatchingXMacroExpansion(Model::Node* node)
 {
 	if (auto metaCall = DCast<OOModel::MetaCallExpression>(node))
 	{
+		qDebug() << "metacall found";
+
 		for (auto expansion : expansionManager_.expansions())
 			if (!expansion->xMacroChildren.empty())
 				if (expansion->metaCall == metaCall)
 					return expansion;
+
+		auto rr = DCast<OOModel::ReferenceExpression>(metaCall->callee());
+		qDebug() << "not good enough" << rr->name();
 	}
 
 	for (auto child : node->children())
@@ -237,6 +243,8 @@ void MacroImportHelper::finalize()
 			i.key()->parent()->parent()->replaceChild(i.key()->parent(), i.value()->metaCall);
 		else
 			qDebug() << "not inserted top level metacall" << i.key()->typeName();
+
+	return;
 
 	StaticStuff::removeNodes(finalizationNodes);
 }
@@ -265,7 +273,7 @@ void MacroImportHelper::handleMacroExpansion(QVector<Model::Node*> nodes,
 	if (nodes.size() > 0)
 		splices->insert(expansion, mapping->original(nodes.first()));
 
-	metaDefManager_.createMetaDef(nodes, expansion, mapping, arguments, splices);
+	metaDefinitionManager_.createMetaDef(nodes, expansion, mapping, arguments, splices);
 }
 
 void MacroImportHelper::mapAst(clang::Stmt* clangAstNode, Model::Node* envisionAstNode)
@@ -295,7 +303,15 @@ void MacroImportHelper::addMacroExpansion(clang::SourceRange sr, const clang::Ma
 
 bool MacroImportHelper::insertMetaCall(MacroExpansion* expansion)
 {
-	auto hash = expansionManager_.hashExpansion(expansion);
+	auto presumedLoc = clang_.sourceManager()->getPresumedLoc(expansion->range.getBegin());
+
+	QString hash = QDir(presumedLoc.getFilename()).absolutePath()
+			+ QString("|")
+			+ definitionManager_.hash(expansion->definition)
+			+ QString("|")
+			+ QString::number(presumedLoc.getLine())
+			+ QString("|")
+			+ QString::number(presumedLoc.getColumn());
 
 	if (!metaCalls_.contains(hash))
 	{
