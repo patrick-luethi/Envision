@@ -55,7 +55,7 @@ QString ClangHelper::getSpelling(clang::SourceLocation start, clang::SourceLocat
 																					preprocessor_->getLangOpts());
 
 	auto length = sm_->getCharacterData(e) - sm_->getCharacterData(b);
-	if (length > 1000) return "ERROR_IN_GET_SPELLING";
+	if (length > 1000000) return "ERROR_IN_GET_SPELLING";
 
 	try
 	{
