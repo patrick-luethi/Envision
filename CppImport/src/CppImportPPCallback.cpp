@@ -30,41 +30,13 @@
 
 namespace CppImport {
 
-void CppImportPPCallback::MacroDefined(const clang::Token& MacroNameTok, const clang::MacroDirective* MD)
-{
-	auto name = QString::fromStdString(MacroNameTok.getIdentifierInfo()->getName().str());
-
-	/*if (name.startsWith("_")) return; // TODO: just for debug
-	if (name.endsWith("_API") || name == "VISITOR_EXPORT") return; // export flags
-	if (name.startsWith("QT_")) return;*/
-
-	definitions_[name] = MD;
-
-	macroImportHelper_.addMacroDefinition(name, MD);
-
-	auto s = sourceManager_->getSpellingLoc(MD->getMacroInfo()->getDefinitionLoc());
-	return;
-	qDebug() << "definition"
-				<< name
-				<< s.getPtrEncoding()
-				<< "|";
-}
-
 void CppImportPPCallback::MacroExpands(const clang::Token& MacroNameTok, const clang::MacroDirective* md,
 													clang::SourceRange sr, const clang::MacroArgs* args)
 {
-	//auto expansionRange = sourceManager_->getExpansionRange(sr.getBegin());
 	auto name = QString::fromStdString(MacroNameTok.getIdentifierInfo()->getName().str());
-	if (!definitions_.contains(name)) return;
 
-
+	macroImportHelper_.addMacroDefinition(name, md);
 	macroImportHelper_.addMacroExpansion(sr, md, args);
-
-	return;
-	qDebug() << "expanding"
-				<< name
-				<< sr.getBegin().getPtrEncoding()
-				<< "|";
 }
 
 }
