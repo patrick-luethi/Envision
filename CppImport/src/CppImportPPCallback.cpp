@@ -43,7 +43,6 @@ void CppImportPPCallback::MacroDefined(const clang::Token& MacroNameTok, const c
 	macroImportHelper_.addMacroDefinition(name, MD);
 
 	auto s = sourceManager_->getSpellingLoc(MD->getMacroInfo()->getDefinitionLoc());
-
 	return;
 	qDebug() << "definition"
 				<< name

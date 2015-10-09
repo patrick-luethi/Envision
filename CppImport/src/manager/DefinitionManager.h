@@ -48,11 +48,12 @@ class CPPIMPORT_API DefinitionManager
 		void clear();
 
 		/**
-		 * assuming a project structure like Envision's returns a pair of strings <A, B> where:
-		 * A = namespace name for the location of md
-		 * B = file name for the location of md
+		 * if the location of md is part of Envision's project structure then
+		 *  return true and set namespaceName/fileName
+		 * otherwise
+		 *  return false
 		 */
-		std::pair<QString, QString> macroDefinitionLocation(const clang::MacroDirective* md);
+		bool macroDefinitionLocation(const clang::MacroDirective* md, QString& namespaceName, QString& fileName);
 		QString hash(const clang::MacroDirective* md);
 
 		OOModel::ReferenceExpression* expansionQualifier(const clang::MacroDirective* md);

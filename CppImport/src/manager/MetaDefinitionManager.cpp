@@ -42,29 +42,44 @@ MetaDefinitionManager::MetaDefinitionManager(OOModel::Project* root, ClangHelper
 
 OOModel::Declaration* MetaDefinitionManager::metaDefinitionParent(const clang::MacroDirective* md)
 {
-	auto mdLoc = definitionManager_->macroDefinitionLocation(md);
+	OOModel::Declaration* result = nullptr;
 
-	// find the namespace module for md
-	OOModel::Module* namespaceModule =
-			DCast<OOModel::Module>(StaticStuff::findDeclaration(root_->modules(), mdLoc.first));
-
-	// this assertion holds if the project structure matches Envision's project structure
-	// alternatively if no such module could be found (project structure unlike Envision's) one could put it into root_
-	Q_ASSERT(namespaceModule); //if (!namespaceModule) return root_;
-
-	// try to find the module (includes macro containers) to put this macro in
-	OOModel::Declaration* result = StaticStuff::findDeclaration(namespaceModule->modules(), mdLoc.second);
-
-	// if no module could be found; try to find an appropriate class to put this macro in
-	if (!result) result = StaticStuff::findDeclaration(namespaceModule->classes(), mdLoc.second);
-
-	// if no existing place could be found: create a new module (macro container) and put the macro in there
-	if (!result)
+	QString namespaceName, fileName;
+	if (definitionManager_->macroDefinitionLocation(md, namespaceName, fileName))
 	{
-		result = new OOModel::Module(mdLoc.second);
-		namespaceModule->modules()->append(result);
+		// find the namespace module for md
+		OOModel::Module* namespaceModule =
+				DCast<OOModel::Module>(StaticStuff::findDeclaration(root_->modules(), namespaceName));
+
+		// this assertion holds if the project structure matches Envision's project structure
+		// alternatively if no such module could be found (project structure unlike Envision's) one could put it into root_
+		Q_ASSERT(namespaceModule); //if (!namespaceModule) return root_;
+
+		// try to find the module (includes macro containers) to put this macro in
+		result = StaticStuff::findDeclaration(namespaceModule->modules(), fileName);
+
+		// if no module could be found; try to find an appropriate class to put this macro in
+		if (!result) result = StaticStuff::findDeclaration(namespaceModule->classes(), fileName);
+
+		// if no existing place could be found: create a new module (macro container) and put the macro in there
+		if (!result)
+		{
+			result = new OOModel::Module(fileName);
+			namespaceModule->modules()->append(result);
+		}
+	}
+	else
+	{
+		result = StaticStuff::findDeclaration(root_->modules(), "notenvision");
+
+		if (!result)
+		{
+			result = new OOModel::Module("notenvision");
+			root_->modules()->append(result);
+		}
 	}
 
+	Q_ASSERT(result);
 	return result;
 }
 
