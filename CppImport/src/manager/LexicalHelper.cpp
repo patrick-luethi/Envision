@@ -164,7 +164,13 @@ void LexicalHelper::correctNode(clang::SourceRange range, Model::Node* original)
 	}
 	else if (DCast<OOModel::Class>(original))
 	{
-		transformed = transformed.left(transformed.indexOf("{")).trimmed();
+		QRegularExpression regularExpression("^((\\w|##)+)");
+		auto match = regularExpression.match(transformed);
+
+		if (match.hasMatch())
+			transformed = match.captured(1);
+		else
+			qDebug() << "unmatched regex in class" << transformed;
 	}
 
 	transformations_.insert(original, transformed);

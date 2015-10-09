@@ -279,6 +279,16 @@ bool StaticStuff::stringMatches(QString regex, QString value)
 	return regEx.match(value).hasMatch();
 }
 
+OOModel::Declaration*StaticStuff::findDeclaration(Model::List* list, QString name)
+{
+	for (auto i = 0; i < list->size(); i++)
+		if (auto decl = DCast<OOModel::Declaration>(list->at(i)))
+			if (decl->name() == name)
+				return decl;
+
+	return nullptr;
+}
+
 OOModel::Expression* StaticStuff::createNameExpressionFromString(QString input)
 {
 	QString baseCase = "((::)?(\\w+(::|.))*\\w+(\\*|&)?)";

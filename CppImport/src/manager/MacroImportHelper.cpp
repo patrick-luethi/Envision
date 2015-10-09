@@ -137,6 +137,13 @@ void MacroImportHelper::macroGeneration()
 		}
 	}
 
+	handleXMacros();
+
+	clear();
+}
+
+void MacroImportHelper::handleXMacros()
+{
 	for (auto expansion : expansionManager_.expansions())
 		if (!expansion->xMacroChildren.empty())
 		{
@@ -147,8 +154,10 @@ void MacroImportHelper::macroGeneration()
 					if (auto list = DCast<Model::List>(other->metaCall->parent()))
 						 list->remove(list->indexOf(other->metaCall));
 
-					auto merged = new OOModel::MetaCallExpression(
-								definitionManager_.getDefinitionName(expansion->definition));
+					auto merged = new OOModel::MetaCallExpression();
+					merged->setCallee(new OOModel::ReferenceExpression(
+												 definitionManager_.definitionName(expansion->definition),
+												 definitionManager_.expansionQualifier(expansion->definition)));
 
 					for (auto i = 0; i < expansion->metaCall->arguments()->size(); i++)
 						merged->arguments()->append(expansion->metaCall->arguments()->at(i)->clone());
@@ -157,7 +166,7 @@ void MacroImportHelper::macroGeneration()
 					for (auto xMacroChild : expansion->xMacroChildren)
 					{
 						auto unbound = new OOModel::MetaCallExpression(
-									definitionManager_.getDefinitionName(xMacroChild->definition));
+									definitionManager_.definitionName(xMacroChild->definition));
 						for (auto i = 0; i < xMacroChild->metaCall->arguments()->size(); i++)
 							unbound->arguments()->append(xMacroChild->metaCall->arguments()->at(i)->clone());
 
@@ -175,7 +184,7 @@ void MacroImportHelper::macroGeneration()
 						auto xMacroChildH = expansion->xMacroChildren[i];
 						auto xMacroChildCpp = other->xMacroChildren[i];
 
-						auto unbound = definitionManager_.getDefinitionName(xMacroChildH->definition);
+						auto unbound = definitionManager_.definitionName(xMacroChildH->definition);
 
 						auto binding1 = metaDef->metaBindings()->at(0);
 						auto binding2 = metaDef->metaBindings()->at(1);
@@ -191,12 +200,14 @@ void MacroImportHelper::macroGeneration()
 
 						auto mapping1 = new OOModel::MetaCallMapping(unbound);
 						mapping1->setValue(new OOModel::ReferenceExpression(
-													 definitionManager_.getDefinitionName(xMacroChildH->definition)));
+													 definitionManager_.definitionName(xMacroChildH->definition),
+													 definitionManager_.expansionQualifier(xMacroChildH->definition)));
 						binding1->mappings()->append(mapping1);
 
 						auto mapping2 = new OOModel::MetaCallMapping(unbound);
 						mapping2->setValue(new OOModel::ReferenceExpression(
-													 definitionManager_.getDefinitionName(xMacroChildCpp->definition)));
+													 definitionManager_.definitionName(xMacroChildCpp->definition),
+													 definitionManager_.expansionQualifier(xMacroChildCpp->definition)));
 						binding2->mappings()->append(mapping2);
 					}
 
@@ -204,8 +215,6 @@ void MacroImportHelper::macroGeneration()
 				}
 			}
 		}
-
-	clear();
 }
 
 MacroExpansion* MacroImportHelper::getMatchingXMacroExpansion(Model::Node* node)

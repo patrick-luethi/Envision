@@ -86,6 +86,7 @@ class CPPIMPORT_API MacroImportHelper
 		void getAllArguments(Model::Node* node, QVector<MacroArgumentInfo>* result, NodeMapping* mapping);
 
 		void clear();
+		void handleXMacros();
 };
 
 }

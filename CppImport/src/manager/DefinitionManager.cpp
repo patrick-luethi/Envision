@@ -40,7 +40,7 @@ void DefinitionManager::addMacroDefinition(QString name, const clang::MacroDirec
 	definitions_[md] = name;
 }
 
-QString DefinitionManager::getDefinitionName(const clang::MacroDirective* md)
+QString DefinitionManager::definitionName(const clang::MacroDirective* md)
 {
 	if (!definitions_.contains(md)) return nullptr;
 
@@ -49,12 +49,12 @@ QString DefinitionManager::getDefinitionName(const clang::MacroDirective* md)
 
 bool DefinitionManager::isPartialBegin(const clang::MacroDirective* md)
 {
-	return getDefinitionName(md).startsWith("BEGIN_");
+	return definitionName(md).startsWith("BEGIN_");
 }
 
 bool DefinitionManager::isPartialEnd(const clang::MacroDirective* md)
 {
-	return getDefinitionName(md).startsWith("END_");
+	return definitionName(md).startsWith("END_");
 }
 
 void DefinitionManager::clear()
@@ -62,7 +62,7 @@ void DefinitionManager::clear()
 	definitions_.clear();
 }
 
-std::pair<QString, QString> DefinitionManager::getMacroDirectionLocation(const clang::MacroDirective* md)
+std::pair<QString, QString> DefinitionManager::macroDefinitionLocation(const clang::MacroDirective* md)
 {
 	auto presumedLoc = clang_->sourceManager()->getPresumedLoc(md->getMacroInfo()->getDefinitionLoc());
 	auto path = QDir(presumedLoc.getFilename()).absolutePath();
@@ -73,6 +73,7 @@ std::pair<QString, QString> DefinitionManager::getMacroDirectionLocation(const c
 
 	auto namespaceName = match.captured(1);
 
+	// some Envision namespaces don't have the same name as the corresponding directory
 	if (namespaceName == "ModelBase")
 		namespaceName = "Model";
 	else if (namespaceName == "VisualizationBase")
@@ -85,8 +86,15 @@ std::pair<QString, QString> DefinitionManager::getMacroDirectionLocation(const c
 
 QString DefinitionManager::hash(const clang::MacroDirective* md)
 {
-	auto mdLoc = getMacroDirectionLocation(md);
-	return mdLoc.first + "/" + mdLoc.second + "/" + getDefinitionName(md);
+	auto mdLoc = macroDefinitionLocation(md);
+	return mdLoc.first + "/" + mdLoc.second + "/" + definitionName(md);
+}
+
+OOModel::ReferenceExpression* DefinitionManager::expansionQualifier(const clang::MacroDirective* md)
+{
+	auto mdLoc = macroDefinitionLocation(md);
+
+	return new OOModel::ReferenceExpression(mdLoc.second, new OOModel::ReferenceExpression(mdLoc.first));
 }
 
 }
