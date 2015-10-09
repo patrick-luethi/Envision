@@ -35,15 +35,12 @@
 namespace CppImport {
 
 MetaDefinitionManager::MetaDefinitionManager(OOModel::Project* root, ClangHelper* clang,
-															DefinitionManager* definitionManager,
-															ExpansionManager* expansionManager,
-															LexicalHelper* lexicalHelper,
-															XMacroManager* xMacroManager)
-	: root_(root), clang_(clang), definitionManager_(definitionManager),
-	  expansionManager_(expansionManager), lexicalHelper_(lexicalHelper),
-		xMacroManager_(xMacroManager) {}
+															DefinitionManager* definitionManager, ExpansionManager* expansionManager,
+															LexicalHelper* lexicalHelper, XMacroManager* xMacroManager)
+	: root_(root), clang_(clang), definitionManager_(definitionManager), expansionManager_(expansionManager),
+	  lexicalHelper_(lexicalHelper), xMacroManager_(xMacroManager) {}
 
-OOModel::Declaration* MetaDefinitionManager::getMetaDefParent(const clang::MacroDirective* md)
+OOModel::Declaration* MetaDefinitionManager::metaDefinitionParent(const clang::MacroDirective* md)
 {
 	auto mdLoc = definitionManager_->macroDefinitionLocation(md);
 
@@ -71,7 +68,7 @@ OOModel::Declaration* MetaDefinitionManager::getMetaDefParent(const clang::Macro
 	return result;
 }
 
-OOModel::MetaDefinition* MetaDefinitionManager::getMetaDefinition(const clang::MacroDirective* md)
+OOModel::MetaDefinition* MetaDefinitionManager::metaDefinition(const clang::MacroDirective* md)
 {
 	QString h = definitionManager_->hash(md);
 
@@ -84,15 +81,15 @@ OOModel::MetaDefinition* MetaDefinitionManager::getMetaDefinition(const clang::M
 void MetaDefinitionManager::createMetaDef(QVector<Model::Node*> nodes, MacroExpansion* expansion, NodeMapping* mapping,
 														QVector<MacroArgumentInfo>& arguments, QHash<MacroExpansion*, Model::Node*>* splices)
 {
-	if (!getMetaDefinition(expansion->definition))
+	if (!metaDefinition(expansion->definition))
 	{
 		auto metaDef = new OOModel::MetaDefinition(definitionManager_->definitionName(expansion->definition));
 		metaDefinitions_.insert(definitionManager_->hash(expansion->definition), metaDef);
 
-		for (auto argName : clang_->getArgumentNames(expansion->definition))
+		for (auto argName : clang_->argumentNames(expansion->definition))
 			metaDef->arguments()->append(new OOModel::FormalMetaArgument(argName));
 
-		auto metaDefParent = getMetaDefParent(expansion->definition);
+		auto metaDefParent = metaDefinitionParent(expansion->definition);
 
 		if (auto beginChild = xMacroManager_->partialBeginChild(expansion))
 		{
@@ -102,7 +99,7 @@ void MetaDefinitionManager::createMetaDef(QVector<Model::Node*> nodes, MacroExpa
 		{
 			if (nodes.size() > 0)
 			{
-				auto actualContext = StaticStuff::getActualContext(mapping->original(nodes.first()));
+				auto actualContext = StaticStuff::actualContext(mapping->original(nodes.first()));
 				metaDef->setContext(StaticStuff::createContext(actualContext));
 
 				for (auto n : nodes)
@@ -111,7 +108,7 @@ void MetaDefinitionManager::createMetaDef(QVector<Model::Node*> nodes, MacroExpa
 					auto cloned = StaticStuff::cloneWithMapping(mapping->original(n), &childMapping);
 
 					lexicalHelper_->applyLexicalTransformations(cloned, &childMapping,
-																					 clang_->getArgumentNames(expansion->definition));
+																					 clang_->argumentNames(expansion->definition));
 
 					addChildMetaCalls(metaDef, expansion, &childMapping, splices);
 
@@ -182,7 +179,7 @@ void MetaDefinitionManager::childrenUnownedByExpansion(Model::Node* node, MacroE
 
 	if (DCast<OOModel::MetaCallExpression>(node)) return;
 
-	if (expansionManager_->getExpansion(mapping->original(node)).contains(expansion))
+	if (expansionManager_->expansion(mapping->original(node)).contains(expansion))
 		for (auto child : node->children())
 			childrenUnownedByExpansion(child, expansion, mapping, result);
 	else
@@ -212,7 +209,7 @@ void MetaDefinitionManager::insertArgumentSplices(NodeMapping* mapping, NodeMapp
 		{
 			auto spliceLoc = argument.history.first();
 
-			auto argName = clang_->getArgumentNames(spliceLoc.expansion->definition)
+			auto argName = clang_->argumentNames(spliceLoc.expansion->definition)
 					.at(spliceLoc.argumentNumber);
 			auto newNode = new OOModel::ReferenceExpression(argName);
 

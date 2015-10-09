@@ -33,27 +33,26 @@ namespace CppImport {
 class CPPIMPORT_API ClangHelper
 {
 	public:
-
 		void setSourceManager(const clang::SourceManager* sourceManager);
 		void setPreprocessor(const clang::Preprocessor* preprocessor);
 
 		const clang::SourceManager* sourceManager();
 
-		QString getSpelling(clang::SourceRange range);
-		QString getSpelling(clang::SourceLocation loc);
-		QString getSpelling(clang::SourceLocation start, clang::SourceLocation end);
+		QString spelling(clang::SourceRange range);
+		QString spelling(clang::SourceLocation loc);
+		QString spelling(clang::SourceLocation start, clang::SourceLocation end);
 
-		clang::SourceLocation getImmediateMacroLoc(clang::SourceLocation loc);
-		void getImmediateSpellingHistory(clang::SourceLocation loc, QVector<clang::SourceLocation>* result);
+		clang::SourceLocation immediateMacroLoc(clang::SourceLocation loc);
+		void immediateSpellingHistory(clang::SourceLocation loc, QVector<clang::SourceLocation>* result);
 
-		QVector<QString> getArgumentNames(const clang::MacroDirective* definition);
+		QVector<QString> argumentNames(const clang::MacroDirective* definition);
 
 		bool contains(clang::SourceRange range, clang::SourceRange other);
 		bool isMacroRange(clang::SourceRange range) { return range.getBegin().isMacroID() && range.getEnd().isMacroID(); }
 
 	private:
 		const clang::Preprocessor* preprocessor_;
-		const clang::SourceManager* sm_;
+		const clang::SourceManager* sourceManager_;
 
 };
 

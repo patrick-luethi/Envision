@@ -43,7 +43,7 @@ class CPPIMPORT_API LexicalHelper
 
 		void applyLexicalTransformations(Model::Node* node, NodeMapping* mapping, QVector<QString> formalArgs);
 
-		QString getUnexpandedSpelling(clang::SourceRange range);
+		QString unexpandedSpelling(clang::SourceRange range);
 
 		void correctNode(clang::Decl* clangAstNode, Model::Node* envisionAstNode);
 		void correctNode(clang::Stmt* clangAstNode, Model::Node* envisionAstNode);

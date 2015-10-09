@@ -43,17 +43,13 @@ class XMacroManager;
 class CPPIMPORT_API MetaDefinitionManager
 {
 	public:
-		MetaDefinitionManager(OOModel::Project* root,
-		ClangHelper* clang,
-		DefinitionManager* definitionManager,
-		ExpansionManager* expansionManager,
-		LexicalHelper* lexicalHelper,
-		XMacroManager* xMacroManager);
+		MetaDefinitionManager(OOModel::Project* root, ClangHelper* clang, DefinitionManager* definitionManager,
+								ExpansionManager* expansionManager, LexicalHelper* lexicalHelper, XMacroManager* xMacroManager);
 
 		void createMetaDef(QVector<Model::Node*> nodes, MacroExpansion* expansion, NodeMapping* mapping,
 								 QVector<MacroArgumentInfo>& arguments, QHash<MacroExpansion*, Model::Node*>* splices);
 
-		OOModel::MetaDefinition* getMetaDefinition(const clang::MacroDirective* md);
+		OOModel::MetaDefinition* metaDefinition(const clang::MacroDirective* md);
 
 	private:
 		OOModel::Project* root_;
@@ -74,7 +70,7 @@ class CPPIMPORT_API MetaDefinitionManager
 
 		void renameMetaCalls(Model::Node* node, QString current, QString replace);
 
-		OOModel::Declaration* getMetaDefParent(const clang::MacroDirective* md);
+		OOModel::Declaration* metaDefinitionParent(const clang::MacroDirective* md);
 
 };
 

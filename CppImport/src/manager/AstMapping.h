@@ -35,8 +35,8 @@ namespace CppImport {
 class CPPIMPORT_API AstMapping
 {
 	public:
-		QHash<Model::Node*, QVector<clang::SourceRange>>::iterator begin() { return astMapping_.begin(); }
-		QHash<Model::Node*, QVector<clang::SourceRange>>::iterator end() { return astMapping_.end(); }
+		QHash<Model::Node*, QVector<clang::SourceRange>>::iterator begin();
+		QHash<Model::Node*, QVector<clang::SourceRange>>::iterator end();
 
 		void mapAst(clang::Stmt* clangAstNode, Model::Node* envisionAstNode);
 		void mapAst(clang::Decl* clangAstNode, Model::Node* envisionAstNode);
