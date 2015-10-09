@@ -223,7 +223,7 @@ OOModel::MetaDefinition* XMacroManager::createXMacroMetaDef(MacroExpansion* hExp
 	}
 
 	StaticStuff::removeNode(metaDefinitionManager_->getMetaDefinition(cppExpansion->definition), true);
-	StaticStuff::removeNode(metaDefinitionManager_->getMetaDefinition(cppExpansion->definition), true);
+	StaticStuff::removeNode(metaDefinitionManager_->getMetaDefinition(cppBaseExpansion->definition), true);
 
 	return mergedMetaDef;
 }
