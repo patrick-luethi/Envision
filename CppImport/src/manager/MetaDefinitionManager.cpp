@@ -48,6 +48,8 @@ OOModel::Declaration* MetaDefinitionManager::getMetaDefParent(const clang::Macro
 			nameSpace = root_->modules()->at(i);
 			break;
 		}
+
+	if (!nameSpace) return root_;
 	Q_ASSERT(nameSpace);
 
 	OOModel::Declaration* result = nullptr;
@@ -267,47 +269,60 @@ void MetaDefinitionManager::mergeClasses(OOModel::Class* merged, OOModel::Class*
 
 }
 
-OOModel::MetaDefinition* MetaDefinitionManager::createXMacroMetaDef(MacroExpansion* xMacroExpansionH_input,
-																						 MacroExpansion* xMacroExpansionCpp_input)
+OOModel::MetaDefinition* MetaDefinitionManager::createXMacroMetaDef(MacroExpansion* hExpansion,
+																						 MacroExpansion* cppExpansion)
 {
-	auto xMacroExpansionH = getBasePartialBegin(xMacroExpansionH_input);
-	auto xMacroExpansionCpp = getBasePartialBegin(xMacroExpansionCpp_input);
+	auto hBaseExpansion = getBasePartialBegin(hExpansion);
+	auto cppBaseExpansion = getBasePartialBegin(cppExpansion);
 
-	if (auto existing = getXMacroMetaDefinition(xMacroExpansionH->definition))
-		return existing;
+	// if the merged xMacro MetaDefinition already exists just return it
+	if (auto existing = getXMacroMetaDefinition(hBaseExpansion->definition)) return existing;
 
-	auto xMacroDefH = getMetaDefinition(xMacroExpansionH->definition);
-	Q_ASSERT(xMacroDefH);
-	auto xMacroDefCpp = getMetaDefinition(xMacroExpansionCpp->definition);
-	Q_ASSERT(xMacroDefCpp);
+	auto hBaseMetaDef = getMetaDefinition(hBaseExpansion->definition);
+	auto cppBaseMetaDef = getMetaDefinition(cppBaseExpansion->definition);
 
-	auto metaDef = xMacroDefH->clone();
-	metaDef->setName(definitionManager_->getDefinitionName(xMacroExpansionH->definition));
-	addXMacroMetaDefinition(xMacroExpansionH->definition, metaDef);
+	auto mergedMetaDef = hBaseMetaDef->clone();
+	mergedMetaDef->setName(definitionManager_->getDefinitionName(hBaseExpansion->definition));
+	addXMacroMetaDefinition(hBaseExpansion->definition, mergedMetaDef);
 
-	if (auto moduleContextH = DCast<OOModel::Module>(metaDef->context()))
-		if (auto classH = DCast<OOModel::Class>(moduleContextH->classes()->first()))
-			if (auto classCpp = DCast<OOModel::Class>(xMacroDefCpp->context()))
-			{
-				mergeClasses(classH, classCpp);
+	/* assumptions:
+	 * - the context of hBaseMetaDef is a Module
+	 * - the context module of hBaseMetaDef contains exactly one class
+	 * - the context of cppBaseMetaDef is a Class
+	 * - the merged MetaDefinition is correct if we merge those 2 classes
+	 */
+	auto mergedClass = DCast<OOModel::Class>(DCast<OOModel::Module>(mergedMetaDef->context())->classes()->first());
+	auto cppBaseClass = DCast<OOModel::Class>(cppBaseMetaDef->context());
 
-				classH->metaCalls()->append(new OOModel::ReferenceExpression("list1"));
-				classH->methods()->last()->items()->append(new OOModel::ExpressionStatement(
-																			new OOModel::ReferenceExpression("list2")));
-			}
+	mergeClasses(mergedClass, cppBaseClass);
 
-	auto binding1 = new OOModel::MetaBinding("list1");
-	binding1->setInput(new OOModel::ReferenceExpression("metaBindingInput"));
-	metaDef->metaBindings()->append(binding1);
-	auto binding2 = new OOModel::MetaBinding("list2");
-	binding2->setInput(new OOModel::ReferenceExpression("metaBindingInput"));
-	metaDef->metaBindings()->append(binding2);
 
-	metaDef->arguments()->append(new OOModel::FormalMetaArgument("metaBindingInput"));
+	QString metaBindingInputName = "metaBindingInput";
+	QString declarationSpliceName = "list1";
+	QString statementSpliceName = "list2";
 
-	root_->subDeclarations()->append(metaDef);
+	// add an argument for the input to the MetaBindings
+	mergedMetaDef->arguments()->append(new OOModel::FormalMetaArgument(metaBindingInputName));
 
-	return metaDef;
+	// add splices for the MetaBinding results
+	mergedClass->metaCalls()->append(new OOModel::ReferenceExpression(declarationSpliceName));
+	mergedClass->methods()->last()->items()->append(new OOModel::ExpressionStatement(
+																 new OOModel::ReferenceExpression(statementSpliceName)));
+
+	// MetaBinding for declarations splice
+	auto declarationsSpliceMetaBinding = new OOModel::MetaBinding(declarationSpliceName);
+	declarationsSpliceMetaBinding->setInput(new OOModel::ReferenceExpression(metaBindingInputName));
+	mergedMetaDef->metaBindings()->append(declarationsSpliceMetaBinding);
+
+	// MetaBinding for statements splice
+	auto statementsSpliceMetaBinding = new OOModel::MetaBinding(statementSpliceName);
+	statementsSpliceMetaBinding->setInput(new OOModel::ReferenceExpression(metaBindingInputName));
+	mergedMetaDef->metaBindings()->append(statementsSpliceMetaBinding);
+
+	// add the merged MetaDefinition to the tree
+	root_->subDeclarations()->append(mergedMetaDef);
+
+	return mergedMetaDef;
 }
 
 void MetaDefinitionManager::renameMetaCalls(Model::Node* node, QString current, QString replace)
@@ -331,7 +346,6 @@ void MetaDefinitionManager::addChildMetaCalls(OOModel::MetaDefinition* metaDef, 
 		if (childExpansion->xMacroParent) continue;
 
 		if (auto splice = splices->value(childExpansion))
-		{
 			if (auto clonedSplice = childMapping->clone(splice))
 			{
 				if (DCast<OOModel::Declaration>(clonedSplice))
@@ -344,38 +358,29 @@ void MetaDefinitionManager::addChildMetaCalls(OOModel::MetaDefinition* metaDef, 
 					StaticStuff::removeNode(clonedSplice);
 				}
 				else
-				{
 					qDebug() << "not inserted metacall" << clonedSplice->typeName();
-				}
 			}
-		}
 	}
 }
 
-void MetaDefinitionManager::getChildrenNotBelongingToExpansion(Model::Node* node, MacroExpansion* expansion,
-																					NodeMapping* mapping, QVector<Model::Node*>* result)
+void MetaDefinitionManager::childrenUnownedByExpansion(Model::Node* node, MacroExpansion* expansion,
+																			NodeMapping* mapping, QVector<Model::Node*>* result)
 {
 	Q_ASSERT(expansion);
 
 	if (DCast<OOModel::MetaCallExpression>(node)) return;
 
 	if (expansionManager_->getExpansion(mapping->original(node)).contains(expansion))
-	{
 		for (auto child : node->children())
-		{
-			getChildrenNotBelongingToExpansion(child, expansion, mapping, result);
-		}
-	}
+			childrenUnownedByExpansion(child, expansion, mapping, result);
 	else
-	{
 		result->append(node);
-	}
 }
 
 bool MetaDefinitionManager::removeUnownedNodes(Model::Node* cloned, MacroExpansion* expansion, NodeMapping* mapping)
 {
 	QVector<Model::Node*> tbrs;
-	getChildrenNotBelongingToExpansion(cloned, expansion, mapping, &tbrs);
+	childrenUnownedByExpansion(cloned, expansion, mapping, &tbrs);
 
 	if (tbrs.contains(cloned)) return true;
 

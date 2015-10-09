@@ -162,6 +162,10 @@ void LexicalHelper::correctNode(clang::SourceRange range, Model::Node* original)
 	{
 		if (transformed.contains("=")) transformed = transformed.left(transformed.indexOf("=")).trimmed();
 	}
+	else if (DCast<OOModel::Class>(original))
+	{
+		transformed = transformed.left(transformed.indexOf("{")).trimmed();
+	}
 
 	transformations_.insert(original, transformed);
 }

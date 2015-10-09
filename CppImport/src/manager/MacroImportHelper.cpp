@@ -144,7 +144,6 @@ void MacroImportHelper::macroGeneration()
 			{
 				if (auto other = getMatchingXMacroExpansion(node))
 				{
-					qDebug() << "schnapp";
 					if (auto list = DCast<Model::List>(other->metaCall->parent()))
 						 list->remove(list->indexOf(other->metaCall));
 
