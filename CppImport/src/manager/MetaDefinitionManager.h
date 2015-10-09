@@ -66,7 +66,7 @@ class CPPIMPORT_API MetaDefinitionManager
 
 		void addChildMetaCalls(OOModel::MetaDefinition* metaDef, MacroExpansion* expansion,	NodeMapping* childMapping,
 										QHash<MacroExpansion*, Model::Node*>* splices);
-		void getChildrenNotBelongingToExpansion(Model::Node* node, MacroExpansion* expansion,
+		void childrenUnownedByExpansion(Model::Node* node, MacroExpansion* expansion,
 																NodeMapping* mapping, QVector<Model::Node*>* result);
 		bool removeUnownedNodes(Model::Node* cloned, MacroExpansion* expansion,	NodeMapping* mapping);
 		void insertArgumentSplices(NodeMapping* mapping, NodeMapping* childMapping, QVector<MacroArgumentInfo>& arguments);
