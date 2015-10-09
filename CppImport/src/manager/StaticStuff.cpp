@@ -292,7 +292,7 @@ OOModel::Declaration*StaticStuff::findDeclaration(Model::List* list, QString nam
 
 OOModel::Expression* StaticStuff::createNameExpressionFromString(QString input)
 {
-	QString baseCase = "((::)?(\\w+(::|.))*\\w+(\\*|&)?)";
+	QString baseCase = "((::)?(\\w+(::|\\.|->))*\\w+(\\*|&)?)";
 
 	if (stringMatches("^" + baseCase + "$", input))
 	{

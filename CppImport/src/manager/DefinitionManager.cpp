@@ -62,16 +62,17 @@ void DefinitionManager::clear()
 	definitions_.clear();
 }
 
-std::pair<QString, QString> DefinitionManager::macroDefinitionLocation(const clang::MacroDirective* md)
+bool DefinitionManager::macroDefinitionLocation(const clang::MacroDirective* md, QString& namespaceName,
+																QString& fileName)
 {
 	auto presumedLoc = clang_->sourceManager()->getPresumedLoc(md->getMacroInfo()->getDefinitionLoc());
 	auto path = QDir(presumedLoc.getFilename()).absolutePath();
 
 	QRegularExpression regex ("/Envision/(\\w+)(/.*/|/)(\\w+\\.\\w+)$", QRegularExpression::DotMatchesEverythingOption);
 	auto match = regex.match(path);
-	Q_ASSERT(match.hasMatch());
+	if (!match.hasMatch()) return false;
 
-	auto namespaceName = match.captured(1);
+	namespaceName = match.captured(1);
 
 	// some Envision namespaces don't have the same name as the corresponding directory
 	if (namespaceName == "ModelBase")
@@ -79,22 +80,29 @@ std::pair<QString, QString> DefinitionManager::macroDefinitionLocation(const cla
 	else if (namespaceName == "VisualizationBase")
 		namespaceName = "Visualization";
 
-	auto fileName = match.captured(3).replace(".h", "").replace(".cpp", "_CPP");
+	fileName = match.captured(3).replace(".h", "").replace(".cpp", "_CPP");
 
-	return std::make_pair(namespaceName, fileName);
+	return true;
 }
 
 QString DefinitionManager::hash(const clang::MacroDirective* md)
 {
-	auto mdLoc = macroDefinitionLocation(md);
-	return mdLoc.first + "/" + mdLoc.second + "/" + definitionName(md);
+	QString namespaceName, fileName;
+
+	if (macroDefinitionLocation(md, namespaceName, fileName))
+		return namespaceName + "/" + fileName + "/" + definitionName(md);
+	else
+		return "/notenvision/" + definitionName(md);
 }
 
 OOModel::ReferenceExpression* DefinitionManager::expansionQualifier(const clang::MacroDirective* md)
 {
-	auto mdLoc = macroDefinitionLocation(md);
+	QString namespaceName, fileName;
 
-	return new OOModel::ReferenceExpression(mdLoc.second, new OOModel::ReferenceExpression(mdLoc.first));
+	if (macroDefinitionLocation(md, namespaceName, fileName))
+		return new OOModel::ReferenceExpression(fileName, new OOModel::ReferenceExpression(namespaceName));
+	else
+		return new OOModel::ReferenceExpression("notenvision");
 }
 
 }
