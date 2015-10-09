@@ -39,41 +39,27 @@ MetaDefinitionManager::MetaDefinitionManager(OOModel::Project* root, ClangHelper
 
 OOModel::Declaration* MetaDefinitionManager::getMetaDefParent(const clang::MacroDirective* md)
 {
-	auto mdLoc = definitionManager_->getMacroDirectionLocation(md);
+	auto mdLoc = definitionManager_->macroDefinitionLocation(md);
 
-	OOModel::Module* nameSpace = nullptr;
-	for (auto i = 0; i < root_->modules()->size(); i++)
-		if (root_->modules()->at(i)->name() == mdLoc.first)
-		{
-			nameSpace = root_->modules()->at(i);
-			break;
-		}
+	// find the namespace module for md
+	OOModel::Module* namespaceModule =
+			DCast<OOModel::Module>(StaticStuff::findDeclaration(root_->modules(), mdLoc.first));
 
-	if (!nameSpace) return root_;
-	Q_ASSERT(nameSpace);
+	// this assertion holds if the project structure matches Envision's project structure
+	// alternatively if no such module could be found (project structure unlike Envision's) one could put it into root_
+	Q_ASSERT(namespaceModule); //if (!namespaceModule) return root_;
 
-	OOModel::Declaration* result = nullptr;
-	for (auto i = 0; i < nameSpace->modules()->size(); i++)
-		if (nameSpace->modules()->at(i)->name() == mdLoc.second)
-		{
-			result = nameSpace->modules()->at(i);
-			break;
-		}
+	// try to find the module (includes macro containers) to put this macro in
+	OOModel::Declaration* result = StaticStuff::findDeclaration(namespaceModule->modules(), mdLoc.second);
 
-	if (!result)
-	{
-		for (auto i = 0; i < nameSpace->classes()->size(); i++)
-			if (nameSpace->classes()->at(i)->name() == mdLoc.second)
-			{
-				result = nameSpace->classes()->at(i);
-				break;
-			}
-	}
+	// if no module could be found; try to find an appropriate class to put this macro in
+	if (!result) result = StaticStuff::findDeclaration(namespaceModule->classes(), mdLoc.second);
 
+	// if no existing place could be found: create a new module (macro container) and put the macro in there
 	if (!result)
 	{
 		result = new OOModel::Module(mdLoc.second);
-		nameSpace->modules()->append(result);
+		namespaceModule->modules()->append(result);
 	}
 
 	return result;
@@ -87,11 +73,6 @@ OOModel::MetaDefinition* MetaDefinitionManager::getMetaDefinition(const clang::M
 		return nullptr;
 
 	return metaDefinitions_.value(h);
-}
-
-void MetaDefinitionManager::addMetaDefinition(const clang::MacroDirective* md, OOModel::MetaDefinition* metaDef)
-{
-	metaDefinitions_.insert(definitionManager_->hash(md), metaDef);
 }
 
 void MetaDefinitionManager::handlePartialBeginSpecialization(OOModel::Declaration* metaDefParent,
@@ -161,8 +142,8 @@ void MetaDefinitionManager::createMetaDef(QVector<Model::Node*> nodes, MacroExpa
 {
 	if (!getMetaDefinition(expansion->definition))
 	{
-		auto metaDef = new OOModel::MetaDefinition(definitionManager_->getDefinitionName(expansion->definition));
-		addMetaDefinition(expansion->definition, metaDef);
+		auto metaDef = new OOModel::MetaDefinition(definitionManager_->definitionName(expansion->definition));
+		metaDefinitions_.insert(definitionManager_->hash(expansion->definition), metaDef);
 
 		for (auto argName : clang_->getArgumentNames(expansion->definition))
 			metaDef->arguments()->append(new OOModel::FormalMetaArgument(argName));
@@ -209,14 +190,7 @@ void MetaDefinitionManager::createMetaDef(QVector<Model::Node*> nodes, MacroExpa
 
 	auto callee = DCast<OOModel::ReferenceExpression>(expansion->metaCall->callee());
 	Q_ASSERT(callee);
-	callee->setPrefix(getExpansionQualifier(expansion->definition));
-}
-
-OOModel::ReferenceExpression* MetaDefinitionManager::getExpansionQualifier(const clang::MacroDirective* md)
-{
-	auto mdLoc = definitionManager_->getMacroDirectionLocation(md);
-
-	return new OOModel::ReferenceExpression(mdLoc.second, new OOModel::ReferenceExpression(mdLoc.first));
+	callee->setPrefix(definitionManager_->expansionQualifier(expansion->definition));
 }
 
 MacroExpansion* MetaDefinitionManager::getBasePartialBegin(MacroExpansion* partialBeginExpansion)
@@ -232,17 +206,12 @@ MacroExpansion* MetaDefinitionManager::getBasePartialBegin(MacroExpansion* parti
 
 OOModel::MetaDefinition* MetaDefinitionManager::getXMacroMetaDefinition(const clang::MacroDirective* md)
 {
-	QString h = definitionManager_->getDefinitionName(md);
+	QString h = definitionManager_->definitionName(md);
 
 	if (!xMacroMetaDefinitions_.contains(h))
 		return nullptr;
 
 	return xMacroMetaDefinitions_.value(h);
-}
-
-void MetaDefinitionManager::addXMacroMetaDefinition(const clang::MacroDirective* md, OOModel::MetaDefinition* metaDef)
-{
-	xMacroMetaDefinitions_.insert(definitionManager_->getDefinitionName(md), metaDef);
 }
 
 void MetaDefinitionManager::mergeClasses(OOModel::Class* merged, OOModel::Class* mergee)
@@ -282,8 +251,8 @@ OOModel::MetaDefinition* MetaDefinitionManager::createXMacroMetaDef(MacroExpansi
 	auto cppBaseMetaDef = getMetaDefinition(cppBaseExpansion->definition);
 
 	auto mergedMetaDef = hBaseMetaDef->clone();
-	mergedMetaDef->setName(definitionManager_->getDefinitionName(hBaseExpansion->definition));
-	addXMacroMetaDefinition(hBaseExpansion->definition, mergedMetaDef);
+	mergedMetaDef->setName(definitionManager_->definitionName(hBaseExpansion->definition));
+	xMacroMetaDefinitions_.insert(definitionManager_->definitionName(hBaseExpansion->definition), mergedMetaDef);
 
 	/* assumptions:
 	 * - the context of hBaseMetaDef is a Module
@@ -320,7 +289,7 @@ OOModel::MetaDefinition* MetaDefinitionManager::createXMacroMetaDef(MacroExpansi
 	mergedMetaDef->metaBindings()->append(statementsSpliceMetaBinding);
 
 	// add the merged MetaDefinition to the tree
-	root_->subDeclarations()->append(mergedMetaDef);
+	hBaseMetaDef->parent()->replaceChild(hBaseMetaDef, mergedMetaDef);
 
 	return mergedMetaDef;
 }

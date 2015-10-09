@@ -59,7 +59,7 @@ void ExpansionManager::addMacroExpansion(clang::SourceRange sr,
 	}
 
 	entry->metaCall =
-			new OOModel::MetaCallExpression(definitionManager_->getDefinitionName(entry->definition));
+			new OOModel::MetaCallExpression(definitionManager_->definitionName(entry->definition));
 
 	if (!md->getMacroInfo()->isObjectLike())
 	{

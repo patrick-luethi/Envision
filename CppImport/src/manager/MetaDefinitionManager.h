@@ -78,14 +78,9 @@ class CPPIMPORT_API MetaDefinitionManager
 		void handlePartialBeginSpecialization(OOModel::Declaration* metaDefParent, OOModel::MetaDefinition* metaDef,
 														  MacroExpansion* expansion, MacroExpansion* beginChild);
 		MacroExpansion* getBasePartialBegin(MacroExpansion* partialBeginExpansion);
-		OOModel::ReferenceExpression* getExpansionQualifier(const clang::MacroDirective* md);
 		void mergeClasses(OOModel::Class* merged, OOModel::Class* mergee);
 
-
-		void addMetaDefinition(const clang::MacroDirective* md, OOModel::MetaDefinition* metaDef);
 		OOModel::MetaDefinition* getMetaDefinition(const clang::MacroDirective* md);
-
-		void addXMacroMetaDefinition(const clang::MacroDirective* md, OOModel::MetaDefinition* metaDef);
 		OOModel::MetaDefinition* getXMacroMetaDefinition(const clang::MacroDirective* md);
 
 };

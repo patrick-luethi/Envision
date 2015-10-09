@@ -40,15 +40,22 @@ class CPPIMPORT_API DefinitionManager
 
 		void addMacroDefinition(QString name, const clang::MacroDirective* md);
 
-		QString getDefinitionName(const clang::MacroDirective* md);
+		QString definitionName(const clang::MacroDirective* md);
 
 		bool isPartialBegin(const clang::MacroDirective* md);
 		bool isPartialEnd(const clang::MacroDirective* md);
 
 		void clear();
 
-		std::pair<QString, QString> getMacroDirectionLocation(const clang::MacroDirective* md);
+		/**
+		 * assuming a project structure like Envision's returns a pair of strings <A, B> where:
+		 * A = namespace name for the location of md
+		 * B = file name for the location of md
+		 */
+		std::pair<QString, QString> macroDefinitionLocation(const clang::MacroDirective* md);
 		QString hash(const clang::MacroDirective* md);
+
+		OOModel::ReferenceExpression* expansionQualifier(const clang::MacroDirective* md);
 
 	private:
 		ClangHelper* clang_;
