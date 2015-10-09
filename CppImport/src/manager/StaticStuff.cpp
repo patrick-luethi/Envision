@@ -159,7 +159,7 @@ void StaticStuff::addNodeToDeclaration(Model::Node* node, OOModel::Declaration* 
 		if (auto context = DCast<OOModel::Method>(declaration))
 			context->items()->append(new OOModel::ExpressionStatement(ooExpression));
 		else
-			Q_ASSERT(false);
+			qDebug() << "can not insert expression" << ooExpression->typeName() << "into a" << declaration->typeName();
 	}
 	else if (auto ooStatement = DCast<OOModel::Statement>(node))
 	{

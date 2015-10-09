@@ -224,7 +224,7 @@ void LexicalHelper::applyLexicalTransformations(Model::Node* node, NodeMapping* 
 			}
 			else if (auto templateInst = DCast<OOModel::ExplicitTemplateInstantiation>(node))
 			{
-				QRegularExpression regEx("\\s((\\w+::)?\\w+<(\\w+::)?\\w+>)$");
+				QRegularExpression regEx("((\\w+::)?\\w+<(\\w+::)?\\w+>)$");
 
 				auto m = regEx.match(transformed);
 				if (m.hasMatch())
