@@ -216,8 +216,8 @@ void MetaDefinitionManager::insertArgumentSplices(NodeMapping* mapping, NodeMapp
 					.at(spliceLoc.argumentNumber);
 			auto newNode = new OOModel::ReferenceExpression(argName);
 
-			child->parent()->replaceChild(child, newNode);
-			childMapping->add(original, newNode);
+			if (child->parent()) child->parent()->replaceChild(child, newNode);
+			childMapping->replaceClone(child, newNode);
 		}
 	}
 }

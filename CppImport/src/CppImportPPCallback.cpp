@@ -34,9 +34,9 @@ void CppImportPPCallback::MacroDefined(const clang::Token& MacroNameTok, const c
 {
 	auto name = QString::fromStdString(MacroNameTok.getIdentifierInfo()->getName().str());
 
-	if (name.startsWith("_")) return; // TODO: just for debug
+	/*if (name.startsWith("_")) return; // TODO: just for debug
 	if (name.endsWith("_API") || name == "VISITOR_EXPORT") return; // export flags
-	if (name.startsWith("QT_")) return;
+	if (name.startsWith("QT_")) return;*/
 
 	definitions_[name] = MD;
 
