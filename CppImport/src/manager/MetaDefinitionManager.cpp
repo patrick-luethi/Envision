@@ -26,16 +26,22 @@
 
 #include "MetaDefinitionManager.h"
 
-#include "MacroImportHelper.h"
+#include "DefinitionManager.h"
+#include "ExpansionManager.h"
+#include "LexicalHelper.h"
 #include "StaticStuff.h"
+#include "XMacroManager.h"
 
 namespace CppImport {
 
 MetaDefinitionManager::MetaDefinitionManager(OOModel::Project* root, ClangHelper* clang,
 															DefinitionManager* definitionManager,
-															ExpansionManager* expansionManager, LexicalHelper* lexicalHelper)
+															ExpansionManager* expansionManager,
+															LexicalHelper* lexicalHelper,
+															XMacroManager* xMacroManager)
 	: root_(root), clang_(clang), definitionManager_(definitionManager),
-	  expansionManager_(expansionManager), lexicalHelper_(lexicalHelper) {}
+	  expansionManager_(expansionManager), lexicalHelper_(lexicalHelper),
+		xMacroManager_(xMacroManager) {}
 
 OOModel::Declaration* MetaDefinitionManager::getMetaDefParent(const clang::MacroDirective* md)
 {
@@ -75,68 +81,6 @@ OOModel::MetaDefinition* MetaDefinitionManager::getMetaDefinition(const clang::M
 	return metaDefinitions_.value(h);
 }
 
-void MetaDefinitionManager::handlePartialBeginSpecialization(OOModel::Declaration* metaDefParent,
-																				 OOModel::MetaDefinition* metaDef,
-																				 MacroExpansion* expansion,
-																				 MacroExpansion* beginChild)
-{
-	auto list = new Model::List();
-
-	QVector<Model::Node*> statements = expansionManager_->getNTLExpansionTLNodes(expansion);
-
-	for (auto stmt : statements)
-		list->append(stmt->clone());
-
-	Q_ASSERT(statements.empty() || expansion->children.size() == 1);
-	for (auto child : expansion->children)
-		if (child != beginChild)
-			list->append(child->metaCall);
-
-	if (!statements.empty() || expansion->children.size() > 1)
-	{
-		auto childDef = getMetaDefinition(beginChild->definition);
-		Q_ASSERT(childDef);
-
-		if (childDef->arguments()->size() == beginChild->metaCall->arguments()->size())
-		{
-			childDef->arguments()->append(new OOModel::FormalMetaArgument("specSplice"));
-
-			if (!metaDefParent->name().endsWith("_CPP"))
-			{
-				childDef->context()->metaCalls()->append(new OOModel::ReferenceExpression("specSplice"));
-			}
-			else
-			{
-				auto classContext = DCast<OOModel::Class>(childDef->context());
-				Q_ASSERT(classContext);
-
-				if (classContext->methods()->size() > 0)
-				{
-					classContext->methods()->last()->items()->append(new OOModel::ExpressionStatement(
-																						 new OOModel::ReferenceExpression("specSplice")));
-				}
-				else
-				{
-					Q_ASSERT(childDef->context()->metaCalls()->size() == 1);
-
-					auto childDefInnerMetaCall =
-							DCast<OOModel::MetaCallExpression>(childDef->context()->metaCalls()->first());
-					Q_ASSERT(childDefInnerMetaCall);
-
-					auto innerList = DCast<Model::List>(childDefInnerMetaCall->arguments()->last());
-					Q_ASSERT(innerList);
-
-					innerList->append(new OOModel::ReferenceExpression("specSplice"));
-				}
-			}
-		}
-	}
-
-	beginChild->metaCall->arguments()->append(list);
-
-	metaDef->context()->metaCalls()->append(beginChild->metaCall);
-}
-
 void MetaDefinitionManager::createMetaDef(QVector<Model::Node*> nodes, MacroExpansion* expansion, NodeMapping* mapping,
 														QVector<MacroArgumentInfo>& arguments, QHash<MacroExpansion*, Model::Node*>* splices)
 {
@@ -150,9 +94,9 @@ void MetaDefinitionManager::createMetaDef(QVector<Model::Node*> nodes, MacroExpa
 
 		auto metaDefParent = getMetaDefParent(expansion->definition);
 
-		if (auto beginChild = partialBeginChild(expansion))
+		if (auto beginChild = xMacroManager_->partialBeginChild(expansion))
 		{
-			handlePartialBeginSpecialization(metaDefParent, metaDef, expansion, beginChild);
+			xMacroManager_->handlePartialBeginSpecialization(metaDefParent, metaDef, expansion, beginChild);
 		}
 		else
 		{
@@ -191,107 +135,6 @@ void MetaDefinitionManager::createMetaDef(QVector<Model::Node*> nodes, MacroExpa
 	auto callee = DCast<OOModel::ReferenceExpression>(expansion->metaCall->callee());
 	Q_ASSERT(callee);
 	callee->setPrefix(definitionManager_->expansionQualifier(expansion->definition));
-}
-
-MacroExpansion* MetaDefinitionManager::getBasePartialBegin(MacroExpansion* partialBeginExpansion)
-{
-	Q_ASSERT(definitionManager_->isPartialBegin(partialBeginExpansion->definition));
-
-	for (auto child : partialBeginExpansion->children)
-		if (definitionManager_->isPartialBegin(child->definition))
-		 return getBasePartialBegin(child);
-
-	return partialBeginExpansion;
-}
-
-OOModel::MetaDefinition* MetaDefinitionManager::getXMacroMetaDefinition(const clang::MacroDirective* md)
-{
-	QString h = definitionManager_->definitionName(md);
-
-	if (!xMacroMetaDefinitions_.contains(h))
-		return nullptr;
-
-	return xMacroMetaDefinitions_.value(h);
-}
-
-void MetaDefinitionManager::mergeClasses(OOModel::Class* merged, OOModel::Class* mergee)
-{
-	for (auto i = 0; i < mergee->metaCalls()->size(); i++)
-		merged->metaCalls()->append(mergee->metaCalls()->at(i)->clone());
-
-	for (auto i = 0; i < merged->methods()->size(); i++)
-		for (auto j = 0; j < mergee->methods()->size(); j++)
-		{
-			auto mergedMethod = merged->methods()->at(i);
-			auto mergeeMethod = mergee->methods()->at(j);
-
-			if (mergedMethod->name() == mergeeMethod->name())
-			{
-				for (auto k = 0; k < mergeeMethod->items()->size(); k++)
-					mergedMethod->items()->append(mergeeMethod->items()->at(k)->clone());
-
-				mergedMethod->memberInitializers()->clear();
-				for (auto k = 0; k < mergeeMethod->memberInitializers()->size(); k++)
-					mergedMethod->memberInitializers()->append(mergeeMethod->memberInitializers()->at(k)->clone());
-			}
-		}
-
-}
-
-OOModel::MetaDefinition* MetaDefinitionManager::createXMacroMetaDef(MacroExpansion* hExpansion,
-																						 MacroExpansion* cppExpansion)
-{
-	auto hBaseExpansion = getBasePartialBegin(hExpansion);
-	auto cppBaseExpansion = getBasePartialBegin(cppExpansion);
-
-	// if the merged xMacro MetaDefinition already exists just return it
-	if (auto existing = getXMacroMetaDefinition(hBaseExpansion->definition)) return existing;
-
-	auto hBaseMetaDef = getMetaDefinition(hBaseExpansion->definition);
-	auto cppBaseMetaDef = getMetaDefinition(cppBaseExpansion->definition);
-
-	auto mergedMetaDef = hBaseMetaDef->clone();
-	mergedMetaDef->setName(definitionManager_->definitionName(hBaseExpansion->definition));
-	xMacroMetaDefinitions_.insert(definitionManager_->definitionName(hBaseExpansion->definition), mergedMetaDef);
-
-	/* assumptions:
-	 * - the context of hBaseMetaDef is a Module
-	 * - the context module of hBaseMetaDef contains exactly one class
-	 * - the context of cppBaseMetaDef is a Class
-	 * - the merged MetaDefinition is correct if we merge those 2 classes
-	 */
-	auto mergedClass = DCast<OOModel::Class>(DCast<OOModel::Module>(mergedMetaDef->context())->classes()->first());
-	auto cppBaseClass = DCast<OOModel::Class>(cppBaseMetaDef->context());
-
-	mergeClasses(mergedClass, cppBaseClass);
-
-
-	QString metaBindingInputName = "metaBindingInput";
-	QString declarationSpliceName = "list1";
-	QString statementSpliceName = "list2";
-
-	// add an argument for the input to the MetaBindings
-	mergedMetaDef->arguments()->append(new OOModel::FormalMetaArgument(metaBindingInputName));
-
-	// add splices for the MetaBinding results
-	mergedClass->metaCalls()->append(new OOModel::ReferenceExpression(declarationSpliceName));
-	mergedClass->methods()->last()->items()->append(new OOModel::ExpressionStatement(
-																 new OOModel::ReferenceExpression(statementSpliceName)));
-
-	// MetaBinding for declarations splice
-	auto declarationsSpliceMetaBinding = new OOModel::MetaBinding(declarationSpliceName);
-	declarationsSpliceMetaBinding->setInput(new OOModel::ReferenceExpression(metaBindingInputName));
-	mergedMetaDef->metaBindings()->append(declarationsSpliceMetaBinding);
-
-	// MetaBinding for statements splice
-	auto statementsSpliceMetaBinding = new OOModel::MetaBinding(statementSpliceName);
-	statementsSpliceMetaBinding->setInput(new OOModel::ReferenceExpression(metaBindingInputName));
-	mergedMetaDef->metaBindings()->append(statementsSpliceMetaBinding);
-
-	// add the merged MetaDefinition to the tree
-	hBaseMetaDef->parent()->replaceChild(hBaseMetaDef, mergedMetaDef);
-
-	return mergedMetaDef;
 }
 
 void MetaDefinitionManager::renameMetaCalls(Model::Node* node, QString current, QString replace)
@@ -377,15 +220,6 @@ void MetaDefinitionManager::insertArgumentSplices(NodeMapping* mapping, NodeMapp
 			childMapping->add(original, newNode);
 		}
 	}
-}
-
-MacroExpansion* MetaDefinitionManager::partialBeginChild(MacroExpansion* expansion)
-{
-	for (auto child : expansion->children)
-		if (definitionManager_->isPartialBegin(child->definition))
-			return child;
-
-	return nullptr;
 }
 
 }
