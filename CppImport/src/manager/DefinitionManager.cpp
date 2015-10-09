@@ -79,6 +79,12 @@ bool DefinitionManager::macroDefinitionLocation(const clang::MacroDirective* md,
 		namespaceName = "Model";
 	else if (namespaceName == "VisualizationBase")
 		namespaceName = "Visualization";
+	else if (namespaceName == "InteractionBase")
+		namespaceName = "Interaction";
+	else if (namespaceName == "AlloyIntegration")
+		namespaceName = "Alloy";
+	else if (namespaceName == "HelloWorld")
+		namespaceName = "Hello";
 
 	fileName = match.captured(3).replace(".h", "").replace(".cpp", "_CPP");
 
