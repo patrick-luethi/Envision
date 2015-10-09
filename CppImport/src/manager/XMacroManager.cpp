@@ -34,10 +34,10 @@
 
 namespace CppImport {
 
-XMacroManager::XMacroManager(OOModel::Project* root, ClangHelper* clang, DefinitionManager* definitionManager,
-									  ExpansionManager* expansionManager, MetaDefinitionManager* metaDefinitionManager)
-	: root_(root), clang_(clang), definitionManager_(definitionManager),
-	  expansionManager_(expansionManager), metaDefinitionManager_(metaDefinitionManager) {}
+XMacroManager::XMacroManager(DefinitionManager* definitionManager, ExpansionManager* expansionManager,
+									  MetaDefinitionManager* metaDefinitionManager)
+	: definitionManager_(definitionManager), expansionManager_(expansionManager),
+	  metaDefinitionManager_(metaDefinitionManager) {}
 
 void XMacroManager::handlePartialBeginSpecialization(OOModel::Declaration* metaDefParent,
 																	  OOModel::MetaDefinition* metaDef,

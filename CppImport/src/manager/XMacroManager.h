@@ -41,9 +41,7 @@ class MetaDefinitionManager;
 class CPPIMPORT_API XMacroManager
 {
 	public:
-		XMacroManager(OOModel::Project* root, ClangHelper* clang,
-																	DefinitionManager* definitionManager,
-																	ExpansionManager* expansionManager,
+		XMacroManager(DefinitionManager* definitionManager, ExpansionManager* expansionManager,
 						  MetaDefinitionManager* metaDefinitionManager);
 
 		void handlePartialBeginSpecialization(OOModel::Declaration* metaDefParent,
@@ -53,19 +51,16 @@ class CPPIMPORT_API XMacroManager
 
 		void handleXMacros();
 
-		OOModel::MetaDefinition* createXMacroMetaDef(MacroExpansion* hExpansion,
-																								 MacroExpansion* cppExpansion);
+		MacroExpansion* partialBeginChild(MacroExpansion* expansion);
 
-		MacroExpansion*partialBeginChild(MacroExpansion* expansion);
 	private:
-		OOModel::Project* root_;
-		ClangHelper* clang_;
 		DefinitionManager* definitionManager_;
 		ExpansionManager* expansionManager_;
 		MetaDefinitionManager* metaDefinitionManager_;
 
 		QHash<QString, OOModel::MetaDefinition*> xMacroMetaDefinitions_;
 
+		OOModel::MetaDefinition* createXMacroMetaDef(MacroExpansion* hExpansion, MacroExpansion* cppExpansion);
 		MacroExpansion* getBasePartialBegin(MacroExpansion* partialBeginExpansion);
 		void mergeClasses(OOModel::Class* merged, OOModel::Class* mergee);
 		OOModel::MetaDefinition*getXMacroMetaDefinition(const clang::MacroDirective* md);

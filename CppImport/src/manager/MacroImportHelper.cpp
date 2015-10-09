@@ -42,7 +42,7 @@ MacroImportHelper::MacroImportHelper(OOModel::Project* project)
 	  definitionManager_(&clang_),
 	  expansionManager_(&clang_, &astMapping_, &definitionManager_, &lexicalHelper_),
 	  lexicalHelper_(&clang_, &expansionManager_),
-	  xMacroManager_(project, &clang_, &definitionManager_, &expansionManager_, &metaDefinitionManager_),
+	  xMacroManager_(&definitionManager_, &expansionManager_, &metaDefinitionManager_),
 	  metaDefinitionManager_(project, &clang_, &definitionManager_, &expansionManager_, &lexicalHelper_, &xMacroManager_)
 	  {}
 
