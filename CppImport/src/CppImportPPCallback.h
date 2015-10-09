@@ -35,27 +35,15 @@ namespace CppImport {
 class CPPIMPORT_API CppImportPPCallback : public clang::PPCallbacks
 {
 	public:
-
-		CppImportPPCallback(
-				const clang::Preprocessor* preprocessor,
-				const clang::SourceManager* sourceManager,
-				MacroImportHelper& macroImportHelper)
-			: preprocessor_(const_cast<clang::Preprocessor*>(preprocessor)),
-			  sourceManager_(sourceManager), macroImportHelper_(macroImportHelper) { }
-
-		virtual void MacroDefined(const clang::Token& MacroNameTok, const clang::MacroDirective* MD) override;
+		CppImportPPCallback(MacroImportHelper& macroImportHelper) : macroImportHelper_(macroImportHelper) { }
 
 		virtual void MacroExpands(const clang::Token& MacroNameTok, const clang::MacroDirective* MD,
 										  clang::SourceRange range, const clang::MacroArgs* args) override;
 
-		clang::Preprocessor* preprocessor_;
-		const clang::SourceManager* sourceManager_;
-
-		MacroImportHelper& macroImportHelper_;
 
 	private:
+		MacroImportHelper& macroImportHelper_;
 
-		QHash<QString, const clang::MacroDirective*> definitions_;
 };
 
 }

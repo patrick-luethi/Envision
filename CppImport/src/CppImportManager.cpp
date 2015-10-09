@@ -117,7 +117,7 @@ void CppImportManager::setupTest()
 		else if (testDir.startsWith("spath:"))
 		{
 			testDir.replace(0, 6, "");
-			return setImportPath(QDir("../../../playground/Envision").absolutePath(), true);
+			return setImportPath(QDir("../../../playground/Envision/ModelBase").absolutePath());
 		}
 		else if (!testDir.startsWith("#"))
 		{
