@@ -59,6 +59,7 @@ class CPPIMPORT_API XMacroManager
 		MetaDefinitionManager* metaDefinitionManager_;
 
 		QHash<QString, OOModel::MetaDefinition*> xMacroMetaDefinitions_;
+		QHash<OOModel::MetaCallExpression*, Model::List*> specializations_;
 
 		OOModel::MetaDefinition* createXMacroMetaDef(MacroExpansion* hExpansion, MacroExpansion* cppExpansion);
 		MacroExpansion* getBasePartialBegin(MacroExpansion* partialBeginExpansion);

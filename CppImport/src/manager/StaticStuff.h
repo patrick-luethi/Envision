@@ -46,7 +46,7 @@ class CPPIMPORT_API StaticStuff
 
 		static Model::Node* cloneWithMapping(Model::Node* node, NodeMapping* mapping);
 
-		static void removeNode(Model::Node* node);
+		static void removeNode(Model::Node* node, bool removeMetaCalls = false);
 		static void removeNodes(QVector<Model::Node*> nodes) { for (auto n : nodes) removeNode(n); }
 
 		static void addNodeToDeclaration(Model::Node* node, OOModel::Declaration* declaration);

@@ -119,22 +119,23 @@ Model::Node*StaticStuff::cloneWithMapping(Model::Node* node, NodeMapping* mappin
 	return clone;
 }
 
-void StaticStuff::removeNode(Model::Node* node)
+void StaticStuff::removeNode(Model::Node* node, bool removeMetaCalls)
 {
 	if (!node || !node->parent()) return;
 
-	while (auto metaCall = containsMetaCall(node))
-	{
-		return;
-
-		if (auto declaration = DCast<OOModel::Declaration>(metaCall->parent()->parent()))
+	if (!removeMetaCalls)
+		while (auto metaCall = containsMetaCall(node))
 		{
-			auto newDeclaration = node->firstAncestorOfType<OOModel::Declaration>();
+			return;
 
-			declaration->metaCalls()->remove(declaration->metaCalls()->indexOf(metaCall));
-			newDeclaration->metaCalls()->append(metaCall);
+			if (auto declaration = DCast<OOModel::Declaration>(metaCall->parent()->parent()))
+			{
+				auto newDeclaration = node->firstAncestorOfType<OOModel::Declaration>();
+
+				declaration->metaCalls()->remove(declaration->metaCalls()->indexOf(metaCall));
+				newDeclaration->metaCalls()->append(metaCall);
+			}
 		}
-	}
 
 	if (auto ooList = DCast<Model::List>(node->parent()))
 		ooList->remove(ooList->indexOf(node));
@@ -144,9 +145,9 @@ void StaticStuff::removeNode(Model::Node* node)
 			ooVarDecl->setInitialValue(nullptr);
 	}
 	else if (auto skip = DCast<OOModel::VariableDeclarationExpression>(node->parent()))
-		removeNode(skip);
+		removeNode(skip, removeMetaCalls);
 	else if (auto skip = DCast<OOModel::ExpressionStatement>(node->parent()))
-		removeNode(skip);
+		removeNode(skip, removeMetaCalls);
 	else
 		qDebug() << "not removed" << node->typeName() << "in" << node->parent()->typeName();
 }

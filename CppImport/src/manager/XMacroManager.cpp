@@ -46,35 +46,21 @@ void XMacroManager::handlePartialBeginSpecialization(OOModel::Declaration* metaD
 {
 	QVector<Model::Node*> statements = expansionManager_->getNTLExpansionTLNodes(expansion);
 
-	// create a new list containing all the additional statements defined in expansion (the specialization)
-	auto list = new Model::List();
-	for (auto stmt : statements) list->append(stmt->clone());
-
-	Q_ASSERT(statements.empty() || expansion->children.size() == 1);
-
-	// add all child meta calls except the begin partial child
-	for (auto child : expansion->children)
-		if (child != beginChild)
-			list->append(child->metaCall);
-
-	if (!statements.empty() || expansion->children.size() > 1)
+	if (!statements.empty())
 	{
+		// create a new list containing all the additional statements defined in expansion (the specialization)
+		auto list = new Model::List();
+		for (auto stmt : statements) list->append(stmt->clone());
+
 		auto childDef = metaDefinitionManager_->getMetaDefinition(beginChild->definition);
 		Q_ASSERT(childDef);
 
-		if (childDef->arguments()->size() == beginChild->metaCall->arguments()->size())
+		if (metaDefParent->name().endsWith("_CPP"))
 		{
-			if (!metaDefParent->name().endsWith("_CPP"))
-			{
-				QString hSpecializationSpliceName = "hSpecSplice";
+			QString cppSpecializationSpliceName = "cppSpecSplice";
 
-				childDef->arguments()->append(new OOModel::FormalMetaArgument(hSpecializationSpliceName));
-				childDef->context()->metaCalls()->append(new OOModel::ReferenceExpression(hSpecializationSpliceName));
-			}
-			else
+			if (!StaticStuff::findDeclaration(childDef->arguments(), cppSpecializationSpliceName))
 			{
-				QString cppSpecializationSpliceName = "cppSpecSplice";
-
 				childDef->arguments()->append(new OOModel::FormalMetaArgument(cppSpecializationSpliceName));
 
 				auto classContext = DCast<OOModel::Class>(childDef->context());
@@ -83,24 +69,12 @@ void XMacroManager::handlePartialBeginSpecialization(OOModel::Declaration* metaD
 				if (classContext->methods()->size() > 0)
 					classContext->methods()->last()->items()->append(
 								new OOModel::ExpressionStatement(new OOModel::ReferenceExpression(cppSpecializationSpliceName)));
-				else
-				{
-					Q_ASSERT(childDef->context()->metaCalls()->size() == 1);
-
-					auto childDefInnerMetaCall =
-							DCast<OOModel::MetaCallExpression>(childDef->context()->metaCalls()->first());
-					Q_ASSERT(childDefInnerMetaCall);
-
-					auto innerList = DCast<Model::List>(childDefInnerMetaCall->arguments()->last());
-					Q_ASSERT(innerList);
-
-					innerList->append(new OOModel::ReferenceExpression(cppSpecializationSpliceName));
-				}
 			}
 		}
-	}
 
-	beginChild->metaCall->arguments()->append(list);
+		beginChild->metaCall->arguments()->append(list);
+		specializations_.insert(expansion->metaCall, list);
+	}
 
 	metaDef->context()->metaCalls()->append(beginChild->metaCall);
 }
@@ -114,8 +88,23 @@ void XMacroManager::handleXMacros()
 			{
 				if (auto other = getMatchingXMacroExpansion(node))
 				{
-					if (auto list = DCast<Model::List>(other->metaCall->parent()))
-						list->remove(list->indexOf(other->metaCall));
+					{
+						auto expDef = metaDefinitionManager_->getMetaDefinition(expansion->definition);
+
+						if (!StaticStuff::findDeclaration(expDef->arguments(), "metaBindingInput"))
+						{
+							if (specializations_.contains(other->metaCall))
+								if (auto pbc = partialBeginChild(expansion))
+								{
+									pbc->metaCall->arguments()->append(specializations_[other->metaCall]->clone());
+									pbc->metaCall->arguments()->append(new OOModel::ReferenceExpression("metaBindingInput"));
+								}
+
+							expDef->arguments()->append(new OOModel::FormalMetaArgument("metaBindingInput"));
+						}
+					}
+
+					StaticStuff::removeNode(other->metaCall, true);
 
 					auto merged = new OOModel::MetaCallExpression();
 					merged->setCallee(new OOModel::ReferenceExpression(
@@ -178,52 +167,63 @@ OOModel::MetaDefinition* XMacroManager::createXMacroMetaDef(MacroExpansion* hExp
 	auto hBaseExpansion = getBasePartialBegin(hExpansion);
 	auto cppBaseExpansion = getBasePartialBegin(cppExpansion);
 
-	// if the merged xMacro MetaDefinition already exists just return it
-	if (auto existing = getXMacroMetaDefinition(hBaseExpansion->definition)) return existing;
+	auto mergedMetaDef = getXMacroMetaDefinition(hBaseExpansion->definition);
+	if (!mergedMetaDef)
+	{
+		auto hBaseMetaDef = metaDefinitionManager_->getMetaDefinition(hBaseExpansion->definition);
+		auto cppBaseMetaDef = metaDefinitionManager_->getMetaDefinition(cppBaseExpansion->definition);
 
-	auto hBaseMetaDef = metaDefinitionManager_->getMetaDefinition(hBaseExpansion->definition);
-	auto cppBaseMetaDef = metaDefinitionManager_->getMetaDefinition(cppBaseExpansion->definition);
+		mergedMetaDef = hBaseMetaDef->clone();
+		mergedMetaDef->setName(definitionManager_->definitionName(hBaseExpansion->definition));
+		xMacroMetaDefinitions_.insert(definitionManager_->definitionName(hBaseExpansion->definition), mergedMetaDef);
 
-	auto mergedMetaDef = hBaseMetaDef->clone();
-	mergedMetaDef->setName(definitionManager_->definitionName(hBaseExpansion->definition));
-	xMacroMetaDefinitions_.insert(definitionManager_->definitionName(hBaseExpansion->definition), mergedMetaDef);
+		for (auto i = 0; i < cppBaseMetaDef->arguments()->size(); i++)
+		{
+			auto cppArg = cppBaseMetaDef->arguments()->at(i);
 
-	/* assumptions:
-			 * - the context of hBaseMetaDef is a Module
-			 * - the context module of hBaseMetaDef contains exactly one class
-			 * - the context of cppBaseMetaDef is a Class
-			 * - the merged MetaDefinition is correct if we merge those 2 classes
-			 */
-	auto mergedClass = DCast<OOModel::Class>(DCast<OOModel::Module>(mergedMetaDef->context())->classes()->first());
-	auto cppBaseClass = DCast<OOModel::Class>(cppBaseMetaDef->context());
+			if (!StaticStuff::findDeclaration(mergedMetaDef->arguments(), cppArg->name()))
+				mergedMetaDef->arguments()->append(cppArg->clone());
+		}
 
-	mergeClasses(mergedClass, cppBaseClass);
+		/* assumptions:
+		 * - the context of hBaseMetaDef is a Module
+		 * - the context module of hBaseMetaDef contains exactly one class
+		 * - the context of cppBaseMetaDef is a Class
+		 * - the merged MetaDefinition is correct if we merge those 2 classes
+		 */
+		auto mergedClass = DCast<OOModel::Class>(DCast<OOModel::Module>(mergedMetaDef->context())->classes()->first());
+		auto cppBaseClass = DCast<OOModel::Class>(cppBaseMetaDef->context());
 
+		mergeClasses(mergedClass, cppBaseClass);
 
-	QString metaBindingInputName = "metaBindingInput";
-	QString declarationSpliceName = "list1";
-	QString statementSpliceName = "list2";
+		QString metaBindingInputName = "metaBindingInput";
+		QString declarationSpliceName = "list1";
+		QString statementSpliceName = "list2";
 
-	// add an argument for the input to the MetaBindings
-	mergedMetaDef->arguments()->append(new OOModel::FormalMetaArgument(metaBindingInputName));
+		// add an argument for the input to the MetaBindings
+		mergedMetaDef->arguments()->append(new OOModel::FormalMetaArgument(metaBindingInputName));
 
-	// add splices for the MetaBinding results
-	mergedClass->metaCalls()->append(new OOModel::ReferenceExpression(declarationSpliceName));
-	mergedClass->methods()->last()->items()->append(new OOModel::ExpressionStatement(
-																		new OOModel::ReferenceExpression(statementSpliceName)));
+		// add splices for the MetaBinding results
+		mergedClass->metaCalls()->append(new OOModel::ReferenceExpression(declarationSpliceName));
+		mergedClass->methods()->last()->items()->append(new OOModel::ExpressionStatement(
+																			new OOModel::ReferenceExpression(statementSpliceName)));
 
-	// MetaBinding for declarations splice
-	auto declarationsSpliceMetaBinding = new OOModel::MetaBinding(declarationSpliceName);
-	declarationsSpliceMetaBinding->setInput(new OOModel::ReferenceExpression(metaBindingInputName));
-	mergedMetaDef->metaBindings()->append(declarationsSpliceMetaBinding);
+		// MetaBinding for declarations splice
+		auto declarationsSpliceMetaBinding = new OOModel::MetaBinding(declarationSpliceName);
+		declarationsSpliceMetaBinding->setInput(new OOModel::ReferenceExpression(metaBindingInputName));
+		mergedMetaDef->metaBindings()->append(declarationsSpliceMetaBinding);
 
-	// MetaBinding for statements splice
-	auto statementsSpliceMetaBinding = new OOModel::MetaBinding(statementSpliceName);
-	statementsSpliceMetaBinding->setInput(new OOModel::ReferenceExpression(metaBindingInputName));
-	mergedMetaDef->metaBindings()->append(statementsSpliceMetaBinding);
+		// MetaBinding for statements splice
+		auto statementsSpliceMetaBinding = new OOModel::MetaBinding(statementSpliceName);
+		statementsSpliceMetaBinding->setInput(new OOModel::ReferenceExpression(metaBindingInputName));
+		mergedMetaDef->metaBindings()->append(statementsSpliceMetaBinding);
 
-	// add the merged MetaDefinition to the tree
-	hBaseMetaDef->parent()->replaceChild(hBaseMetaDef, mergedMetaDef);
+		// add the merged MetaDefinition to the tree
+		hBaseMetaDef->parent()->replaceChild(hBaseMetaDef, mergedMetaDef);
+	}
+
+	StaticStuff::removeNode(metaDefinitionManager_->getMetaDefinition(cppExpansion->definition), true);
+	StaticStuff::removeNode(metaDefinitionManager_->getMetaDefinition(cppExpansion->definition), true);
 
 	return mergedMetaDef;
 }
