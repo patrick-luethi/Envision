@@ -39,7 +39,7 @@ class CPPIMPORT_API StaticStuff
 		static void orderNodes(QVector<Model::Node*>& input);
 
 		static bool validContext(Model::Node* node);
-		static OOModel::Declaration* getActualContext(Model::Node* node);
+		static OOModel::Declaration* actualContext(Model::Node* node);
 		static OOModel::Declaration* createContext(OOModel::Declaration* actualContext);
 
 		static QVector<Model::Node*> topLevelNodes(QVector<Model::Node*> input);

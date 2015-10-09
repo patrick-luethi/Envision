@@ -37,6 +37,10 @@ Model::Node* AstMapping::closestParentWithAstMapping(Model::Node* node)
 	return nullptr;
 }
 
+QHash<Model::Node*, QVector<clang::SourceRange>>::iterator AstMapping::begin() { return astMapping_.begin(); }
+
+QHash<Model::Node*, QVector<clang::SourceRange>>::iterator AstMapping::end() { return astMapping_.end(); }
+
 void AstMapping::mapAst(clang::Stmt* clangAstNode, Model::Node* envisionAstNode)
 {
 	if (auto bop = clang::dyn_cast<clang::BinaryOperator>(clangAstNode))

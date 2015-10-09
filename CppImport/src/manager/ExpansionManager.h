@@ -50,13 +50,13 @@ class CPPIMPORT_API ExpansionManager
 		QVector<MacroExpansion*> expansions();
 		void clear();
 
-		QVector<MacroExpansion*> getTopLevelExpansions();
+		QVector<MacroExpansion*> topLevelExpansions();
 
-		MacroExpansion* getImmediateExpansion(clang::SourceLocation loc);
-		QSet<MacroExpansion*> getExpansion(Model::Node* node);
+		MacroExpansion* immediateExpansion(clang::SourceLocation loc);
+		QSet<MacroExpansion*> expansion(Model::Node* node);
 
-		QVector<Model::Node*> getTLExpansionTLNodes(MacroExpansion* expansion);
-		QVector<Model::Node*> getNTLExpansionTLNodes(MacroExpansion* expansion);
+		QVector<Model::Node*> tLExpansionTLNodes(MacroExpansion* expansion);
+		QVector<Model::Node*> nTLExpansionTLNodes(MacroExpansion* expansion);
 
 	private:
 		ClangHelper* clang_;
@@ -67,7 +67,7 @@ class CPPIMPORT_API ExpansionManager
 		QHash<Model::Node*, QSet<MacroExpansion*>> expansionCache_;
 		QVector<MacroExpansion*> expansions_;
 
-		MacroExpansion* getExpansion(clang::SourceLocation loc);
+		MacroExpansion* expansion(clang::SourceLocation loc);
 
 };
 

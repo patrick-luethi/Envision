@@ -44,7 +44,7 @@ void XMacroManager::handlePartialBeginSpecialization(OOModel::Declaration* metaD
 																	  MacroExpansion* expansion,
 																	  MacroExpansion* beginChild)
 {
-	QVector<Model::Node*> statements = expansionManager_->getNTLExpansionTLNodes(expansion);
+	QVector<Model::Node*> statements = expansionManager_->nTLExpansionTLNodes(expansion);
 
 	if (!statements.empty())
 	{
@@ -52,7 +52,7 @@ void XMacroManager::handlePartialBeginSpecialization(OOModel::Declaration* metaD
 		auto list = new Model::List();
 		for (auto stmt : statements) list->append(stmt->clone());
 
-		auto childDef = metaDefinitionManager_->getMetaDefinition(beginChild->definition);
+		auto childDef = metaDefinitionManager_->metaDefinition(beginChild->definition);
 		Q_ASSERT(childDef);
 
 		if (metaDefParent->name().endsWith("_CPP"))
@@ -84,12 +84,12 @@ void XMacroManager::handleXMacros()
 	for (auto expansion : expansionManager_->expansions())
 		if (!expansion->xMacroChildren.empty())
 		{
-			for (auto node : expansionManager_->getTLExpansionTLNodes(expansion))
+			for (auto node : expansionManager_->tLExpansionTLNodes(expansion))
 			{
-				if (auto other = getMatchingXMacroExpansion(node))
+				if (auto other = matchingXMacroExpansion(node))
 				{
 					{
-						auto expDef = metaDefinitionManager_->getMetaDefinition(expansion->definition);
+						auto expDef = metaDefinitionManager_->metaDefinition(expansion->definition);
 
 						if (!StaticStuff::findDeclaration(expDef->arguments(), "metaBindingInput"))
 						{
@@ -164,14 +164,14 @@ void XMacroManager::handleXMacros()
 
 OOModel::MetaDefinition* XMacroManager::createXMacroMetaDef(MacroExpansion* hExpansion, MacroExpansion* cppExpansion)
 {
-	auto hBaseExpansion = getBasePartialBegin(hExpansion);
-	auto cppBaseExpansion = getBasePartialBegin(cppExpansion);
+	auto hBaseExpansion = basePartialBegin(hExpansion);
+	auto cppBaseExpansion = basePartialBegin(cppExpansion);
 
-	auto mergedMetaDef = getXMacroMetaDefinition(hBaseExpansion->definition);
+	auto mergedMetaDef = xMacroMetaDefinition(hBaseExpansion->definition);
 	if (!mergedMetaDef)
 	{
-		auto hBaseMetaDef = metaDefinitionManager_->getMetaDefinition(hBaseExpansion->definition);
-		auto cppBaseMetaDef = metaDefinitionManager_->getMetaDefinition(cppBaseExpansion->definition);
+		auto hBaseMetaDef = metaDefinitionManager_->metaDefinition(hBaseExpansion->definition);
+		auto cppBaseMetaDef = metaDefinitionManager_->metaDefinition(cppBaseExpansion->definition);
 
 		mergedMetaDef = hBaseMetaDef->clone();
 		mergedMetaDef->setName(definitionManager_->definitionName(hBaseExpansion->definition));
@@ -222,20 +222,20 @@ OOModel::MetaDefinition* XMacroManager::createXMacroMetaDef(MacroExpansion* hExp
 		hBaseMetaDef->parent()->replaceChild(hBaseMetaDef, mergedMetaDef);
 	}
 
-	StaticStuff::removeNode(metaDefinitionManager_->getMetaDefinition(cppExpansion->definition), true);
-	StaticStuff::removeNode(metaDefinitionManager_->getMetaDefinition(cppBaseExpansion->definition), true);
+	StaticStuff::removeNode(metaDefinitionManager_->metaDefinition(cppExpansion->definition), true);
+	StaticStuff::removeNode(metaDefinitionManager_->metaDefinition(cppBaseExpansion->definition), true);
 
 	return mergedMetaDef;
 }
 
 
-MacroExpansion* XMacroManager::getBasePartialBegin(MacroExpansion* partialBeginExpansion)
+MacroExpansion* XMacroManager::basePartialBegin(MacroExpansion* partialBeginExpansion)
 {
 	Q_ASSERT(definitionManager_->isPartialBegin(partialBeginExpansion->definition));
 
 	for (auto child : partialBeginExpansion->children)
 		if (definitionManager_->isPartialBegin(child->definition))
-		 return getBasePartialBegin(child);
+		 return basePartialBegin(child);
 
 	return partialBeginExpansion;
 }
@@ -273,7 +273,7 @@ MacroExpansion* XMacroManager::partialBeginChild(MacroExpansion* expansion)
 	return nullptr;
 }
 
-OOModel::MetaDefinition* XMacroManager::getXMacroMetaDefinition(const clang::MacroDirective* md)
+OOModel::MetaDefinition* XMacroManager::xMacroMetaDefinition(const clang::MacroDirective* md)
 {
 	QString h = definitionManager_->definitionName(md);
 
@@ -283,7 +283,7 @@ OOModel::MetaDefinition* XMacroManager::getXMacroMetaDefinition(const clang::Mac
 	return xMacroMetaDefinitions_.value(h);
 }
 
-MacroExpansion* XMacroManager::getMatchingXMacroExpansion(Model::Node* node)
+MacroExpansion* XMacroManager::matchingXMacroExpansion(Model::Node* node)
 {
 	if (auto metaCall = DCast<OOModel::MetaCallExpression>(node))
 		for (auto expansion : expansionManager_->expansions())
@@ -292,7 +292,7 @@ MacroExpansion* XMacroManager::getMatchingXMacroExpansion(Model::Node* node)
 					return expansion;
 
 	for (auto child : node->children())
-		if (auto expansion = getMatchingXMacroExpansion(child))
+		if (auto expansion = matchingXMacroExpansion(child))
 			return expansion;
 
 	return nullptr;

@@ -30,7 +30,7 @@ namespace CppImport {
 
 void ClangHelper::setSourceManager(const clang::SourceManager* sourceManager)
 {
-	sm_ = sourceManager;
+	sourceManager_ = sourceManager;
 }
 
 void ClangHelper::setPreprocessor(const clang::Preprocessor* preprocessor)
@@ -38,28 +38,28 @@ void ClangHelper::setPreprocessor(const clang::Preprocessor* preprocessor)
 	preprocessor_ = preprocessor;
 }
 
-QString ClangHelper::getSpelling(clang::SourceLocation loc)
+QString ClangHelper::spelling(clang::SourceLocation loc)
 {
-	return getSpelling(loc, loc);
+	return spelling(loc, loc);
 }
 
-QString ClangHelper::getSpelling(clang::SourceRange range)
+QString ClangHelper::spelling(clang::SourceRange range)
 {
-	return getSpelling(range.getBegin(), range.getEnd());
+	return spelling(range.getBegin(), range.getEnd());
 }
 
-QString ClangHelper::getSpelling(clang::SourceLocation start, clang::SourceLocation end)
+QString ClangHelper::spelling(clang::SourceLocation start, clang::SourceLocation end)
 {
-	clang::SourceLocation b = sm_->getSpellingLoc(start);
-	clang::SourceLocation e = clang::Lexer::getLocForEndOfToken(sm_->getSpellingLoc(end), 0, *sm_,
+	clang::SourceLocation b = sourceManager_->getSpellingLoc(start);
+	clang::SourceLocation e = clang::Lexer::getLocForEndOfToken(sourceManager_->getSpellingLoc(end), 0, *sourceManager_,
 																					preprocessor_->getLangOpts());
 
-	auto length = sm_->getCharacterData(e) - sm_->getCharacterData(b);
+	auto length = sourceManager_->getCharacterData(e) - sourceManager_->getCharacterData(b);
 	if (length > 1000000) return "ERROR_IN_GET_SPELLING";
 
 	try
 	{
-		return 0 < length ? QString::fromStdString(std::string(sm_->getCharacterData(b), length)) : "";
+		return 0 < length ? QString::fromStdString(std::string(sourceManager_->getCharacterData(b), length)) : "";
 	}
 	catch (...)
 	{
@@ -67,14 +67,14 @@ QString ClangHelper::getSpelling(clang::SourceLocation start, clang::SourceLocat
 	}
 }
 
-clang::SourceLocation ClangHelper::getImmediateMacroLoc(clang::SourceLocation Loc)
+clang::SourceLocation ClangHelper::immediateMacroLoc(clang::SourceLocation Loc)
 {
 	if (Loc.isMacroID())
 	{
 		while (1)
 		{
-			auto FID = sm_->getFileID(Loc);
-			const clang::SrcMgr::SLocEntry *E = &sm_->getSLocEntry(FID);
+			auto FID = sourceManager_->getFileID(Loc);
+			const clang::SrcMgr::SLocEntry *E = &sourceManager_->getSLocEntry(FID);
 			if (!E->isExpansion())
 				break;
 			const clang::SrcMgr::ExpansionInfo &Expansion = E->getExpansion();
@@ -82,13 +82,13 @@ clang::SourceLocation ClangHelper::getImmediateMacroLoc(clang::SourceLocation Lo
 			if (!Expansion.isMacroArgExpansion())
 				break;
 
-			Loc = sm_->getImmediateExpansionRange(Loc).first;
+			Loc = sourceManager_->getImmediateExpansionRange(Loc).first;
 			auto SpellLoc = Expansion.getSpellingLoc();
 			if (SpellLoc.isFileID())
 				break;
 
-			auto MacroFID = sm_->getFileID(Loc);
-			if (sm_->isInFileID(SpellLoc, MacroFID))
+			auto MacroFID = sourceManager_->getFileID(Loc);
+			if (sourceManager_->isInFileID(SpellLoc, MacroFID))
 				break;
 
 			Loc = SpellLoc;
@@ -98,17 +98,17 @@ clang::SourceLocation ClangHelper::getImmediateMacroLoc(clang::SourceLocation Lo
 	return Loc;
 }
 
-void ClangHelper::getImmediateSpellingHistory(clang::SourceLocation loc, QVector<clang::SourceLocation>* result)
+void ClangHelper::immediateSpellingHistory(clang::SourceLocation loc, QVector<clang::SourceLocation>* result)
 {
 	result->append(loc);
 
-	auto next = sm_->getImmediateSpellingLoc(loc);
+	auto next = sourceManager_->getImmediateSpellingLoc(loc);
 
 	if (next != loc)
-		getImmediateSpellingHistory(next, result);
+		immediateSpellingHistory(next, result);
 }
 
-QVector<QString> ClangHelper::getArgumentNames(const clang::MacroDirective* definition)
+QVector<QString> ClangHelper::argumentNames(const clang::MacroDirective* definition)
 {
 	QVector<QString> result;
 
@@ -120,16 +120,16 @@ QVector<QString> ClangHelper::getArgumentNames(const clang::MacroDirective* defi
 
 bool ClangHelper::contains(clang::SourceRange range, clang::SourceRange other)
 {
-	auto s = sm_->getSpellingLoc(range.getBegin()).getPtrEncoding();
-	auto e = sm_->getSpellingLoc(range.getEnd()).getPtrEncoding();
-	auto os = sm_->getSpellingLoc(other.getBegin()).getPtrEncoding();
+	auto s = sourceManager_->getSpellingLoc(range.getBegin()).getPtrEncoding();
+	auto e = sourceManager_->getSpellingLoc(range.getEnd()).getPtrEncoding();
+	auto os = sourceManager_->getSpellingLoc(other.getBegin()).getPtrEncoding();
 
 	return s <= os && os <= e;
 }
 
 const clang::SourceManager* ClangHelper::sourceManager()
 {
-	return sm_;
+	return sourceManager_;
 }
 
 }

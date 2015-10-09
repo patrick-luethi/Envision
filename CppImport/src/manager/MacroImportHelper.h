@@ -80,14 +80,16 @@ class CPPIMPORT_API MacroImportHelper
 
 		bool insertMetaCall(MacroExpansion* expansion);
 
-		OOModel::Declaration* getActualContext(MacroExpansion* expansion);
+		OOModel::Declaration* actualContext(MacroExpansion* expansion);
 
-		QVector<MacroArgumentLocation> getArgumentHistory(clang::SourceRange range);
-		QVector<MacroArgumentLocation> getArgumentHistory(Model::Node* node);
-		void getAllArguments(Model::Node* node, QVector<MacroArgumentInfo>* result, NodeMapping* mapping);
+		QVector<MacroArgumentLocation> argumentHistory(clang::SourceRange range);
+		QVector<MacroArgumentLocation> argumentHistory(Model::Node* node);
+		void allArguments(Model::Node* node, QVector<MacroArgumentInfo>* result, NodeMapping* mapping);
 
 		void clear();
 
+		void calculateFinalizationNodes(QVector<Model::Node*>& generatedNodes, NodeMapping& mapping);
+		void insertArguments(QVector<MacroArgumentInfo>& allArguments);
 };
 
 }

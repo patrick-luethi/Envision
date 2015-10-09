@@ -73,7 +73,7 @@ bool StaticStuff::validContext(Model::Node* node)
 		return false;
 }
 
-OOModel::Declaration*StaticStuff::getActualContext(Model::Node* node)
+OOModel::Declaration*StaticStuff::actualContext(Model::Node* node)
 {
 	auto current = node->parent();
 

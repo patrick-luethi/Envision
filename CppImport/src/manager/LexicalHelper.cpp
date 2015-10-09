@@ -37,14 +37,14 @@ LexicalHelper::LexicalHelper(ClangHelper* clang, ExpansionManager* expansionMana
 bool LexicalHelper::isExpansionception(clang::SourceLocation loc)
 {
 	if (loc.isMacroID())
-		if (auto immediateExpansion = expansionManager_->getImmediateExpansion(loc))
+		if (auto immediateExpansion = expansionManager_->immediateExpansion(loc))
 			return clang_->sourceManager()->getImmediateExpansionRange(loc).first !=
 					immediateExpansion->range.getBegin();
 
 	return false;
 }
 
-QString LexicalHelper::getUnexpandedSpelling(clang::SourceRange range)
+QString LexicalHelper::unexpandedSpelling(clang::SourceRange range)
 {
 	clang::SourceLocation start, end;
 
@@ -58,7 +58,7 @@ QString LexicalHelper::getUnexpandedSpelling(clang::SourceRange range)
 	else
 		end = range.getEnd();
 
-	auto result = clang_->getSpelling(start, end);
+	auto result = clang_->spelling(start, end);
 	while (result.startsWith("\\")) result = result.right(result.length() - 1);
 
 	return result.trimmed();
@@ -142,7 +142,7 @@ void LexicalHelper::correctNode(clang::SourceRange range, Model::Node* original)
 
 	if (!clang_->isMacroRange(range)) return;
 
-	auto transformed = getUnexpandedSpelling(range);
+	auto transformed = unexpandedSpelling(range);
 
 	if (DCast<OOModel::CastExpression>(original))
 	{
@@ -152,7 +152,10 @@ void LexicalHelper::correctNode(clang::SourceRange range, Model::Node* original)
 		if (match.hasMatch())
 			transformed = match.captured(1);
 		else
+		{
 			qDebug() << "unmatched regex in cast expression" << transformed;
+			return;
+		}
 	}
 	else if (DCast<OOModel::MethodCallExpression>(original))
 	{
@@ -160,7 +163,16 @@ void LexicalHelper::correctNode(clang::SourceRange range, Model::Node* original)
 	}
 	else if (DCast<OOModel::VariableDeclaration>(original))
 	{
-		if (transformed.contains("=")) transformed = transformed.left(transformed.indexOf("=")).trimmed();
+		QRegularExpression regularExpression("^((\\w|##)+)");
+		auto match = regularExpression.match(transformed);
+
+		if (match.hasMatch())
+			transformed = match.captured(1);
+		else
+		{
+			qDebug() << "unmatched regex in vardecl" << transformed;
+			return;
+		}
 	}
 	else if (DCast<OOModel::Class>(original))
 	{
@@ -170,7 +182,10 @@ void LexicalHelper::correctNode(clang::SourceRange range, Model::Node* original)
 		if (match.hasMatch())
 			transformed = match.captured(1);
 		else
+		{
 			qDebug() << "unmatched regex in class" << transformed;
+			return;
+		}
 	}
 
 	transformations_.insert(original, transformed);
@@ -198,7 +213,7 @@ void LexicalHelper::applyLexicalTransformations(Model::Node* node, NodeMapping* 
 				decl->setName(transformed);
 			else if (auto decl = DCast<OOModel::Method>(node))
 				decl->setName(transformed);
-			else if (auto decl = DCast<OOModel::Field>(node))
+			else if (auto decl = DCast<OOModel::VariableDeclaration>(node))
 				decl->setName(transformed);
 			else if (auto strLit = DCast<OOModel::StringLiteral>(node))
 				strLit->setValue(transformed);
