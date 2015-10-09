@@ -29,64 +29,47 @@
 #include "cppimport_api.h"
 
 #include "ClangHelper.h"
-#include "AstMapping.h"
 #include "MacroExpansion.h"
-#include "NodeMapping.h"
-#include "MacroArgumentLocation.h"
-#include "MacroArgumentInfo.h"
-#include "ExpansionManager.h"
-#include "DefinitionManager.h"
-#include "LexicalHelper.h"
-#include "XMacroManager.h"
-#include "MetaDefinitionManager.h"
 #include "OOModel/src/allOOModelNodes.h"
-#include "clang/Lex/MacroArgs.h"
 
 namespace CppImport {
 
-class CPPIMPORT_API MacroImportHelper
+class DefinitionManager;
+class ExpansionManager;
+class MetaDefinitionManager;
+
+class CPPIMPORT_API XMacroManager
 {
 	public:
-		MacroImportHelper(OOModel::Project* project);
+		XMacroManager(OOModel::Project* root, ClangHelper* clang,
+																	DefinitionManager* definitionManager,
+																	ExpansionManager* expansionManager,
+						  MetaDefinitionManager* metaDefinitionManager);
 
-		void macroGeneration();
-		void finalize();
+		void handlePartialBeginSpecialization(OOModel::Declaration* metaDefParent,
+																						 OOModel::MetaDefinition* metaDef,
+																						 MacroExpansion* expansion,
+																						 MacroExpansion* beginChild);
 
-		void setSourceManager(const clang::SourceManager* sourceManager);
-		void setPreprocessor(const clang::Preprocessor* preprocessor);
+		void handleXMacros();
 
-		void mapAst(clang::Stmt* clangAstNode, Model::Node* envisionAstNode);
-		void mapAst(clang::Decl* clangAstNode, Model::Node* envisionAstNode);
+		OOModel::MetaDefinition* createXMacroMetaDef(MacroExpansion* hExpansion,
+																								 MacroExpansion* cppExpansion);
 
-		void addMacroDefinition(QString name, const clang::MacroDirective* md);
-		void addMacroExpansion(clang::SourceRange sr, const clang::MacroDirective* md, const clang::MacroArgs* args);
-
+		MacroExpansion*partialBeginChild(MacroExpansion* expansion);
 	private:
 		OOModel::Project* root_;
+		ClangHelper* clang_;
+		DefinitionManager* definitionManager_;
+		ExpansionManager* expansionManager_;
+		MetaDefinitionManager* metaDefinitionManager_;
 
-		ClangHelper clang_;
-		AstMapping astMapping_;
-		DefinitionManager definitionManager_;
-		ExpansionManager expansionManager_;
-		LexicalHelper lexicalHelper_;
-		XMacroManager xMacroManager_;
-		MetaDefinitionManager metaDefinitionManager_;
-		QHash<QString, OOModel::MetaCallExpression*> metaCalls_;
-		QVector<Model::Node*> finalizationNodes;
-		QHash<Model::Node*, MacroExpansion*> finalizationMetaCalls;
+		QHash<QString, OOModel::MetaDefinition*> xMacroMetaDefinitions_;
 
-		void handleMacroExpansion(QVector<Model::Node*> nodes, MacroExpansion* expansion, NodeMapping* mapping,
-										  QVector<MacroArgumentInfo>& arguments, QHash<MacroExpansion*, Model::Node*>* splices);
-
-		bool insertMetaCall(MacroExpansion* expansion);
-
-		OOModel::Declaration* getActualContext(MacroExpansion* expansion);
-
-		QVector<MacroArgumentLocation> getArgumentHistory(clang::SourceRange range);
-		QVector<MacroArgumentLocation> getArgumentHistory(Model::Node* node);
-		void getAllArguments(Model::Node* node, QVector<MacroArgumentInfo>* result, NodeMapping* mapping);
-
-		void clear();
+		MacroExpansion* getBasePartialBegin(MacroExpansion* partialBeginExpansion);
+		void mergeClasses(OOModel::Class* merged, OOModel::Class* mergee);
+		OOModel::MetaDefinition*getXMacroMetaDefinition(const clang::MacroDirective* md);
+		MacroExpansion*getMatchingXMacroExpansion(Model::Node* node);
 
 };
 

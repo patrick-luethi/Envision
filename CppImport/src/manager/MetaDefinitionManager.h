@@ -38,6 +38,7 @@ namespace CppImport {
 class DefinitionManager;
 class ExpansionManager;
 class LexicalHelper;
+class XMacroManager;
 
 class CPPIMPORT_API MetaDefinitionManager
 {
@@ -46,13 +47,13 @@ class CPPIMPORT_API MetaDefinitionManager
 		ClangHelper* clang,
 		DefinitionManager* definitionManager,
 		ExpansionManager* expansionManager,
-		LexicalHelper* lexicalHelper);
+		LexicalHelper* lexicalHelper,
+		XMacroManager* xMacroManager);
 
 		void createMetaDef(QVector<Model::Node*> nodes, MacroExpansion* expansion, NodeMapping* mapping,
 								 QVector<MacroArgumentInfo>& arguments, QHash<MacroExpansion*, Model::Node*>* splices);
 
-		OOModel::MetaDefinition* createXMacroMetaDef(MacroExpansion* xMacroExpansionH_input,
-																	 MacroExpansion* xMacroExpansionCpp_input);
+		OOModel::MetaDefinition* getMetaDefinition(const clang::MacroDirective* md);
 
 	private:
 		OOModel::Project* root_;
@@ -60,9 +61,9 @@ class CPPIMPORT_API MetaDefinitionManager
 		DefinitionManager* definitionManager_;
 		ExpansionManager* expansionManager_;
 		LexicalHelper* lexicalHelper_;
+		XMacroManager* xMacroManager_;
 
 		QHash<QString, OOModel::MetaDefinition*> metaDefinitions_;
-		QHash<QString, OOModel::MetaDefinition*> xMacroMetaDefinitions_;
 
 		void addChildMetaCalls(OOModel::MetaDefinition* metaDef, MacroExpansion* expansion,	NodeMapping* childMapping,
 										QHash<MacroExpansion*, Model::Node*>* splices);
@@ -71,17 +72,9 @@ class CPPIMPORT_API MetaDefinitionManager
 		bool removeUnownedNodes(Model::Node* cloned, MacroExpansion* expansion,	NodeMapping* mapping);
 		void insertArgumentSplices(NodeMapping* mapping, NodeMapping* childMapping, QVector<MacroArgumentInfo>& arguments);
 
-		MacroExpansion* partialBeginChild(MacroExpansion* expansion);
 		void renameMetaCalls(Model::Node* node, QString current, QString replace);
 
 		OOModel::Declaration* getMetaDefParent(const clang::MacroDirective* md);
-		void handlePartialBeginSpecialization(OOModel::Declaration* metaDefParent, OOModel::MetaDefinition* metaDef,
-														  MacroExpansion* expansion, MacroExpansion* beginChild);
-		MacroExpansion* getBasePartialBegin(MacroExpansion* partialBeginExpansion);
-		void mergeClasses(OOModel::Class* merged, OOModel::Class* mergee);
-
-		OOModel::MetaDefinition* getMetaDefinition(const clang::MacroDirective* md);
-		OOModel::MetaDefinition* getXMacroMetaDefinition(const clang::MacroDirective* md);
 
 };
 

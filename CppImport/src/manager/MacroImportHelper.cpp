@@ -42,7 +42,8 @@ MacroImportHelper::MacroImportHelper(OOModel::Project* project)
 	  definitionManager_(&clang_),
 	  expansionManager_(&clang_, &astMapping_, &definitionManager_, &lexicalHelper_),
 	  lexicalHelper_(&clang_, &expansionManager_),
-	  metaDefinitionManager_(project, &clang_, &definitionManager_, &expansionManager_, &lexicalHelper_)
+	  xMacroManager_(project, &clang_, &definitionManager_, &expansionManager_, &metaDefinitionManager_),
+	  metaDefinitionManager_(project, &clang_, &definitionManager_, &expansionManager_, &lexicalHelper_, &xMacroManager_)
 	  {}
 
 void MacroImportHelper::macroGeneration()
@@ -137,99 +138,9 @@ void MacroImportHelper::macroGeneration()
 		}
 	}
 
-	handleXMacros();
+	xMacroManager_.handleXMacros();
 
 	clear();
-}
-
-void MacroImportHelper::handleXMacros()
-{
-	for (auto expansion : expansionManager_.expansions())
-		if (!expansion->xMacroChildren.empty())
-		{
-			for (auto node : expansionManager_.getTLExpansionTLNodes(expansion))
-			{
-				if (auto other = getMatchingXMacroExpansion(node))
-				{
-					if (auto list = DCast<Model::List>(other->metaCall->parent()))
-						 list->remove(list->indexOf(other->metaCall));
-
-					auto merged = new OOModel::MetaCallExpression();
-					merged->setCallee(new OOModel::ReferenceExpression(
-												 definitionManager_.definitionName(expansion->definition),
-												 definitionManager_.expansionQualifier(expansion->definition)));
-
-					for (auto i = 0; i < expansion->metaCall->arguments()->size(); i++)
-						merged->arguments()->append(expansion->metaCall->arguments()->at(i)->clone());
-
-					auto list = new Model::List();
-					for (auto xMacroChild : expansion->xMacroChildren)
-					{
-						auto unbound = new OOModel::MetaCallExpression(
-									definitionManager_.definitionName(xMacroChild->definition));
-						for (auto i = 0; i < xMacroChild->metaCall->arguments()->size(); i++)
-							unbound->arguments()->append(xMacroChild->metaCall->arguments()->at(i)->clone());
-
-						list->append(unbound);
-					}
-
-					merged->arguments()->append(list);
-
-					expansion->metaCall->parent()->replaceChild(expansion->metaCall, merged);
-
-					auto metaDef = metaDefinitionManager_.createXMacroMetaDef(expansion, other);
-
-					for (auto i = 0; i < expansion->xMacroChildren.size(); i++)
-					{
-						auto xMacroChildH = expansion->xMacroChildren[i];
-						auto xMacroChildCpp = other->xMacroChildren[i];
-
-						auto unbound = definitionManager_.definitionName(xMacroChildH->definition);
-
-						auto binding1 = metaDef->metaBindings()->at(0);
-						auto binding2 = metaDef->metaBindings()->at(1);
-
-						bool alreadyHasUnbound = false;
-						for (auto j = 0; j < binding1->mappings()->size(); j++)
-							if (binding1->mappings()->at(j)->name() == unbound)
-							{
-								alreadyHasUnbound = true;
-								break;
-							}
-						if (alreadyHasUnbound) continue;
-
-						auto mapping1 = new OOModel::MetaCallMapping(unbound);
-						mapping1->setValue(new OOModel::ReferenceExpression(
-													 definitionManager_.definitionName(xMacroChildH->definition),
-													 definitionManager_.expansionQualifier(xMacroChildH->definition)));
-						binding1->mappings()->append(mapping1);
-
-						auto mapping2 = new OOModel::MetaCallMapping(unbound);
-						mapping2->setValue(new OOModel::ReferenceExpression(
-													 definitionManager_.definitionName(xMacroChildCpp->definition),
-													 definitionManager_.expansionQualifier(xMacroChildCpp->definition)));
-						binding2->mappings()->append(mapping2);
-					}
-
-					break;
-				}
-			}
-		}
-}
-
-MacroExpansion* MacroImportHelper::getMatchingXMacroExpansion(Model::Node* node)
-{
-	if (auto metaCall = DCast<OOModel::MetaCallExpression>(node))
-		for (auto expansion : expansionManager_.expansions())
-			if (!expansion->xMacroChildren.empty())
-				if (expansion->metaCall == metaCall)
-					return expansion;
-
-	for (auto child : node->children())
-		if (auto expansion = getMatchingXMacroExpansion(child))
-			return expansion;
-
-	return nullptr;
 }
 
 void MacroImportHelper::finalize()
