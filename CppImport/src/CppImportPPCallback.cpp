@@ -35,8 +35,8 @@ void CppImportPPCallback::MacroExpands(const clang::Token& MacroNameTok, const c
 {
 	auto name = QString::fromStdString(MacroNameTok.getIdentifierInfo()->getName().str());
 
-	macroImportHelper_.addMacroDefinition(name, md);
-	macroImportHelper_.addMacroExpansion(sr, md, args);
+	macroImportHelper_.registerDefinition(name, md);
+	macroImportHelper_.registerExpansion(sr, md, args);
 }
 
 }

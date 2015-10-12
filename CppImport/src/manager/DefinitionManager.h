@@ -38,14 +38,25 @@ class CPPIMPORT_API DefinitionManager
 	public:
 		DefinitionManager(ClangHelper* clang);
 
-		void addMacroDefinition(QString name, const clang::MacroDirective* md);
+		/**
+		 * register definition md with name
+		 */
+		void registerDefinition(QString name, const clang::MacroDirective* md);
 
-		QString definitionName(const clang::MacroDirective* md);
+		/**
+		 * return definition md's name
+		 */
+		QString name(const clang::MacroDirective* md);
 
+		/**
+		 * return whether md defines an begin incomplete macro
+		 */
 		bool isPartialBegin(const clang::MacroDirective* md);
-		bool isPartialEnd(const clang::MacroDirective* md);
 
-		void clear();
+		/**
+		 * return whether md defines an end incomplete macro
+		 */
+		bool isPartialEnd(const clang::MacroDirective* md);
 
 		/**
 		 * if the location of md is part of Envision's project structure then
@@ -53,10 +64,22 @@ class CPPIMPORT_API DefinitionManager
 		 * otherwise
 		 *  return false
 		 */
-		bool macroDefinitionLocation(const clang::MacroDirective* md, QString& namespaceName, QString& fileName);
+		bool macroDefinitionLocation(const clang::MacroDirective* md, QString& namespaceName, QString& containerName);
+
+		/**
+		 * return a hash for definition md
+		 */
 		QString hash(const clang::MacroDirective* md);
 
+		/**
+		 * return a qualifier expression based on the macroDefinitionLocation of md
+		 */
 		OOModel::ReferenceExpression* expansionQualifier(const clang::MacroDirective* md);
+
+		/**
+		 * clear all stored definitions
+		 */
+		void clear();
 
 	private:
 		ClangHelper* clang_;

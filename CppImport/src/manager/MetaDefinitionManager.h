@@ -44,11 +44,19 @@ class CPPIMPORT_API MetaDefinitionManager
 {
 	public:
 		MetaDefinitionManager(OOModel::Project* root, ClangHelper* clang, DefinitionManager* definitionManager,
-								ExpansionManager* expansionManager, LexicalHelper* lexicalHelper, XMacroManager* xMacroManager);
+									 ExpansionManager* expansionManager, LexicalHelper* lexicalHelper,
+									 XMacroManager* xMacroManager);
 
-		void createMetaDef(QVector<Model::Node*> nodes, MacroExpansion* expansion, NodeMapping* mapping,
+		/**
+		 * create a new meta definition from nodes for expansion
+		 */
+		void createMetaDefinition(QVector<Model::Node*> nodes, MacroExpansion* expansion, NodeMapping* mapping,
 								 QVector<MacroArgumentInfo>& arguments, QHash<MacroExpansion*, Model::Node*>* splices);
 
+		/**
+		 * if a generated meta definition for md exists return it
+		 * otherwise return nullptr
+		 */
 		OOModel::MetaDefinition* metaDefinition(const clang::MacroDirective* md);
 
 	private:
@@ -61,16 +69,31 @@ class CPPIMPORT_API MetaDefinitionManager
 
 		QHash<QString, OOModel::MetaDefinition*> metaDefinitions_;
 
-		void addChildMetaCalls(OOModel::MetaDefinition* metaDef, MacroExpansion* expansion,	NodeMapping* childMapping,
-										QHash<MacroExpansion*, Model::Node*>* splices);
-		void childrenUnownedByExpansion(Model::Node* node, MacroExpansion* expansion,
-																NodeMapping* mapping, QVector<Model::Node*>* result);
-		bool removeUnownedNodes(Model::Node* cloned, MacroExpansion* expansion,	NodeMapping* mapping);
-		void insertArgumentSplices(NodeMapping* mapping, NodeMapping* childMapping, QVector<MacroArgumentInfo>& arguments);
-
-		void renameMetaCalls(Model::Node* node, QString current, QString replace);
 
 		OOModel::Declaration* metaDefinitionParent(const clang::MacroDirective* md);
+
+		/**
+		 * insert all non-xMacro child meta calls into metaDef
+		 */
+		void insertChildMetaCalls(OOModel::MetaDefinition* metaDef, MacroExpansion* expansion,	NodeMapping* childMapping,
+										  QHash<MacroExpansion*, Model::Node*>* splices);
+		/**
+		 * return all children of node that do not belong to expansion
+		 */
+		void childrenUnownedByExpansion(Model::Node* node, MacroExpansion* expansion, NodeMapping* mapping,
+												  QVector<Model::Node*>* result);
+
+		/**
+		 * remove all children of node that do not belong to expansion
+		 * return true if node itself does not to belong to expansion
+		 */
+		bool removeUnownedNodes(Model::Node* node, MacroExpansion* expansion, NodeMapping* mapping);
+
+		/**
+		 * insert splices for all nodes in childMapping that are a macro argument
+		 */
+		void insertArgumentSplices(NodeMapping* mapping, NodeMapping* childMapping,
+											QVector<MacroArgumentInfo>& arguments);
 
 };
 

@@ -40,8 +40,7 @@ XMacroManager::XMacroManager(DefinitionManager* definitionManager, ExpansionMana
 	  metaDefinitionManager_(metaDefinitionManager) {}
 
 void XMacroManager::handlePartialBeginSpecialization(OOModel::Declaration* metaDefParent,
-																	  OOModel::MetaDefinition* metaDef,
-																	  MacroExpansion* expansion,
+																	  OOModel::MetaDefinition* metaDef, MacroExpansion* expansion,
 																	  MacroExpansion* beginChild)
 {
 	QVector<Model::Node*> statements = expansionManager_->nTLExpansionTLNodes(expansion);
@@ -108,7 +107,7 @@ void XMacroManager::handleXMacros()
 
 					auto merged = new OOModel::MetaCallExpression();
 					merged->setCallee(new OOModel::ReferenceExpression(
-												definitionManager_->definitionName(expansion->definition),
+												definitionManager_->name(expansion->definition),
 												definitionManager_->expansionQualifier(expansion->definition)));
 
 					for (auto i = 0; i < expansion->metaCall->arguments()->size(); i++)
@@ -118,7 +117,7 @@ void XMacroManager::handleXMacros()
 					for (auto xMacroChild : expansion->xMacroChildren)
 					{
 						auto unbound = new OOModel::MetaCallExpression(
-									definitionManager_->definitionName(xMacroChild->definition));
+									definitionManager_->name(xMacroChild->definition));
 						for (auto i = 0; i < xMacroChild->metaCall->arguments()->size(); i++)
 							unbound->arguments()->append(xMacroChild->metaCall->arguments()->at(i)->clone());
 
@@ -136,7 +135,7 @@ void XMacroManager::handleXMacros()
 						auto xMacroChildH = expansion->xMacroChildren[i];
 						auto xMacroChildCpp = other->xMacroChildren[i];
 
-						auto unboundName = definitionManager_->definitionName(xMacroChildH->definition);
+						auto unboundName = definitionManager_->name(xMacroChildH->definition);
 
 						auto binding1 = metaDef->metaBindings()->at(0);
 						auto binding2 = metaDef->metaBindings()->at(1);
@@ -145,13 +144,13 @@ void XMacroManager::handleXMacros()
 
 						auto mapping1 = new OOModel::MetaCallMapping(unboundName);
 						mapping1->setValue(new OOModel::ReferenceExpression(
-													 definitionManager_->definitionName(xMacroChildH->definition),
+													 definitionManager_->name(xMacroChildH->definition),
 													 definitionManager_->expansionQualifier(xMacroChildH->definition)));
 						binding1->mappings()->append(mapping1);
 
 						auto mapping2 = new OOModel::MetaCallMapping(unboundName);
 						mapping2->setValue(new OOModel::ReferenceExpression(
-													 definitionManager_->definitionName(xMacroChildCpp->definition),
+													 definitionManager_->name(xMacroChildCpp->definition),
 													 definitionManager_->expansionQualifier(xMacroChildCpp->definition)));
 						binding2->mappings()->append(mapping2);
 					}
@@ -174,8 +173,8 @@ OOModel::MetaDefinition* XMacroManager::createXMacroMetaDef(MacroExpansion* hExp
 		auto cppBaseMetaDef = metaDefinitionManager_->metaDefinition(cppBaseExpansion->definition);
 
 		mergedMetaDef = hBaseMetaDef->clone();
-		mergedMetaDef->setName(definitionManager_->definitionName(hBaseExpansion->definition));
-		xMacroMetaDefinitions_.insert(definitionManager_->definitionName(hBaseExpansion->definition), mergedMetaDef);
+		mergedMetaDef->setName(definitionManager_->name(hBaseExpansion->definition));
+		xMacroMetaDefinitions_.insert(definitionManager_->name(hBaseExpansion->definition), mergedMetaDef);
 
 		for (auto i = 0; i < cppBaseMetaDef->arguments()->size(); i++)
 		{
@@ -275,7 +274,7 @@ MacroExpansion* XMacroManager::partialBeginChild(MacroExpansion* expansion)
 
 OOModel::MetaDefinition* XMacroManager::xMacroMetaDefinition(const clang::MacroDirective* md)
 {
-	QString h = definitionManager_->definitionName(md);
+	QString h = definitionManager_->name(md);
 
 	if (!xMacroMetaDefinitions_.contains(h))
 		return nullptr;

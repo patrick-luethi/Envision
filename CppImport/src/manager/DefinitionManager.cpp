@@ -30,31 +30,33 @@ namespace CppImport {
 
 DefinitionManager::DefinitionManager(ClangHelper* clang) : clang_(clang) {}
 
-void DefinitionManager::addMacroDefinition(QString name, const clang::MacroDirective* md)
+void DefinitionManager::registerDefinition(QString name, const clang::MacroDirective* md)
 {
+	// TODO: this is a virtual rename fix for inconsistent naming in Envision
+	// TODO: check whether the current implementation requires this renaming
 	if (name == "BEGIN_STANDARD_EXPRESSION_VISUALIZATION_ALL")
 		name = "BEGIN_STANDARD_EXPRESSION_VISUALIZATION_BASE";
 	if (name == "BEGIN_STANDARD_EXPRESSION_VISUALIZATION_STYLE")
 		name = "BEGIN_STANDARD_EXPRESSION_VISUALIZATION_BASE";
 
-	definitions_[md] = name;
+	definitions_.insert(md, name);
 }
 
-QString DefinitionManager::definitionName(const clang::MacroDirective* md)
+QString DefinitionManager::name(const clang::MacroDirective* md)
 {
 	if (!definitions_.contains(md)) return nullptr;
 
-	return definitions_[md];
+	return definitions_.value(md);
 }
 
 bool DefinitionManager::isPartialBegin(const clang::MacroDirective* md)
 {
-	return definitionName(md).startsWith("BEGIN_");
+	return name(md).startsWith("BEGIN_");
 }
 
 bool DefinitionManager::isPartialEnd(const clang::MacroDirective* md)
 {
-	return definitionName(md).startsWith("END_");
+	return name(md).startsWith("END_");
 }
 
 void DefinitionManager::clear()
@@ -63,18 +65,23 @@ void DefinitionManager::clear()
 }
 
 bool DefinitionManager::macroDefinitionLocation(const clang::MacroDirective* md, QString& namespaceName,
-																QString& fileName)
+																QString& containerName)
 {
 	auto presumedLoc = clang_->sourceManager()->getPresumedLoc(md->getMacroInfo()->getDefinitionLoc());
 	auto path = QDir(presumedLoc.getFilename()).absolutePath();
 
+	/*
+	 * given a path: ../Envision/A/../B.xyz
+	 * this regex captures A (index 1) and B.xyz (index 3)
+	 */
 	QRegularExpression regex ("/Envision/(\\w+)(/.*/|/)(\\w+\\.\\w+)$", QRegularExpression::DotMatchesEverythingOption);
 	auto match = regex.match(path);
 	if (!match.hasMatch()) return false;
 
+	// use the directory name of A as the namespace name
 	namespaceName = match.captured(1);
 
-	// some Envision namespaces don't have the same name as the corresponding directory
+	// some Envision namespaces do not have the same name as their corresponding directory
 	if (namespaceName == "ModelBase")
 		namespaceName = "Model";
 	else if (namespaceName == "VisualizationBase")
@@ -86,27 +93,31 @@ bool DefinitionManager::macroDefinitionLocation(const clang::MacroDirective* md,
 	else if (namespaceName == "HelloWorld")
 		namespaceName = "Hello";
 
-	fileName = match.captured(3).replace(".h", "").replace(".cpp", "_CPP");
+	/*
+	 * the container name should be equal to B therefore we remove .h
+	 * in case of .cpp we append _CPP to the containerName to avoid ambiguity
+	 */
+	containerName = match.captured(3).replace(".h", "").replace(".cpp", "_CPP");
 
 	return true;
 }
 
 QString DefinitionManager::hash(const clang::MacroDirective* md)
 {
-	QString namespaceName, fileName;
+	QString namespaceName, containerName;
 
-	if (macroDefinitionLocation(md, namespaceName, fileName))
-		return namespaceName + "/" + fileName + "/" + definitionName(md);
+	if (macroDefinitionLocation(md, namespaceName, containerName))
+		return namespaceName + "/" + containerName + "/" + name(md);
 	else
-		return "/notenvision/" + definitionName(md);
+		return "/notenvision/" + name(md);
 }
 
 OOModel::ReferenceExpression* DefinitionManager::expansionQualifier(const clang::MacroDirective* md)
 {
-	QString namespaceName, fileName;
+	QString namespaceName, containerName;
 
-	if (macroDefinitionLocation(md, namespaceName, fileName))
-		return new OOModel::ReferenceExpression(fileName, new OOModel::ReferenceExpression(namespaceName));
+	if (macroDefinitionLocation(md, namespaceName, containerName))
+		return new OOModel::ReferenceExpression(containerName, new OOModel::ReferenceExpression(namespaceName));
 	else
 		return new OOModel::ReferenceExpression("notenvision");
 }

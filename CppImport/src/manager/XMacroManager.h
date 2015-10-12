@@ -44,10 +44,8 @@ class CPPIMPORT_API XMacroManager
 		XMacroManager(DefinitionManager* definitionManager, ExpansionManager* expansionManager,
 						  MetaDefinitionManager* metaDefinitionManager);
 
-		void handlePartialBeginSpecialization(OOModel::Declaration* metaDefParent,
-																						 OOModel::MetaDefinition* metaDef,
-																						 MacroExpansion* expansion,
-																						 MacroExpansion* beginChild);
+		void handlePartialBeginSpecialization(OOModel::Declaration* metaDefParent, OOModel::MetaDefinition* metaDef,
+														  MacroExpansion* expansion, MacroExpansion* beginChild);
 
 		void handleXMacros();
 

@@ -127,6 +127,11 @@ bool ClangHelper::contains(clang::SourceRange range, clang::SourceRange other)
 	return s <= os && os <= e;
 }
 
+bool ClangHelper::isMacroRange(clang::SourceRange range)
+{
+	return range.getBegin().isMacroID() && range.getEnd().isMacroID();
+}
+
 const clang::SourceManager* ClangHelper::sourceManager()
 {
 	return sourceManager_;

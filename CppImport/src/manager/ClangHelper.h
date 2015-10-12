@@ -48,7 +48,7 @@ class CPPIMPORT_API ClangHelper
 		QVector<QString> argumentNames(const clang::MacroDirective* definition);
 
 		bool contains(clang::SourceRange range, clang::SourceRange other);
-		bool isMacroRange(clang::SourceRange range) { return range.getBegin().isMacroID() && range.getEnd().isMacroID(); }
+		bool isMacroRange(clang::SourceRange range);
 
 	private:
 		const clang::Preprocessor* preprocessor_;
