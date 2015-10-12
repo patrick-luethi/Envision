@@ -105,7 +105,8 @@ HEADERS += src/statements/AssertStatement.h \
     src/declarations/MetaCallMapping.h \
     src/expressions/MetaCallExpression.h \
     src/CodeGenerationVisitor.h \
-    src/elements/FormalMetaArgument.h
+    src/elements/FormalMetaArgument.h \
+    src/DependencyAnalyzer.h
 SOURCES += src/statements/AssertStatement.cpp \
     src/expressions/InstanceOfExpression.cpp \
     src/expressions/SuperExpression.cpp \
@@ -204,4 +205,5 @@ SOURCES += src/statements/AssertStatement.cpp \
     src/declarations/MetaCallMapping.cpp \
     src/expressions/MetaCallExpression.cpp \
     src/CodeGenerationVisitor.cpp \
-    src/elements/FormalMetaArgument.cpp
+    src/elements/FormalMetaArgument.cpp \
+    src/DependencyAnalyzer.cpp
