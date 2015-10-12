@@ -56,6 +56,8 @@
 #include "VisualizationBase/src/items/ViewItem.h"
 #include "VisualizationBase/src/ViewItemManager.h"
 
+#include "OOModel/src/DependencyAnalyzer.h"
+
 namespace Interaction {
 
 void GenericHandlerManagerListener::nodesUpdated(QSet<Node*>, QSet<Node*>)
@@ -342,20 +344,10 @@ void GenericHandler::keyPressEvent(Visualization::Item *target, QKeyEvent *event
 		auto n = target;
 		while (n && ! n->node()) n = n->parent();
 
-		auto p = n->parent();
-		if ( p )
+		if (n)
+		if (auto node = n->node())
 		{
-			int purpose = 0;
-			if (p->definesChildNodePurpose(n->node()))
-			{
-				purpose = n->purpose() + 1;
-				if ( purpose == target->scene()->renderer()->numRegisteredPurposes())
-					purpose = -1; // Undefine
-
-			}
-
-			if (purpose >= 0) p->setChildNodePurpose(n->node(), purpose);
-			else p->clearChildNodePurpose(n->node());
+			OOModel::DependencyAnalyzer::handleStuff(node);
 		}
 	}
 	else if (event->modifiers() == 0
