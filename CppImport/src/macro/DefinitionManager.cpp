@@ -32,6 +32,7 @@ DefinitionManager::DefinitionManager(ClangHelper* clang) : clang_(clang) {}
 
 void DefinitionManager::addMacroDefinition(QString name, const clang::MacroDirective* md)
 {
+	// TODO: remove
 	if (name == "BEGIN_STANDARD_EXPRESSION_VISUALIZATION_ALL")
 		name = "BEGIN_STANDARD_EXPRESSION_VISUALIZATION_BASE";
 	if (name == "BEGIN_STANDARD_EXPRESSION_VISUALIZATION_STYLE")
