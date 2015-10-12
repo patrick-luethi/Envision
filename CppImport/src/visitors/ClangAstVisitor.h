@@ -28,7 +28,7 @@
 
 #include "../cppimport_api.h"
 #include "../manager/TranslateManager.h"
-#include "../manager/MacroImportHelper.h"
+#include "../macro/MacroImportHelper.h"
 #include "../CppImportLogger.h"
 #include "../comments/CommentParser.h"
 

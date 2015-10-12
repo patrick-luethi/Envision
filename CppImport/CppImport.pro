@@ -53,21 +53,21 @@ HEADERS += src/precompiled.h \
     src/manager/TranslateManager.h \
     src/TranslateFrontendAction.h \
     src/CppImportPlugin.h \
-    src/comments/CommentParser.h \
-    src/CppImportPPCallback.h \
-    src/manager/MacroImportHelper.h \
-	src/manager/ClangHelper.h \
-    src/manager/MacroExpansion.h \
-    src/manager/AstMapping.h \
-    src/manager/NodeMapping.h \
-    src/manager/MacroArgumentLocation.h \
-    src/manager/MacroArgumentInfo.h \
-    src/manager/ExpansionManager.h \
-    src/manager/DefinitionManager.h \
-    src/manager/StaticStuff.h \
-    src/manager/LexicalHelper.h \
-    src/manager/MetaDefinitionManager.h \
-    src/manager/XMacroManager.h
+	src/comments/CommentParser.h \
+    src/macro/AstMapping.h \
+    src/macro/ClangHelper.h \
+    src/macro/CppImportPPCallback.h \
+    src/macro/DefinitionManager.h \
+    src/macro/ExpansionManager.h \
+    src/macro/LexicalHelper.h \
+    src/macro/MacroArgumentInfo.h \
+    src/macro/MacroArgumentLocation.h \
+    src/macro/MacroExpansion.h \
+    src/macro/MacroImportHelper.h \
+    src/macro/MetaDefinitionManager.h \
+    src/macro/NodeMapping.h \
+    src/macro/StaticStuff.h \
+    src/macro/XMacroManager.h
 SOURCES += src/CppImportException.cpp \
 	test/SimpleTest.cpp \
     src/ClangAstConsumer.cpp \
@@ -82,18 +82,18 @@ SOURCES += src/CppImportException.cpp \
     src/manager/TranslateManager.cpp \
     src/TranslateFrontendAction.cpp \
     src/CppImportPlugin.cpp \
-    src/comments/CommentParser.cpp \
-    src/CppImportPPCallback.cpp \
-    src/manager/MacroImportHelper.cpp \
-    src/manager/ClangHelper.cpp \
-    src/manager/MacroExpansion.cpp \
-    src/manager/AstMapping.cpp \
-    src/manager/NodeMapping.cpp \
-    src/manager/MacroArgumentLocation.cpp \
-    src/manager/MacroArgumentInfo.cpp \
-    src/manager/ExpansionManager.cpp \
-    src/manager/DefinitionManager.cpp \
-    src/manager/StaticStuff.cpp \
-    src/manager/LexicalHelper.cpp \
-    src/manager/MetaDefinitionManager.cpp \
-    src/manager/XMacroManager.cpp
+	src/comments/CommentParser.cpp \
+    src/macro/AstMapping.cpp \
+    src/macro/ClangHelper.cpp \
+    src/macro/CppImportPPCallback.cpp \
+    src/macro/DefinitionManager.cpp \
+    src/macro/ExpansionManager.cpp \
+    src/macro/LexicalHelper.cpp \
+    src/macro/MacroArgumentInfo.cpp \
+    src/macro/MacroArgumentLocation.cpp \
+    src/macro/MacroExpansion.cpp \
+    src/macro/MacroImportHelper.cpp \
+    src/macro/MetaDefinitionManager.cpp \
+    src/macro/NodeMapping.cpp \
+    src/macro/StaticStuff.cpp \
+    src/macro/XMacroManager.cpp

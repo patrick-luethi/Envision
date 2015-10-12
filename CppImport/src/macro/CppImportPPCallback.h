@@ -28,7 +28,7 @@
 
 #include "cppimport_api.h"
 #include "Core/src/EnvisionException.h"
-#include "manager/MacroImportHelper.h"
+#include "MacroImportHelper.h"
 
 namespace CppImport {
 

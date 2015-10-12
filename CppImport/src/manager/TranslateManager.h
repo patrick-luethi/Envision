@@ -29,7 +29,7 @@
 #include "cppimport_api.h"
 #include "../CppImportUtilities.h"
 #include "NodeHasher.h"
-#include "MacroImportHelper.h"
+#include "../macro/MacroImportHelper.h"
 
 namespace CppImport {
 

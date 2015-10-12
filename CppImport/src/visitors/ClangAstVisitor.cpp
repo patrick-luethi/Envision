@@ -28,7 +28,7 @@
 #include "ExpressionVisitor.h"
 #include "../CppImportUtilities.h"
 #include "TemplateArgumentVisitor.h"
-#include "CppImportPPCallback.h"
+#include "../macro/CppImportPPCallback.h"
 
 #include <clang/AST/Comment.h>
 #include <clang/AST/ParentMap.h>
