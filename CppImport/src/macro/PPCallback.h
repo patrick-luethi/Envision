@@ -24,19 +24,26 @@
  **
  **********************************************************************************************************************/
 
-#include "CppImportPPCallback.h"
+#pragma once
 
-#include "clang/Lex/MacroArgs.h"
+#include "cppimport_api.h"
+#include "Core/src/EnvisionException.h"
+#include "MacroImportHelper.h"
 
 namespace CppImport {
 
-void CppImportPPCallback::MacroExpands(const clang::Token& MacroNameTok, const clang::MacroDirective* md,
-													clang::SourceRange sr, const clang::MacroArgs* args)
+class CPPIMPORT_API PPCallback : public clang::PPCallbacks
 {
-	auto name = QString::fromStdString(MacroNameTok.getIdentifierInfo()->getName().str());
+	public:
+		PPCallback(MacroImportHelper& macroImportHelper) : macroImportHelper_(macroImportHelper) { }
 
-	macroImportHelper_.addMacroDefinition(name, md);
-	macroImportHelper_.addMacroExpansion(sr, md, args);
-}
+		virtual void MacroExpands(const clang::Token& MacroNameTok, const clang::MacroDirective* MD,
+										  clang::SourceRange range, const clang::MacroArgs* args) override;
+
+
+	private:
+		MacroImportHelper& macroImportHelper_;
+
+};
 
 }
