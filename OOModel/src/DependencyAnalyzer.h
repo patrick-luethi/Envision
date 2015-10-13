@@ -32,7 +32,7 @@ namespace Model {
 
 namespace OOModel {
 
-class OOReference;
+class ReferenceExpression;
 class Declaration;
 
 class DependencyAnalyzer
@@ -41,8 +41,8 @@ class DependencyAnalyzer
 		static void handleStuff(Model::Node* node);
 
 	private:
-		static void getRefs(Model::Node* node, QVector<OOReference*>* result);
-		static Declaration* getDependency(OOReference* ref);
+		static void getRefs(Model::Node* node, QVector<ReferenceExpression*>* result);
+		static Declaration* getDependency(ReferenceExpression* ref);
 };
 
 }
