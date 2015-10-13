@@ -32,7 +32,7 @@ namespace OOModel {
 
 void DependencyAnalyzer::handleStuff(Model::Node* node)
 {
-	QVector<OOReference*> refs;
+	QVector<ReferenceExpression*> refs;
 	getRefs(node, &refs);
 	qDebug() << "inside depanalyzer" << node->typeName() << refs.size();
 	QSet<QString> nameSet;
@@ -43,8 +43,6 @@ void DependencyAnalyzer::handleStuff(Model::Node* node)
 			if (node->isAncestorOf(t))
 				continue;
 		}
-		else
-			continue;
 
 		auto d = getDependency(r);
 
@@ -58,19 +56,22 @@ void DependencyAnalyzer::handleStuff(Model::Node* node)
 		qDebug() << e;
 }
 
-void DependencyAnalyzer::getRefs(Model::Node* node, QVector<OOReference*>* result)
+void DependencyAnalyzer::getRefs(Model::Node* node, QVector<ReferenceExpression*>* result)
 {
-	if (auto ref = DCast<OOModel::OOReference>(node))
+	if (auto ref = DCast<OOModel::ReferenceExpression>(node))
 		result->append(ref);
 
 	for (auto child : node->children())
 		getRefs(child, result);
 }
 
-OOModel::Declaration* DependencyAnalyzer::getDependency(OOReference* ref)
+OOModel::Declaration* DependencyAnalyzer::getDependency(ReferenceExpression* ref)
 {
 	if (auto t = ref->target())
 	{
+		if (auto d = DCast<Declaration>(t))
+			return d;
+
 		return t->firstAncestorOfType<Declaration>();
 	}
 
