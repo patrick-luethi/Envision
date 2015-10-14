@@ -39,10 +39,10 @@ void MacroImportHelper::clear()
 }
 
 MacroImportHelper::MacroImportHelper(OOModel::Project* root)
-	: root_(root), definitionManager_(&clang_),
-	  expansionManager_(&clang_, &astMapping_, &definitionManager_),
-	  lexicalHelper_(&clang_, &expansionManager_),
-	  xMacroManager_(root, &clang_, &definitionManager_, &expansionManager_, &lexicalHelper_)
+	: definitionManager_(&clang_),
+	  expansionManager_(&astMapping_, &definitionManager_),
+	  lexicalHelper_(&expansionManager_),
+	  xMacroManager_(root, &lexicalHelper_)
 	  {}
 
 void MacroImportHelper::endTranslationUnit()
@@ -258,7 +258,7 @@ OOModel::Declaration* MacroImportHelper::actualContext(MacroExpansion* expansion
 				}
 
 	// if we could not find a context return the root project
-	if (candidates.empty()) return root_;
+	if (candidates.empty()) return xMacroManager_.root();
 
 	auto result = candidates.first();
 

@@ -26,19 +26,18 @@
 
 #include "LexicalHelper.h"
 
-#include "ExpansionManager.h"
 #include "StaticStuff.h"
 
 namespace CppImport {
 
-LexicalHelper::LexicalHelper(ClangHelper* clang, ExpansionManager* expansionManager)
-	: clang_(clang), expansionManager_(expansionManager) {}
+LexicalHelper::LexicalHelper(ExpansionManager* expansionManager)
+	: expansionManager_(expansionManager) {}
 
 bool LexicalHelper::isConcatenationOrStringification(clang::SourceLocation loc)
 {
 	if (loc.isMacroID())
 		if (auto immediateExpansion = expansionManager_->immediateExpansion(loc))
-			return clang_->sourceManager()->getImmediateExpansionRange(loc).first !=
+			return clang()->sourceManager()->getImmediateExpansionRange(loc).first !=
 					immediateExpansion->range.getBegin();
 
 	return false;
@@ -49,12 +48,12 @@ clang::SourceRange LexicalHelper::unexpandedSourceRange(clang::SourceRange range
 	clang::SourceLocation start, end;
 
 	if (isConcatenationOrStringification(range.getBegin()))
-		start = clang_->sourceManager()->getImmediateExpansionRange(range.getBegin()).first;
+		start = clang()->sourceManager()->getImmediateExpansionRange(range.getBegin()).first;
 	else
 		start = range.getBegin();
 
 	if (isConcatenationOrStringification(range.getEnd()))
-		end = clang_->sourceManager()->getImmediateExpansionRange(range.getEnd()).second;
+		end = clang()->sourceManager()->getImmediateExpansionRange(range.getEnd()).second;
 	else
 		end = range.getEnd();
 
@@ -63,7 +62,7 @@ clang::SourceRange LexicalHelper::unexpandedSourceRange(clang::SourceRange range
 
 QString LexicalHelper::unexpandedSpelling(clang::SourceRange range)
 {
-	auto result = clang_->spelling(unexpandedSourceRange(range));
+	auto result = clang()->spelling(unexpandedSourceRange(range));
 	while (result.startsWith("\\")) result = result.right(result.length() - 1);
 
 	return result.trimmed();
@@ -145,7 +144,7 @@ void LexicalHelper::correctNode(clang::SourceRange range, Model::Node* original)
 	if (DCast<OOModel::BinaryOperation>(original)) return;
 	if (DCast<OOModel::IfStatement>(original)) return;
 
-	if (!clang_->isMacroRange(range)) return;
+	if (!clang()->isMacroRange(range)) return;
 
 	auto transformed = unexpandedSpelling(range);
 
@@ -201,9 +200,9 @@ bool LexicalHelper::contains(clang::SourceRange r, clang::SourceRange o)
 	auto range = unexpandedSourceRange(r);
 	auto other = unexpandedSourceRange(o);
 
-	auto s = clang_->sourceManager()->getSpellingLoc(range.getBegin()).getPtrEncoding();
-	auto e = clang_->sourceManager()->getSpellingLoc(range.getEnd()).getPtrEncoding();
-	auto os = clang_->sourceManager()->getSpellingLoc(other.getBegin()).getPtrEncoding();
+	auto s = clang()->sourceManager()->getSpellingLoc(range.getBegin()).getPtrEncoding();
+	auto e = clang()->sourceManager()->getSpellingLoc(range.getEnd()).getPtrEncoding();
+	auto os = clang()->sourceManager()->getSpellingLoc(other.getBegin()).getPtrEncoding();
 
 	return s <= os && os <= e;
 }

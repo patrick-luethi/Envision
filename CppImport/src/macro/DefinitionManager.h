@@ -69,6 +69,8 @@ class CPPIMPORT_API DefinitionManager
 
 		void clear();
 
+		ClangHelper* clang();
+
 	private:
 		ClangHelper* clang_{};
 		QHash<const clang::MacroDirective*, QString> definitions_;
@@ -90,5 +92,7 @@ inline bool DefinitionManager::isPartialEnd(const clang::MacroDirective* md)
 }
 
 inline void DefinitionManager::clear() { definitions_.clear(); }
+
+inline ClangHelper* DefinitionManager::clang() { return clang_; }
 
 }

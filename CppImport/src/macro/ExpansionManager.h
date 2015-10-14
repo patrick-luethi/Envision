@@ -26,20 +26,18 @@
 
 #pragma once
 
-#include "AstMapping.h"
-#include "ClangHelper.h"
 #include "cppimport_api.h"
 
+#include "AstMapping.h"
 #include "MacroExpansion.h"
+#include "DefinitionManager.h"
 
 namespace CppImport {
-
-class DefinitionManager;
 
 class CPPIMPORT_API ExpansionManager
 {
 	public:
-		ExpansionManager(ClangHelper* clang, AstMapping* astMapping, DefinitionManager* definitionManager);
+		ExpansionManager(AstMapping* astMapping, DefinitionManager* definitionManager);
 
 		void addMacroExpansion(clang::SourceRange sourceRange, const clang::MacroDirective* macroDirective,
 									  const clang::MacroArgs* macroArguments);
@@ -70,8 +68,10 @@ class CPPIMPORT_API ExpansionManager
 
 		void clear();
 
+		ClangHelper* clang();
+		DefinitionManager* definitionManager();
+
 	private:
-		ClangHelper* clang_{};
 		AstMapping* astMapping_{};
 		DefinitionManager* definitionManager_{};
 		MacroExpansion* currentXMacroParent {};
@@ -85,5 +85,8 @@ class CPPIMPORT_API ExpansionManager
 };
 
 inline QVector<MacroExpansion*> ExpansionManager::expansions() { return expansions_; }
+
+inline ClangHelper* ExpansionManager::clang() { return definitionManager_->clang(); }
+inline DefinitionManager* ExpansionManager::definitionManager() { return definitionManager_; }
 
 }

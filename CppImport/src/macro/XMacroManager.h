@@ -28,10 +28,9 @@
 
 #include "cppimport_api.h"
 
-#include "ClangHelper.h"
+#include "MetaDefinitionManager.h"
 #include "MacroExpansion.h"
 #include "MacroArgumentInfo.h"
-#include "MetaDefinitionManager.h"
 #include "OOModel/src/allOOModelNodes.h"
 
 namespace CppImport {
@@ -45,23 +44,25 @@ class ClangHelper;
 class CPPIMPORT_API XMacroManager
 {
 	public:
-		XMacroManager(OOModel::Project* root, ClangHelper* clangHelper, DefinitionManager* definitionManager,
-						  ExpansionManager* expansionManager, LexicalHelper* LexicalHelper);
+		XMacroManager(OOModel::Project* root, LexicalHelper* LexicalHelper);
 
 		void createMetaDef(QVector<Model::Node*> nodes, MacroExpansion* expansion, NodeMapping* mapping,
 								 QVector<MacroArgumentInfo>& arguments);
 
 		void handleXMacros();
 
+		OOModel::Project* root();
+
 	private:
 		OOModel::Project* root_{};
-		DefinitionManager* definitionManager_{};
-		ExpansionManager* expansionManager_{};
 		MetaDefinitionManager metaDefinitionManager_;
 
 		QHash<QString, OOModel::MetaDefinition*> xMacroMetaDefinitions_;
 		QHash<QString, Model::List*> specializations_;
 		QSet<OOModel::MetaCallExpression*> specialized_;
+
+		DefinitionManager* definitionManager();
+		ExpansionManager* expansionManager();
 
 		OOModel::MetaDefinition* createXMacroMetaDef(MacroExpansion* hExpansion, MacroExpansion* cppExpansion);
 		void mergeClasses(OOModel::Class* merged, OOModel::Class* mergee);
@@ -78,5 +79,9 @@ class CPPIMPORT_API XMacroManager
 		void applyPartialBeginSpecializationTransformation(MacroExpansion* hExpansion, MacroExpansion* cppExpansion);
 		OOModel::Declaration* metaDefinitionParent(const clang::MacroDirective* md);
 };
+
+inline OOModel::Project*XMacroManager::root() { return root_; }
+inline DefinitionManager* XMacroManager::definitionManager() { return metaDefinitionManager_.definitionManager(); }
+inline ExpansionManager* XMacroManager::expansionManager() { return metaDefinitionManager_.expansionManager(); }
 
 }

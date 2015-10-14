@@ -66,8 +66,6 @@ class CPPIMPORT_API MacroImportHelper
 		void mapAst(clang::Decl* clangAstNode, Model::Node* envisionAstNode);
 
 	private:
-		OOModel::Project* root_{};
-
 		ClangHelper clang_;
 		AstMapping astMapping_;
 		DefinitionManager definitionManager_;

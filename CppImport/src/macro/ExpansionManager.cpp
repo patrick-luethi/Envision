@@ -26,15 +26,12 @@
 
 #include "ExpansionManager.h"
 
-#include "ClangHelper.h"
-#include "AstMapping.h"
-#include "DefinitionManager.h"
 #include "StaticStuff.h"
 
 namespace CppImport {
 
-ExpansionManager::ExpansionManager(ClangHelper* clang, AstMapping* astMapping, DefinitionManager* definitionManager)
-	: clang_(clang), astMapping_(astMapping), definitionManager_(definitionManager) {}
+ExpansionManager::ExpansionManager(AstMapping* astMapping, DefinitionManager* definitionManager)
+	: astMapping_(astMapping), definitionManager_(definitionManager) {}
 
 void ExpansionManager::addMacroExpansion(clang::SourceRange sourceRange, const clang::MacroDirective* macroDirective,
 													  const clang::MacroArgs* macroArguments)
@@ -83,12 +80,12 @@ void ExpansionManager::addMacroExpansion(clang::SourceRange sourceRange, const c
 	{
 		// extract everything in parentheses of the expansion signature using a regular expression
 		QRegularExpression regex ("\\((.*)\\)", QRegularExpression::DotMatchesEverythingOption);
-		auto argumentsString = clang_->spelling(sourceRange);
+		auto argumentsString = clang()->spelling(sourceRange);
 		auto match = regex.match(argumentsString);
 		auto arguments = match.captured(1).split(",");
 
 		// by default initialize meta call arguments to be reference expressions with the raw spelling at this expansion
-		for (auto i = 0; i < clang_->argumentNames(entry->definition).size(); i++)
+		for (auto i = 0; i < clang()->argumentNames(entry->definition).size(); i++)
 		{
 			auto actualArg = macroArguments->getUnexpArgument((unsigned int)i);
 			entry->metaCall->arguments()->append(new OOModel::ReferenceExpression(arguments[i]));
@@ -126,7 +123,7 @@ MacroExpansion* ExpansionManager::expansion(clang::SourceLocation loc)
 		do
 		{
 			last = expansion;
-			loc = clang_->sourceManager()->getImmediateExpansionRange(loc).first;
+			loc = clang()->sourceManager()->getImmediateExpansionRange(loc).first;
 			expansion = immediateExpansion(loc);
 		} while (expansion && expansion->isChildOf(last));
 	}
@@ -136,7 +133,7 @@ MacroExpansion* ExpansionManager::expansion(clang::SourceLocation loc)
 
 MacroExpansion* ExpansionManager::immediateExpansion(clang::SourceLocation loc)
 {
-	auto expansion = clang_->immediateMacroLocation(loc);
+	auto expansion = clang()->immediateMacroLocation(loc);
 	for (auto i = 0; i < expansions_.size(); i++)
 		if (expansions_[i]->range.getBegin() == expansion) return expansions_[i];
 
@@ -145,7 +142,7 @@ MacroExpansion* ExpansionManager::immediateExpansion(clang::SourceLocation loc)
 	 * this can happen in case of token concatenation or stringification where the first expansion location would point
 	 * to the location of the concatenated token or stringification result.
 	 */
-	expansion = clang_->immediateMacroLocation(expansion);
+	expansion = clang()->immediateMacroLocation(expansion);
 	for (auto i = 0; i < expansions_.size(); i++)
 		if (expansions_[i]->range.getBegin() == expansion) return expansions_[i];
 
@@ -183,7 +180,7 @@ QVector<Model::Node*> ExpansionManager::tLExpansionTLNodes(MacroExpansion* expan
 	for (auto node : astMapping_->nodes())
 		for (auto range : astMapping_->get(node))
 			// for all mapped nodes check whether any of their ranges expand to the top level macro range
-			if (clang_->sourceManager()->getExpansionLoc(range.getBegin()) == expansion->range.getBegin())
+			if (clang()->sourceManager()->getExpansionLoc(range.getBegin()) == expansion->range.getBegin())
 			{
 				allTLExpansionNodes.append(node);
 				break;

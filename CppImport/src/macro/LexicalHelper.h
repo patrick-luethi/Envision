@@ -28,18 +28,16 @@
 
 #include "cppimport_api.h"
 
-#include "ClangHelper.h"
+#include "ExpansionManager.h"
 #include "NodeMapping.h"
 #include "OOModel/src/allOOModelNodes.h"
 
 namespace CppImport {
 
-class ExpansionManager;
-
 class CPPIMPORT_API LexicalHelper
 {
 	public:
-		LexicalHelper(ClangHelper* clang, ExpansionManager* expansionManager);
+		LexicalHelper(ExpansionManager* expansionManager);
 
 		void applyLexicalTransformations(Model::Node* node, NodeMapping* mapping, QVector<QString> formalArgs);
 
@@ -51,8 +49,11 @@ class CPPIMPORT_API LexicalHelper
 
 		bool contains(clang::SourceRange r, clang::SourceRange o);
 
+		ClangHelper* clang();
+		DefinitionManager* definitionManager();
+		ExpansionManager* expansionManager();
+
 	private:
-		ClangHelper* clang_{};
 		ExpansionManager* expansionManager_{};
 		QHash<Model::Node*, QString> transformations_;
 
@@ -67,5 +68,9 @@ class CPPIMPORT_API LexicalHelper
 
 		clang::SourceRange unexpandedSourceRange(clang::SourceRange range);
 };
+
+inline ClangHelper* LexicalHelper::clang() { return expansionManager_->clang(); }
+inline DefinitionManager* LexicalHelper::definitionManager() { return expansionManager_->definitionManager(); }
+inline ExpansionManager* LexicalHelper::expansionManager() { return expansionManager_; }
 
 }

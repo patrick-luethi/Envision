@@ -28,7 +28,7 @@
 
 #include "cppimport_api.h"
 
-#include "ClangHelper.h"
+#include "LexicalHelper.h"
 #include "NodeMapping.h"
 #include "OOModel/src/allOOModelNodes.h"
 
@@ -45,8 +45,7 @@ class XMacroManager;
 class CPPIMPORT_API MetaDefinitionManager
 {
 	public:
-		MetaDefinitionManager(ClangHelper* clang, DefinitionManager* definitionManager,
-									 ExpansionManager* expansionManager, LexicalHelper* lexicalHelper);
+		MetaDefinitionManager(LexicalHelper* lexicalHelper);
 
 		OOModel::MetaDefinition* createMetaDef(const clang::MacroDirective* md);
 
@@ -56,13 +55,15 @@ class CPPIMPORT_API MetaDefinitionManager
 
 		OOModel::MetaDefinition* metaDefinition(const clang::MacroDirective* md);
 
+		DefinitionManager* definitionManager();
+		ExpansionManager* expansionManager();
+
 	private:
-		ClangHelper* clang_{};
-		DefinitionManager* definitionManager_{};
-		ExpansionManager* expansionManager_{};
 		LexicalHelper* lexicalHelper_{};
 
 		QHash<QString, OOModel::MetaDefinition*> metaDefinitions_;
+
+		ClangHelper* clang();
 
 		/**
 		 * insert all non-xMacro child meta calls into metaDef.
@@ -86,5 +87,9 @@ class CPPIMPORT_API MetaDefinitionManager
 		 */
 		void insertArgumentSplices(NodeMapping* mapping, NodeMapping* childMapping, QVector<MacroArgumentInfo>& arguments);
 };
+
+inline ClangHelper* MetaDefinitionManager::clang() { return lexicalHelper_->clang(); }
+inline DefinitionManager* MetaDefinitionManager::definitionManager() { return lexicalHelper_->definitionManager(); }
+inline ExpansionManager* MetaDefinitionManager::expansionManager() { return lexicalHelper_->expansionManager(); }
 
 }
