@@ -77,29 +77,58 @@ void DependencyAnalyzer::handleStuff(Model::Node* node)
 	QHash<Model::Node*, QString> nodeToFileMap;
 	associateNodesWithFiles(root, "", nodeToFileMap);
 
+	QList<QString> softDependencies, hardDependencies;
+	dependencies(node, nodeToFileMap, true, softDependencies, hardDependencies);
+
+	qDebug() << "soft:";
+	for (auto e : softDependencies) qDebug() << e;
+
+	qDebug() << "hard:";
+	for (auto e : hardDependencies) qDebug() << e;
+}
+
+void DependencyAnalyzer::dependencies(Model::Node* node, QHash<Model::Node*, QString>& nodeToFileMap, bool headerFile,
+												  QList<QString>& softDependencies, QList<QString>& hardDependencies)
+{
 	auto thisFile = file(node, nodeToFileMap);
+	qDebug() << "analyzing dependency for" << node->typeName() << "file:" << thisFile;
 
 	QVector<ReferenceExpression*> refs;
-	getRefs(node, &refs);
-	qDebug() << "inside depanalyzer" << node->typeName() << "file:" << thisFile;
+	getRefs(node, refs);
 
-	QSet<QString> nameSet;
 	for (ReferenceExpression* r : refs)
 	{
+		auto inDeclaration = true;
 		if (auto ooMethod = r->firstAncestorOfType<Method>())
 			if (ooMethod->items()->isAncestorOf(r))
-				continue;
+				inDeclaration = false;
+
+		if (headerFile && !inDeclaration) continue;
 
 		if (auto t = r->target())
 		{
-			nameSet.insert((softDependency(r, nodeToFileMap) ? "soft " : "") + file(t, nodeToFileMap));
+			auto f = file(t, nodeToFileMap);
+
+			if (softDependency(r, nodeToFileMap))
+			{
+				if (!softDependencies.contains(f) && !hardDependencies.contains(f))
+					softDependencies.append(f);
+			}
+			else
+			{
+				if (softDependencies.contains(f))
+					softDependencies.removeOne(f);
+
+				if (!hardDependencies.contains(f))
+					hardDependencies.append(f);
+			}
 		}
 	}
 
-	nameSet.remove("NOT_ASSOCIATED");
-	nameSet.remove(thisFile);
-	for (auto e : nameSet)
-		qDebug() << e;
+	softDependencies.removeOne("NOT_ASSOCIATED");
+	softDependencies.removeOne(thisFile);
+	hardDependencies.removeOne("NOT_ASSOCIATED");
+	hardDependencies.removeOne(thisFile);
 }
 
 bool DependencyAnalyzer::softDependency(OOModel::ReferenceExpression* reference,
@@ -126,10 +155,10 @@ bool DependencyAnalyzer::softDependency(OOModel::ReferenceExpression* reference,
 	return true;
 }
 
-void DependencyAnalyzer::getRefs(Model::Node* node, QVector<ReferenceExpression*>* result)
+void DependencyAnalyzer::getRefs(Model::Node* node, QVector<ReferenceExpression*>& result)
 {
 	if (auto ref = DCast<OOModel::ReferenceExpression>(node))
-		result->append(ref);
+		result.append(ref);
 
 	for (auto child : node->children())
 		getRefs(child, result);
