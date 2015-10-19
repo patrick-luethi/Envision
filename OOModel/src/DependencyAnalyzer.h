@@ -43,6 +43,14 @@ class DependencyAnalyzer
 	private:
 		static void getRefs(Model::Node* node, QVector<ReferenceExpression*>* result);
 		static Declaration* getDependency(ReferenceExpression* ref);
+
+		static void associateWithFile(Model::Node* node, QString file, QHash<Model::Node*, QString>& nodeToFileMap);
+
+		static void associateNodesWithFiles(Model::Node* current, QString namespaceName,
+														QHash<Model::Node*, QString>& nodeToFileMap);
+		static QString file(Model::Node* node, QHash<Model::Node*, QString>& nodeToFileMap);
+		static bool softDependency(OOModel::ReferenceExpression* reference,
+											QHash<Model::Node*, QString>& nodeToFileMap);
 };
 
 }
