@@ -41,6 +41,14 @@ class DependencyAnalyzer
 		static void handleStuff(Model::Node* node);
 
 	private:
+		struct File
+		{
+				QString name_;
+				QList<Model::Node*>& nodes_;
+				QList<File*>& softDependencies_;
+				QList<File*>& hardDependencies_;
+		};
+
 		static void getRefs(Model::Node* node, QVector<ReferenceExpression*>& result);
 		static Declaration* getDependency(ReferenceExpression* ref);
 
@@ -53,6 +61,7 @@ class DependencyAnalyzer
 											QHash<Model::Node*, QString>& nodeToFileMap);
 		static void dependencies(Model::Node* node, QHash<Model::Node*, QString>& nodeToFileMap, bool headerFile,
 										 QList<QString>& softDependencies, QList<QString>& hardDependencies);
+		static QString allDependencies(QHash<Model::Node*, QString>& nodeToFileMap);
 };
 
 }

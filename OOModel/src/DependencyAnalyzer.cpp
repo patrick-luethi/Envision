@@ -79,8 +79,11 @@ void DependencyAnalyzer::handleStuff(Model::Node* node)
 	QHash<Model::Node*, QString> nodeToFileMap;
 	associateNodesWithFiles(root, "", nodeToFileMap);
 
+	//allDependencies(nodeToFileMap);
+	//return;
+
 	QList<QString> softDependencies, hardDependencies;
-	dependencies(node, nodeToFileMap, false, softDependencies, hardDependencies);
+	dependencies(node, nodeToFileMap, true, softDependencies, hardDependencies);
 
 	qDebug() << "soft:";
 	for (auto e : softDependencies) qDebug() << e;
@@ -89,11 +92,46 @@ void DependencyAnalyzer::handleStuff(Model::Node* node)
 	for (auto e : hardDependencies) qDebug() << e;
 }
 
+QList<DependencyAnalyzer::File*> DependencyAnalyzer::allDependencies(QHash<Model::Node*, QString>& nodeToFileMap)
+{
+	QHash<QString, File*> files;
+	for (auto it = nodeToFileMap.begin(); it != nodeToFileMap.end(); it++)
+	{
+		File* file = nullptr;
+
+		auto fIt = files.find(it.value() + ".h");
+		if (fIt != files.end())
+			file = *fIt;
+		else
+		{
+			file = new File(it.value() + ".h");
+			files.insert(it.value(), file);
+		}
+		Q_ASSERT(file);
+
+		QList<QString> softDependencies, hardDependencies;
+		dependencies(it.key(), nodeToFileMap, true, softDependencies, hardDependencies);
+
+		qDebug() << it.value() << ".h";
+		qDebug() << "soft" << softDependencies;
+		qDebug() << "hard" << hardDependencies;
+
+		softDependencies.clear(); hardDependencies.clear();
+		dependencies(it.key(), nodeToFileMap, false, softDependencies, hardDependencies);
+		qDebug() << it.value() << ".cpp";
+		qDebug() << "soft" << softDependencies;
+		qDebug() << "hard" << hardDependencies << "\n";
+	}
+
+	return result.join("");
+}
+
 void DependencyAnalyzer::dependencies(Model::Node* node, QHash<Model::Node*, QString>& nodeToFileMap, bool headerFile,
 												  QList<QString>& softDependencies, QList<QString>& hardDependencies)
 {
 	auto thisFile = file(node, nodeToFileMap);
-	qDebug() << "analyzing dependency for" << node->typeName() << "file:" << thisFile;
+	//qDebug() << "analyzing dependency for" << (headerFile ? "header file" : "source file")
+	//			<< node->typeName() << "file:" << thisFile;
 
 	QVector<ReferenceExpression*> refs;
 	getRefs(node, refs);
@@ -141,12 +179,12 @@ void DependencyAnalyzer::dependencies(Model::Node* node, QHash<Model::Node*, QSt
 }
 
 bool DependencyAnalyzer::softDependency(OOModel::ReferenceExpression* reference,
-													 QHash<Model::Node*, QString>& nodeToFileMap)
+													 QHash<Model::Node*, QString>&)
 {
 	auto p = reference->parent();
 	Q_ASSERT(p);
 
-	if (reference->name() == "libraryRoot")
+	/*if (reference->name() == "libraryRoot")
 	{
 		qDebug() << "soft dependency?" << reference->name();
 		qDebug() << reference->target() << (reference->target() ? reference->target()->typeName() : "");
@@ -154,7 +192,7 @@ bool DependencyAnalyzer::softDependency(OOModel::ReferenceExpression* reference,
 		qDebug() << reference->firstAncestorOfType<MethodCallExpression>();
 		qDebug() << DCast<PointerTypeExpression>(p) << DCast<ReferenceTypeExpression>(p);
 		qDebug() << p->typeName() << p->parent()->typeName();
-	}
+	}*/
 
 	if (reference->firstAncestorOfType<MethodCallExpression>()) return false;
 
