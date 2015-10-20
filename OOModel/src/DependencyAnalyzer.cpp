@@ -32,6 +32,8 @@ namespace OOModel {
 
 void DependencyAnalyzer::associateWithFile(Model::Node* node, QString file, QHash<Model::Node*, QString>& nodeToFileMap)
 {
+	if (file == "Model/LoadedNode") file = "Model/PersistentStore";
+
 	nodeToFileMap.insert(node, file);
 }
 
@@ -78,7 +80,7 @@ void DependencyAnalyzer::handleStuff(Model::Node* node)
 	associateNodesWithFiles(root, "", nodeToFileMap);
 
 	QList<QString> softDependencies, hardDependencies;
-	dependencies(node, nodeToFileMap, true, softDependencies, hardDependencies);
+	dependencies(node, nodeToFileMap, false, softDependencies, hardDependencies);
 
 	qDebug() << "soft:";
 	for (auto e : softDependencies) qDebug() << e;
@@ -98,12 +100,19 @@ void DependencyAnalyzer::dependencies(Model::Node* node, QHash<Model::Node*, QSt
 
 	for (ReferenceExpression* r : refs)
 	{
+		// header / cpp denstinction
 		auto inDeclaration = true;
 		if (auto ooMethod = r->firstAncestorOfType<Method>())
 			if (ooMethod->items()->isAncestorOf(r))
 				inDeclaration = false;
-
 		if (headerFile && !inDeclaration) continue;
+
+		// friends
+		auto isFriend = false;
+		if (auto ooClass = r->firstAncestorOfType<Class>())
+			if (ooClass->friends()->isAncestorOf(r))
+				isFriend = true;
+		if (isFriend) continue;
 
 		if (auto t = r->target())
 		{
