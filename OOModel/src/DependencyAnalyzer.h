@@ -43,10 +43,28 @@ class DependencyAnalyzer
 	private:
 		struct File
 		{
+				File(QString name) : name_(name) {}
+
 				QString name_;
-				QList<Model::Node*>& nodes_;
-				QList<File*>& softDependencies_;
-				QList<File*>& hardDependencies_;
+				QList<Model::Node*> nodes_;
+				QList<File*> softDependencies_;
+				QList<File*> hardDependencies_;
+
+				QString sd()
+				{
+					QString r = "( ";
+					for (auto f : softDependencies_)
+						r += f->name_ + " ";
+					return r + ")";
+				}
+
+				QString hd()
+				{
+					QString r = "( ";
+					for (auto f : hardDependencies_)
+						r += f->name_ + " ";
+					return r + ")";
+				}
 		};
 
 		static void getRefs(Model::Node* node, QVector<ReferenceExpression*>& result);
@@ -61,7 +79,8 @@ class DependencyAnalyzer
 											QHash<Model::Node*, QString>& nodeToFileMap);
 		static void dependencies(Model::Node* node, QHash<Model::Node*, QString>& nodeToFileMap, bool headerFile,
 										 QList<QString>& softDependencies, QList<QString>& hardDependencies);
-		static QString allDependencies(QHash<Model::Node*, QString>& nodeToFileMap);
+		static QList<File*> allDependencies(QHash<Model::Node*, QString>& nodeToFileMap);
+		static DependencyAnalyzer::File* file(QString name, QHash<QString, File*>& files);
 };
 
 }

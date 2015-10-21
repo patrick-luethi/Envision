@@ -79,7 +79,16 @@ void DependencyAnalyzer::handleStuff(Model::Node* node)
 	QHash<Model::Node*, QString> nodeToFileMap;
 	associateNodesWithFiles(root, "", nodeToFileMap);
 
-	//allDependencies(nodeToFileMap);
+	auto files = allDependencies(nodeToFileMap);
+
+	for (File* f : files)
+		if (f->name_.contains("/Node"))
+		{
+			qDebug() << f->name_;
+			qDebug() << f->nodes_;
+			qDebug() << f->sd();
+			qDebug() << f->hd();
+		}
 	//return;
 
 	QList<QString> softDependencies, hardDependencies;
@@ -92,38 +101,62 @@ void DependencyAnalyzer::handleStuff(Model::Node* node)
 	for (auto e : hardDependencies) qDebug() << e;
 }
 
+DependencyAnalyzer::File* DependencyAnalyzer::file(QString name, QHash<QString, File*>& files)
+{
+	File* file = nullptr;
+
+	auto fIt = files.find(name);
+	if (fIt != files.end())
+		file = *fIt;
+	else
+	{
+		file = new File(name);
+		files.insert(name, file);
+	}
+	Q_ASSERT(file);
+
+	return file;
+}
+
 QList<DependencyAnalyzer::File*> DependencyAnalyzer::allDependencies(QHash<Model::Node*, QString>& nodeToFileMap)
 {
 	QHash<QString, File*> files;
 	for (auto it = nodeToFileMap.begin(); it != nodeToFileMap.end(); it++)
 	{
-		File* file = nullptr;
-
-		auto fIt = files.find(it.value() + ".h");
-		if (fIt != files.end())
-			file = *fIt;
-		else
-		{
-			file = new File(it.value() + ".h");
-			files.insert(it.value(), file);
-		}
-		Q_ASSERT(file);
+		File* f = file(it.value() + ".h", files);
+		if (!f->nodes_.contains(it.key())) f->nodes_.append(it.key());
 
 		QList<QString> softDependencies, hardDependencies;
 		dependencies(it.key(), nodeToFileMap, true, softDependencies, hardDependencies);
 
-		qDebug() << it.value() << ".h";
-		qDebug() << "soft" << softDependencies;
-		qDebug() << "hard" << hardDependencies;
+		for (auto d : softDependencies)
+			f->softDependencies_.append(file(d + ".h", files));
+
+		for (auto d : hardDependencies)
+			f->hardDependencies_.append(file(d + ".h", files));
+
+		//qDebug() << it.value() << ".h";
+		//qDebug() << "soft" << softDependencies;
+		//qDebug() << "hard" << hardDependencies;
+
+		f = file(it.value() + ".cpp", files);
+		if (!f->nodes_.contains(it.key())) f->nodes_.append(it.key());
 
 		softDependencies.clear(); hardDependencies.clear();
 		dependencies(it.key(), nodeToFileMap, false, softDependencies, hardDependencies);
-		qDebug() << it.value() << ".cpp";
-		qDebug() << "soft" << softDependencies;
-		qDebug() << "hard" << hardDependencies << "\n";
+
+		for (auto d : softDependencies)
+			f->softDependencies_.append(file(d + ".h", files));
+
+		for (auto d : hardDependencies)
+			f->hardDependencies_.append(file(d + ".h", files));
+
+		//qDebug() << it.value() << ".cpp";
+		//qDebug() << "soft" << softDependencies;
+		//qDebug() << "hard" << hardDependencies << "\n";
 	}
 
-	return result.join("");
+	return files.values();
 }
 
 void DependencyAnalyzer::dependencies(Model::Node* node, QHash<Model::Node*, QString>& nodeToFileMap, bool headerFile,
