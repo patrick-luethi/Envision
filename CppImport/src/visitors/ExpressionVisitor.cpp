@@ -431,20 +431,19 @@ bool ExpressionVisitor::TraverseCXXConstructExpr(clang::CXXConstructExpr* constr
 	if (!constructExpr)
 		return true;
 
-	if (!constructExpr->getParenOrBraceRange().getBegin().getPtrEncoding())
-	{
-		if (constructExpr->getNumArgs() > 0)
-			return TraverseStmt(*(constructExpr->child_begin()));
-		else
-			return true;
-	}
-
 	// check for lambda
 	if (!constructExpr->getConstructor()->getParent()->isLambda())
 	{
-		if ((!constructExpr->isListInitialization() || !clang_.spelling(constructExpr->getLocation()).startsWith("{"))
-			  && !clang_.spelling(constructExpr->getLocation()).startsWith("="))
+		auto spelling = clang_.spelling(constructExpr->getLocation());
+
+		if (!spelling.startsWith("=") && !spelling.startsWith("{"))
 		{
+			if (!constructExpr->getParenOrBraceRange().getBegin().getPtrEncoding())
+			{
+				ooExprStack_.push(translateExpression(constructExpr->getArg(0)));
+				return true;
+			}
+
 			auto ooMethodCall = clang_.createNode<OOModel::MethodCallExpression>(constructExpr->getSourceRange());
 			if (auto temporaryObjectExpression = llvm::dyn_cast<clang::CXXTemporaryObjectExpr>(constructExpr))
 				ooMethodCall->setCallee(utils_->translateQualifiedType(
@@ -452,26 +451,53 @@ bool ExpressionVisitor::TraverseCXXConstructExpr(clang::CXXConstructExpr* constr
 			else
 				ooMethodCall->setCallee(clang_.createReference(constructExpr->getLocation()));
 
-			if (constructExpr->getParenOrBraceRange().getBegin().getPtrEncoding() &&
-				 clang_.spelling(constructExpr->getParenOrBraceRange().getBegin()) == "{")
+			if (constructExpr->isListInitialization())
+			{
 				ooMethodCall->setMethodCallKind(OOModel::MethodCallExpression::MethodCallKind::ListConstruction);
+
+				for (auto argument : translateArguments(constructExpr->getArgs(), constructExpr->getNumArgs()))
+					ooMethodCall->arguments()->append(argument);
+				/*if (constructExpr->getNumArgs() > 0)
+				{
+					if (!llvm::isa<clang::CXXDefaultArgExpr>(constructExpr->getArg(0)))
+					{
+						TraverseStmt(constructExpr->getArg(0));
+						auto argument = ooExprStack_.pop();
+
+						if (auto arrayInitializer = DCast<OOModel::ArrayInitializer>(argument))
+						{
+							QList<OOModel::Expression*> listEntries;
+							for (auto entry : *arrayInitializer->values())
+								listEntries.append(entry);
+							arrayInitializer->values()->clear();
+							clang_.deleteNode(arrayInitializer);
+							for (auto argument : listEntries)
+								ooMethodCall->arguments()->append(argument);
+						}
+						else
+							ooMethodCall->arguments()->append(argument);
+					}
+				}*/
+			}
 			else
+			{
 				ooMethodCall->setMethodCallKind(OOModel::MethodCallExpression::MethodCallKind::CallConstruction);
 
+				for (auto argument : translateArguments(constructExpr->getArgs(), constructExpr->getNumArgs()))
+					ooMethodCall->arguments()->append(argument);
+			}
 
-			for (auto argument : translateArguments(constructExpr->getArgs(), constructExpr->getNumArgs()))
-				ooMethodCall->arguments()->append(argument);
 			ooExprStack_.push(ooMethodCall);
+			return true;
 		}
 		else
 		{
-			auto arrayInit = clang_.createNode<OOModel::ArrayInitializer>(constructExpr->getSourceRange());
+			auto arrayInitializer = clang_.createNode<OOModel::ArrayInitializer>(constructExpr->getSourceRange());
 			for (auto argument : translateArguments(constructExpr->getArgs(), constructExpr->getNumArgs()))
-				arrayInit->values()->append(argument);
-
-			ooExprStack_.push(arrayInit);
+				arrayInitializer->values()->append(argument);
+			ooExprStack_.push(arrayInitializer);
+			return true;
 		}
-		return true;
 	}
 	// clang implements lambda construct expressions weirdly, the name of the lambda is in the first argument
 	if (constructExpr->getNumArgs() != 1)
